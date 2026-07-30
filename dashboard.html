@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 /* ============================================================
    # 00 TOKENS — sistema de diseño dual (claro = AXIS / oscuro = Weekly Export Program)
@@ -207,6 +208,40 @@ table.std tbody tr:hover{background:var(--surface-soft);}
 .sc-col .sc-val{font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--ink-soft);}
 .sc-col .sc-lbl{font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--ink-faint);}
 .ports-badge{display:block; text-align:center; margin-top:8px; font-size:10px; font-weight:600; padding:5px 8px; border-radius:6px;}
+
+/* ---- PMI: KPI zone, mode badges, rings, tablas pivote ---- */
+.pmi-kpi-zone{display:flex; gap:26px; flex-wrap:wrap; margin-top:4px;}
+.pmi-kpi-col{display:flex; flex-direction:column; gap:8px;}
+.pmi-kpi-h{font-size:10px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em;}
+.pmi-kpi-h-sub{font-weight:500; text-transform:none; letter-spacing:0; color:var(--ink-faint);}
+.pmi-mode-row{display:flex; align-items:center; justify-content:space-between; background:var(--surface-soft); border:1px solid var(--line); border-radius:8px; padding:8px 12px; border-left:4px solid var(--mc); margin-bottom:6px;}
+.pmi-mode-lbl{display:flex; align-items:center; gap:7px; font-weight:700; font-size:12.5px;}
+.pmi-mode-val{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; display:flex; align-items:baseline; gap:5px;}
+.pmi-mode-sub{font-weight:500; font-size:10px; color:var(--ink-soft);}
+.pmi-basc-row{display:grid; grid-template-columns:130px 1fr 50px; align-items:center; gap:8px; margin-bottom:6px;}
+.pmi-basc-lbl{font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.pmi-basc-bar-wrap{height:8px; border-radius:4px; background:var(--surface-soft); border:1px solid var(--line); overflow:hidden;}
+.pmi-basc-bar{height:100%; background:linear-gradient(90deg,var(--blue),var(--navy2)); border-radius:4px;}
+.pmi-basc-val{font-family:'JetBrains Mono',monospace; font-size:11px; text-align:right;}
+.pmi-ring-card{display:flex; align-items:center; gap:10px; background:var(--surface-soft); border:1px solid var(--line); border-radius:10px; padding:10px 14px; flex:1;}
+.pmi-ring-t{font-size:10px; color:var(--ink-soft); font-weight:600; text-transform:uppercase; letter-spacing:.03em;}
+.pmi-ring-v{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px;}
+.pmi-ring-u{font-weight:500; font-size:10.5px; color:var(--ink-faint);}
+.mode-badge{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:600; padding:3px 8px; border-radius:6px;}
+.mode-badge.mA{background:rgba(46,143,176,.12); color:var(--blue);}
+.mode-badge.mM{background:rgba(22,59,84,.12); color:var(--navy2);}
+.mode-badge.mT{background:rgba(122,111,208,.12); color:var(--purple);}
+.att-pa{background:var(--surface-soft); color:var(--ink-soft); border:1px solid var(--line); font-size:9.5px; font-weight:600; padding:2px 7px; border-radius:5px;}
+.att-sn{background:var(--ok-bg); color:var(--ok); font-size:9.5px; font-weight:600; padding:2px 7px; border-radius:5px;}
+table.pivot{width:100%; border-collapse:collapse; font-size:11px;}
+table.pivot th{text-align:left; padding:7px 9px; font-size:9.5px; text-transform:uppercase; color:var(--ink-soft); border-bottom:2px solid var(--line); font-weight:600; white-space:nowrap; background:var(--surface); position:sticky; top:0;}
+table.pivot td{padding:6px 9px; border-bottom:1px solid var(--line); white-space:nowrap;}
+table.pivot .tv{font-family:'JetBrains Mono',monospace; text-align:center; color:var(--ink);}
+table.pivot .tz{font-family:'JetBrains Mono',monospace; text-align:center; color:var(--ink-faint);}
+table.pivot .tot-v{font-family:'JetBrains Mono',monospace; text-align:right; font-weight:700;}
+table.pivot tr.date-total td, table.pivot tr.pk-total td{background:var(--surface-soft); font-weight:600;}
+table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:700;}
+.pivot-scroll{max-height:520px; overflow:auto; border-radius:8px; border:1px solid var(--line);}
 
 @media(max-width:900px){
   .shell{grid-template-columns:64px 1fr;}
@@ -1209,31 +1244,334 @@ function renderWEP(){
   </div>`}`;
 }
 
+/* ============================================================
+   # 09d PMI — 4 secciones (KPIs, SENASA Program, Dispatch Control
+   con descarga a Excel, T.R. Program), portadas de bPMI/renderPMIAll
+   /renderPMIKPIs/renderSenasa/renderEmbarques/renderTR en AXIS 1.0.
+   Datasets reales: EMBARQUES, SENASA, TR_PROGRAM.
+   ============================================================ */
+function pmiChipGroup(cls, opts, labelFn){
+  return opts.length ? opts.map(o=>`<label class="fc-chip mono"><input type="checkbox" class="${cls}" value="${String(o).replace(/"/g,'&quot;')}" checked onchange="refreshPMIAll()">${labelFn?labelFn(o):o}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>';
+}
+function pmiSetAll(cls, state){ document.querySelectorAll('.'+cls).forEach(cb=>cb.checked=state); refreshPMIAll(); }
+function pmiChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked')].map(cb=>cb.value); }
+function pmiRing(pctVal, color){
+  const r=22, c=2*Math.PI*r, off=c-(Math.min(pctVal,100)/100)*c;
+  return `<svg width="52" height="52" viewBox="0 0 52 52" style="flex-shrink:0;"><circle cx="26" cy="26" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="26" cy="26" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 26 26)"/></svg>`;
+}
+function pmiFmtDate(d){ if(!d) return ''; const dt=new Date(d); return isNaN(dt)?d:dt.toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'short',year:'2-digit'}).toUpperCase(); }
+
 function renderPMI(){
-  const embarques = EMBARQUES || [];
-  const modes = ['Marítimo','Aéreo','Terrestre'];
-  const modeAgg = modes.map(m=>({mode:m, val: sum(embarques.filter(e=>e.mode===m).map(e=>e.pallets||0))})).filter(m=>m.val>0);
-  const maxMode = Math.max(1, ...modeAgg.map(m=>m.val));
-  const bascOk = embarques.filter(e=>e.basc==='OK').length;
-  const damOk = embarques.filter(e=>e.dam==='OK').length;
+  const em = EMBARQUES || [];
+  const packings = [...new Set(em.map(r=>r.packing).filter(Boolean))].sort();
+  const weeks = [...new Set(em.map(r=>r.pack_plan))].sort((a,b)=>a-b);
+  const dispatchDates = [...new Set(em.map(r=>r.dispatch_date).filter(Boolean))].sort();
+  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
+  const modes = [...new Set(em.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
+
+  const filterBlock = (label, cls, opts, labelFn) => `
+    <div>
+      <div class="fc-label" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <span>${label}</span>
+        <span style="display:flex;gap:8px;">
+          <a class="fc-mini-link" onclick="pmiSetAll('${cls}',true)">Todos</a>
+          <a class="fc-mini-link" onclick="pmiSetAll('${cls}',false)">Ninguno</a>
+        </span>
+      </div>
+      <div class="fc-chip-group" style="max-height:96px;overflow-y:auto;">${pmiChipGroup(cls, opts, labelFn)}</div>
+    </div>`;
+
   return `
-  <div class="g2">
-    <div class="card">
-      <div class="ct">Pallets por modo</div>
-      <div class="bars">${modeAgg.length ? modeAgg.map(m=>`<div class="br"><span class="bl">${m.mode}</span><div class="bt"><div class="bf" style="width:${calcPct(m.val,maxMode)}%"></div></div><span class="bv">${m.val}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div>
+  <div class="card" style="margin-bottom:14px;">
+    <div class="ct">Filtro global <span class="sub" id="pmi-stat"></span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:18px;margin-bottom:14px;">
+      <div>
+        <div class="fc-label">Packing</div>
+        <select id="pmi-pk-select" onchange="refreshPMIAll()" style="width:100%;padding:8px;border-radius:7px;border:1px solid var(--line);background:var(--surface-soft);color:var(--ink);font-family:inherit;font-size:12px;">
+          <option value="ALL">Todos</option>${packings.map(pk=>`<option value="${pk}">${pk}</option>`).join('')}
+        </select>
+      </div>
+      ${filterBlock('Pack Plan', 'pmi-cb-pp', weeks, w=>'S'+w)}
+      ${filterBlock('Dispatch Date', 'pmi-cb-dd', dispatchDates)}
+      ${filterBlock('Modo', 'pmi-cb-mo', modes, m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
     </div>
-    <div style="display:flex;flex-direction:column;gap:14px;">
-      <div class="kc" style="--acc:var(--teal)"><div class="kl">Cobertura BASC</div><div class="kv">${embarques.length?calcPct(bascOk,embarques.length):0}<span class="u">%</span></div></div>
-      <div class="kc" style="--acc:var(--purple)"><div class="kl">Cobertura DAM</div><div class="kv">${embarques.length?calcPct(damOk,embarques.length):0}<span class="u">%</span></div></div>
-    </div>
+    <div id="pmi-kpis"></div>
   </div>
+
+  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">🌿 SENASA PROGRAM</div>
   <div class="card">
-    <div class="ct">Embarques <span class="sub">vista simplificada — próxima iteración añade filtros SENASA/T.R. completos</span></div>
-    <div class="tbl-wrap"><table class="std"><thead><tr><th>Shipper</th><th>Destino</th><th>Packing</th><th>Modo</th><th style="text-align:right">Pallets</th><th>BASC</th><th>DAM</th></tr></thead>
-    <tbody>${embarques.length ? embarques.map(e=>`<tr><td>${e.shipper||'—'}</td><td>${e.dest||'—'}</td><td>${e.packing||'—'}</td><td>${e.mode||'—'}</td><td class="mono" style="text-align:right">${e.pallets||0}</td><td><span class="pill ${e.basc==='OK'?'ok':'warn'}">${e.basc||'—'}</span></td><td><span class="pill ${e.dam==='OK'?'ok':'warn'}">${e.dam||'—'}</span></td></tr>`).join('') : '<tr><td colspan="7" class="empty-state">Sin datos de EMBARQUES</td></tr>'}</tbody>
-    </table></div>
+    <div class="ct">Inspection Time por Inspector <span class="sub" id="sn-stat"></span></div>
+    <div style="margin-bottom:12px;">
+      <div class="fc-label">Assigned Inspector</div>
+      <select id="sn-in-select" onchange="refreshPMIAll()" style="padding:7px 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface-soft);color:var(--ink);font-family:inherit;font-size:12px;min-width:200px;"><option value="ALL">Todos</option></select>
+    </div>
+    <div class="pivot-scroll"><table class="pivot"><thead id="sn-head"></thead><tbody id="sn-body"></tbody></table></div>
+  </div>
+
+  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">🚦 DISPATCH CONTROL</div>
+  <div class="card">
+    <div class="ct" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Rondas de despacho <span class="sub" id="emb-stat"></span></span>
+      <button type="button" class="theme-toggle" onclick="downloadEmbarquesExcel()">⬇ Descargar Excel</button>
+    </div>
+    <div class="pivot-scroll"><table class="pivot"><thead><tr>
+      <th>Dispatch Ro.</th><th>Loading Date</th><th>Loading Time</th><th>Positioning Time</th><th>Packing Stage Estim.</th>
+      <th>Journey Status BASC</th><th>Packing Stage Load Status</th><th>Instruction</th><th>PO</th><th>Line</th>
+      <th>Logistics Operator</th><th>Transport Operator</th><th>Booking|AWB|CRT</th><th>Container</th><th>POD</th><th>Packing</th><th>Gate-In Storage</th>
+    </tr></thead><tbody id="emb-body"></tbody></table></div>
+  </div>
+
+  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">T.R. PROGRAM</div>
+  <div class="card">
+    <div class="ct">Programa de Técnicos Reefer <span class="sub" id="tr-stat"></span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:12px;">
+      <div>
+        <div class="fc-label">Line</div>
+        <select id="tr-ln-select" onchange="refreshPMIAll()" style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface-soft);color:var(--ink);font-family:inherit;font-size:12px;"><option value="ALL">Todos</option></select>
+      </div>
+      <div>
+        <div class="fc-label" style="display:flex;justify-content:space-between;"><span>T.R. Time</span><span style="display:flex;gap:8px;"><a class="fc-mini-link" onclick="pmiSetAll('tr-cb-tt',true)">Todos</a><a class="fc-mini-link" onclick="pmiSetAll('tr-cb-tt',false)">Ninguno</a></span></div>
+        <div class="fc-chip-group" id="tr-tt-chips" style="max-height:70px;overflow-y:auto;"></div>
+      </div>
+    </div>
+    <div class="pivot-scroll"><table class="pivot"><thead><tr>
+      <th>Packing</th><th>Logistics Operator</th><th>SENASA Attention</th><th>Line</th><th>Dispatch Date</th>
+      <th>Inspection Time</th><th>T.R. Time</th><th>Assigned T.R.</th><th>Booking|AWB</th><th>Assigned Inspector</th>
+    </tr></thead><tbody id="tr-body"></tbody></table></div>
   </div>`;
 }
+
+let LAST_EMBARQUES_FILTERED = [];
+
+function pmiGlobalFiltered(dataset){
+  const selPK = document.getElementById('pmi-pk-select') ? document.getElementById('pmi-pk-select').value : 'ALL';
+  const selPP = pmiChecked('pmi-cb-pp').map(Number);
+  const selDD = pmiChecked('pmi-cb-dd');
+  const selMO = pmiChecked('pmi-cb-mo');
+  let ft = dataset || [];
+  if (selPK !== 'ALL') ft = ft.filter(r=>r.packing===selPK);
+  if (selPP.length) ft = ft.filter(r=>selPP.includes(r.pack_plan));
+  if (selDD.length) ft = ft.filter(r=>selDD.includes(r.dispatch_date||''));
+  if (selMO.length) ft = ft.filter(r=>selMO.includes(r.mode));
+  return ft;
+}
+
+function refreshPMIAll(){
+  if (!document.getElementById('pmi-kpis')) return;
+  const selPK = document.getElementById('pmi-pk-select').value;
+  const selPP = pmiChecked('pmi-cb-pp');
+  const selDD = pmiChecked('pmi-cb-dd');
+  const selMO = pmiChecked('pmi-cb-mo');
+  document.getElementById('pmi-stat').textContent = `Packing: ${selPK==='ALL'?'Todos':selPK} · Pack Plan: ${selPP.length} sel. · Dispatch: ${selDD.length} sel. · Modo: ${selMO.length} sel.`;
+  renderPMIKPIs();
+  renderSenasa();
+  renderEmbarques();
+  renderTR();
+}
+
+function renderPMIKPIs(){
+  const ft = pmiGlobalFiltered(EMBARQUES);
+  const modeMeta = {'Aéreo':{ic:'✈',c:'var(--blue)'}, 'Marítimo':{ic:'⚓',c:'var(--navy2)'}, 'Terrestre':{ic:'🚚',c:'var(--purple)'}};
+  const modes = Object.keys(modeMeta);
+  const byMode = modes.map(m=>{ const sub = ft.filter(r=>r.mode===m); return { mode:m, fcl: sum(sub.map(r=>r.fcl||0)), po: new Set(sub.filter(r=>r.po).map(r=>r.po)).size }; });
+  const bascGroups = {};
+  ft.forEach(r=>{ const b = r.basc || '(sin estado)'; bascGroups[b] = (bascGroups[b]||0) + (r.fcl||0); });
+  const bascRows = Object.entries(bascGroups).sort((a,b)=>b[1]-a[1]);
+  const bascMax = Math.max(...bascRows.map(r=>r[1]), 1);
+  const totalFcl = sum(ft.map(r=>r.fcl||0));
+  const citaFcl = sum(ft.filter(r=>r.retiro_cita).map(r=>r.fcl||0));
+  const loadFcl = sum(ft.filter(r=>r.load_status==='CARGADO').map(r=>r.fcl||0));
+  const citaPct = totalFcl>0 ? pct(citaFcl,totalFcl) : 0;
+  const loadPct = totalFcl>0 ? pct(loadFcl,totalFcl) : 0;
+
+  const modeRows = byMode.map(m=>`<div class="pmi-mode-row" style="--mc:${modeMeta[m.mode].c};"><div class="pmi-mode-lbl">${modeMeta[m.mode].ic} ${m.mode}</div><div class="pmi-mode-val">${m.po}<span class="pmi-mode-sub">(${fmt1(m.fcl)} FCL)</span></div></div>`).join('');
+  const bascRowsHtml = bascRows.map(([b,v])=>`<div class="pmi-basc-row"><div class="pmi-basc-lbl">${b}</div><div class="pmi-basc-bar-wrap"><div class="pmi-basc-bar" style="width:${(v/bascMax*100).toFixed(1)}%;"></div></div><div class="pmi-basc-val">${fmt1(v)}</div></div>`).join('');
+
+  document.getElementById('pmi-kpis').innerHTML = `
+    <div class="pmi-kpi-zone">
+      <div class="pmi-kpi-col" style="min-width:230px;">
+        <div class="pmi-kpi-h">Modo · PO diferenciados <span class="pmi-kpi-h-sub">(Σ FCL)</span></div>
+        <div>${modeRows || '<div class="empty-state">Sin datos</div>'}</div>
+      </div>
+      <div class="pmi-kpi-col" style="flex:1;min-width:260px;">
+        <div class="pmi-kpi-h">Σ FCL por Journey Status BASC</div>
+        <div>${bascRowsHtml || '<div class="empty-state">Sin datos</div>'}</div>
+      </div>
+      <div class="pmi-kpi-col" style="min-width:280px;">
+        <div class="pmi-kpi-h">Cobertura</div>
+        <div style="display:flex;gap:14px;">
+          <div class="pmi-ring-card">${pmiRing(citaPct,'var(--ok)')}<div><div class="pmi-ring-t">Cita de retiro</div><div class="pmi-ring-v">${fmt1(citaFcl)}<span class="pmi-ring-u"> / ${fmt1(totalFcl)}</span></div><div style="color:var(--ok);font-family:'JetBrains Mono',monospace;font-size:11px;">${totalFcl>0?citaPct+'%':'—'}</div></div></div>
+          <div class="pmi-ring-card">${pmiRing(loadPct,'var(--amber)')}<div><div class="pmi-ring-t">Cargados</div><div class="pmi-ring-v">${fmt1(loadFcl)}<span class="pmi-ring-u"> / ${fmt1(totalFcl)}</span></div><div style="color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:11px;">${totalFcl>0?loadPct+'%':'—'}</div></div></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderSenasa(){
+  const all = SENASA || [];
+  const inSelect = document.getElementById('sn-in-select');
+  if (inSelect.dataset.built !== '1'){
+    const inspectors = [...new Set(all.map(r=>r.inspector).filter(Boolean))].sort();
+    inSelect.innerHTML = '<option value="ALL">Todos</option>' + inspectors.map(i=>`<option value="${i}">${i}</option>`).join('');
+    inSelect.dataset.built = '1';
+  }
+  let ft = pmiGlobalFiltered(all);
+  const selIN = inSelect.value;
+  if (selIN !== 'ALL') ft = ft.filter(r=>r.inspector===selIN);
+
+  const allTimes = [...new Set(ft.map(r=>r.insp_time).filter(Boolean))].sort();
+  const hasST = ft.some(r=>!r.insp_time);
+  const cols = [...allTimes, ...(hasST?['']:[])];
+
+  document.getElementById('sn-head').innerHTML = `<tr><th>Packing</th><th>Loading Date</th><th>Mode</th><th>POD</th><th>SENASA Att.</th>${cols.map(t=>`<th style="text-align:center">${t||'Sin hora'}</th>`).join('')}<th style="text-align:right">Total</th></tr>`;
+
+  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
+  const packings = [...new Set(ft.map(r=>r.packing).filter(Boolean))].sort();
+  const gt = {}; cols.forEach(t=>gt[t]=0); gt['__t']=0;
+  let bodyRows = [];
+
+  packings.forEach(pk=>{
+    const pkRows = ft.filter(r=>r.packing===pk);
+    const dates = [...new Set(pkRows.map(r=>r.insp_date||''))].sort();
+    let pkRowSpan = 0;
+    const pkFirstIdx = bodyRows.length;
+
+    dates.forEach(dk=>{
+      const dateRows = pkRows.filter(r=>(r.insp_date||'')===dk);
+      const dateT = {}; cols.forEach(t=>dateT[t]=0); dateT['__t']=0;
+      const modes = [...new Set(dateRows.map(r=>r.mode))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
+      let dateRowSpan = 0;
+      const dateFirstIdx = bodyRows.length;
+
+      modes.forEach(mode=>{
+        const modeRows_ = dateRows.filter(r=>r.mode===mode);
+        let modeRowSpan = 0;
+        const modeFirstIdx = bodyRows.length;
+        const pods = [...new Set(modeRows_.map(r=>r.pod))].sort();
+        pods.forEach(pod=>{
+          const podRows = modeRows_.filter(r=>r.pod===pod);
+          const atts = [...new Set(podRows.map(r=>r.senasa_att))].sort();
+          const podFirstIdx = bodyRows.length;
+          atts.forEach(att=>{
+            const attRows = podRows.filter(r=>r.senasa_att===att);
+            const cellsData = {};
+            cols.forEach(t=>{ cellsData[t] = new Set(attRows.filter(r=>(r.insp_time||'')===t).map(r=>r.po||Math.random())).size; });
+            const rt = sum(Object.values(cellsData));
+            cols.forEach(t=>{ gt[t]+=cellsData[t]; dateT[t]+=cellsData[t]; });
+            gt['__t']+=rt; dateT['__t']+=rt;
+            bodyRows.push({ pkCell:null, dateCell:null, modeCell:null, podCell:null, att, cellsData, rt });
+            pkRowSpan++; dateRowSpan++; modeRowSpan++;
+          });
+          bodyRows[podFirstIdx].podCell = { pod, span: atts.length };
+        });
+        bodyRows[modeFirstIdx].modeCell = { mode, span: modeRowSpan };
+      });
+      bodyRows[dateFirstIdx].dateCell = { dk, span: dateRowSpan };
+      bodyRows.push({ isDateTotal:true, dk, dateT });
+    });
+    bodyRows[pkFirstIdx].pkCell = { pk, span: pkRowSpan };
+  });
+
+  const mIcon = m => m==='Aéreo'?'✈':m==='Marítimo'?'⚓':'🚚';
+  const mCls = m => m==='Aéreo'?'mA':m==='Marítimo'?'mM':'mT';
+
+  let html = bodyRows.map(r=>{
+    if (r.isDateTotal){
+      return `<tr class="date-total"><td colspan="4">Total ${r.dk?pmiFmtDate(r.dk):'Sin fecha'}</td>${cols.map(t=>r.dateT[t]>0?`<td class="tv">${r.dateT[t]}</td>`:`<td class="tz">·</td>`).join('')}<td class="tot-v">${r.dateT['__t']}</td></tr>`;
+    }
+    const pkTd = r.pkCell ? `<td rowspan="${r.pkCell.span}" style="background:var(--surface-soft);font-weight:700;border-right:2px solid var(--blue);vertical-align:top;">${r.pkCell.pk}</td>` : '';
+    const dateTd = r.dateCell ? `<td rowspan="${r.dateCell.span}" class="mono" style="vertical-align:top;font-size:10px;">${r.dateCell.dk?pmiFmtDate(r.dateCell.dk):'Sin fecha'}</td>` : '';
+    const modeTd = r.modeCell ? `<td rowspan="${r.modeCell.span}" style="vertical-align:top;"><span class="mode-badge ${mCls(r.modeCell.mode)}">${mIcon(r.modeCell.mode)} ${r.modeCell.mode}</span></td>` : '';
+    const podTd = r.podCell ? `<td rowspan="${r.podCell.span}" style="vertical-align:top;">${r.podCell.pod}</td>` : '';
+    const attBadge = r.att==='PA' ? `<span class="att-pa">PA</span>` : `<span class="att-sn">SENASA</span>`;
+    const cells = cols.map(t=>r.cellsData[t]>0?`<td class="tv">${r.cellsData[t]}</td>`:`<td class="tz">·</td>`).join('');
+    return `<tr>${pkTd}${dateTd}${modeTd}${podTd}<td>${attBadge}</td>${cells}<td class="tot-v">${r.rt}</td></tr>`;
+  }).join('');
+  html += `<tr class="grand-total"><td colspan="5">Total general</td>${cols.map(t=>gt[t]>0?`<td class="tv">${gt[t]}</td>`:`<td class="tz">·</td>`).join('')}<td class="tot-v">${gt['__t']}</td></tr>`;
+
+  document.getElementById('sn-body').innerHTML = html || `<tr><td colspan="${5+cols.length+1}" class="empty-state">Sin registros para este filtro</td></tr>`;
+  document.getElementById('sn-stat').textContent = `${ft.length} filas · ${sum(ft.map(r=>r.fcl||0))?fmt1(sum(ft.map(r=>r.fcl||0))):0} FCL`;
+}
+
+function renderEmbarques(){
+  const ft = pmiGlobalFiltered(EMBARQUES);
+  LAST_EMBARQUES_FILTERED = ft;
+  const rndGroups = {};
+  ft.forEach(r=>{ const rnd = r.round; if(!rndGroups[rnd]) rndGroups[rnd]=[]; rndGroups[rnd].push(r); });
+  const bascCl = b => b==='FINALIZADO' ? 'ok' : (b && (b.includes('PACKING')||b.includes('RUTA'))) ? 'warn' : b ? 'bad' : 'neu';
+
+  let html = '', rows = 0;
+  Object.keys(rndGroups).sort().forEach(rnd=>{
+    const recs = rndGroups[rnd];
+    recs.forEach((r,i)=>{
+      rows++;
+      html += `<tr>${i===0?`<td rowspan="${recs.length}" style="background:var(--surface-soft);font-weight:700;border-right:2px solid var(--blue);vertical-align:middle;text-align:center;">${rnd}</td>`:''}<td class="mono">${r.load_date||'—'}</td><td class="mono">${r.load_time||'—'}</td><td class="mono">${r.postime||'—'}</td><td class="mono">${r.pack_est||'—'}</td><td><span class="pill ${bascCl(r.basc)}" style="font-size:9px;">${r.basc||'—'}</span></td><td>${r.load_status||'—'}</td><td class="mono">${r.instruction||'—'}</td><td class="mono">${r.po||'—'}</td><td>${r.line||'—'}</td><td>${r.log_op||'—'}</td><td>${r.transp_op||'—'}</td><td class="mono">${r.booking||'—'}</td><td class="mono">${r.container||'—'}</td><td>${r.pod||'—'}</td><td>${r.packing||'—'}</td><td>${r.gatein||'—'}</td></tr>`;
+    });
+  });
+  document.getElementById('emb-body').innerHTML = html || `<tr><td colspan="16" class="empty-state">Sin registros para este filtro</td></tr>`;
+  document.getElementById('emb-stat').textContent = `${rows} filas · ${Object.keys(rndGroups).length} ronda(s)`;
+}
+
+function downloadEmbarquesExcel(){
+  if (!LAST_EMBARQUES_FILTERED.length){ alert('No hay registros para exportar con el filtro actual.'); return; }
+  if (typeof XLSX === 'undefined'){ alert('La librería de Excel no cargó todavía. Intenta de nuevo en unos segundos.'); return; }
+  const data = LAST_EMBARQUES_FILTERED.map(r=>({
+    'Dispatch Round': r.round, 'Loading Date': r.load_date, 'Loading Time': r.load_time,
+    'Positioning Time': r.postime, 'Packing Stage Estim.': r.pack_est, 'Journey Status BASC': r.basc,
+    'Packing Stage Load Status': r.load_status, 'Instruction': r.instruction, 'PO': r.po,
+    'Line': r.line, 'Logistics Operator': r.log_op, 'Transport Operator': r.transp_op,
+    'Booking|AWB|CRT': r.booking, 'Container': r.container, 'POD': r.pod, 'Packing': r.packing,
+    'Gate-In Storage': r.gatein, 'Pack Plan': r.pack_plan, 'Dispatch Date': r.dispatch_date, 'Mode': r.mode,
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = Object.keys(data[0]).map(k=>({wch: Math.max(k.length, 14)}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Dispatch Control');
+  const stamp = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `Dispatch_Control_${stamp}.xlsx`);
+}
+
+function renderTR(){
+  const all = TR_PROGRAM || [];
+  const lnSelect = document.getElementById('tr-ln-select');
+  const ttChips = document.getElementById('tr-tt-chips');
+  if (lnSelect.dataset.built !== '1'){
+    const lines = [...new Set(all.map(r=>r.line).filter(Boolean))].sort();
+    lnSelect.innerHTML = '<option value="ALL">Todos</option>' + lines.map(l=>`<option value="${l}">${l}</option>`).join('');
+    const ttRaw = [...new Set(all.map(r=>r.tr_time))];
+    const tts = ttRaw.filter(Boolean).sort();
+    const hasBlank = ttRaw.some(t=>!t);
+    ttChips.innerHTML = pmiChipGroup('tr-cb-tt', tts) + (hasBlank ? `<label class="fc-chip mono"><input type="checkbox" class="tr-cb-tt" value="" checked onchange="refreshPMIAll()">(vacío)</label>` : '');
+    lnSelect.dataset.built = '1';
+  }
+  let ft = pmiGlobalFiltered(all);
+  const selLN = lnSelect.value;
+  if (selLN !== 'ALL') ft = ft.filter(r=>r.line===selLN);
+  const selTT = pmiChecked('tr-cb-tt');
+  if (selTT.length) ft = ft.filter(r=>selTT.includes(r.tr_time||''));
+
+  const pkGroups = {};
+  ft.forEach(r=>{ const pk=r.packing||'(en blanco)'; if(!pkGroups[pk]) pkGroups[pk]={}; const ln=r.line||'(en blanco)'; if(!pkGroups[pk][ln]) pkGroups[pk][ln]=[]; pkGroups[pk][ln].push(r); });
+
+  let html = '', rows = 0;
+  Object.keys(pkGroups).sort().forEach(pk=>{
+    const lnMap = pkGroups[pk];
+    let pkRowCount = 0; Object.values(lnMap).forEach(recs=>pkRowCount+=recs.length);
+    let pkFirst = true;
+    Object.keys(lnMap).sort().forEach(ln=>{
+      const recs = lnMap[ln];
+      recs.forEach((r,i)=>{
+        rows++;
+        html += `<tr>${pkFirst?`<td rowspan="${pkRowCount}" style="background:var(--navy);color:#fff;font-weight:700;text-align:center;vertical-align:middle;">${pk}</td><td rowspan="${pkRowCount}" style="vertical-align:middle;">${r.log_op||'—'}</td><td rowspan="${pkRowCount}" style="vertical-align:middle;">${r.senasa_att||'—'}</td>`:''}${i===0?`<td rowspan="${recs.length}" style="vertical-align:middle;font-weight:600;">${ln}</td>`:''}<td class="mono">${r.dispatch_date||'—'}</td><td class="mono">${r.insp_time||'—'}</td><td class="mono">${r.tr_time||'—'}</td><td>${r.assigned_tr||'—'}</td><td class="mono">${r.booking||'—'}</td><td>${r.inspector||'—'}</td></tr>`;
+        pkFirst = false;
+      });
+    });
+  });
+  document.getElementById('tr-body').innerHTML = html || `<tr><td colspan="10" class="empty-state">Sin registros para este filtro</td></tr>`;
+  document.getElementById('tr-stat').textContent = `${rows} filas`;
+}
+
+window.postRender_pmi = refreshPMIAll;
 
 function renderAir(){
   const rows = AIR || [];

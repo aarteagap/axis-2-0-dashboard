@@ -171,6 +171,18 @@ table.std tbody tr:hover{background:var(--surface-soft);}
 
 .mock-tag{display:inline-flex; align-items:center; gap:5px; font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--amber); background:var(--warn-bg); border:1px solid rgba(232,163,61,.35); padding:3px 8px; border-radius:6px; margin-bottom:14px;}
 
+/* ---- Forecast: filtros + curva SVG con hover ---- */
+.fc-tooltip{position:fixed; z-index:60; background:var(--navy); color:#fff; padding:8px 12px; border-radius:8px; font-size:11px; line-height:1.65; pointer-events:none; opacity:0; transition:opacity .12s ease; box-shadow:0 6px 20px rgba(0,0,0,.28); max-width:200px;}
+.fc-badge{position:absolute; transform:translate(-50%,-100%); background:var(--ok-bg); color:var(--ok); font-family:'JetBrains Mono',monospace; font-size:9.5px; font-weight:700; padding:2px 6px; border-radius:5px; white-space:nowrap; pointer-events:none;}
+.fc-metric-btn{font-size:11px; font-weight:700; padding:6px 13px; border-radius:7px; border:1px solid var(--line); background:var(--surface-soft); color:var(--ink-soft); cursor:pointer;}
+.fc-metric-btn.active{background:var(--blue); color:#fff; border-color:var(--blue);}
+.fc-label{font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); font-weight:600; margin-bottom:7px;}
+.fc-chip-group{display:flex; flex-wrap:wrap; gap:6px; max-width:460px;}
+.fc-chip{display:flex; align-items:center; gap:5px; font-size:11px; padding:4px 9px; border-radius:6px; background:var(--surface-soft); border:1px solid var(--line); cursor:pointer; user-select:none;}
+.fc-chip input{cursor:pointer;}
+.fc-mini-link{font-size:10px; color:var(--blue); cursor:pointer; text-decoration:none;}
+.fc-mini-link:hover{text-decoration:underline;}
+
 @media(max-width:900px){
   .shell{grid-template-columns:64px 1fr;}
   .sb-brand h1,.sb-brand p,.sb-group-label,.sb-label,.sb-metric{display:none;}
@@ -369,7 +381,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['weekly', 'wep', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
@@ -535,46 +547,222 @@ const fmt1 = v => (Math.round(v*10)/10).toLocaleString('es-PE',{minimumFractionD
    detalle de filtros multi-select / tooltips que esta primera pasada
    de producción todavía no replica 1:1 (ver nota al usuario).
    ============================================================ */
+/* ============================================================
+   # 09a FORECAST — versión completa (filtros reales + curva SVG con
+   hover), portada de renderForecast/bFcast en AXIS_1_0_.html.
+   Se mantiene SVG nativo (no Chart.js) para no mezclar motores de
+   gráficos dentro del módulo Export.
+   ============================================================ */
+let fcMetric = 'fcl';
+
+function fcAggregate(rows, weeks){
+  const byWeek = {};
+  weeks.forEach(wk=>{ byWeek[wk] = {wk, label:'S'+wk, fcl_conf:0,pal_conf:0, fcl_proj:0,pal_proj:0, fcl_add:0,pal_add:0, fcl_expo:0,pal_expo:0, fcl_exadd:0,pal_exadd:0, fcl_airadd:0,pal_airadd:0}; });
+  rows.forEach(r=>{
+    const b = byWeek[r.pack_plan]; if(!b) return;
+    const fcl = r.fcl||0, pal = r.pallets||0;
+    const isProj = r.is_pre || r.status==='Confirmado' || r.status==='Cancelado';
+    if(r.status==='Confirmado'){ b.fcl_conf+=fcl; b.pal_conf+=pal; }
+    if(isProj){ b.fcl_proj+=fcl; b.pal_proj+=pal; }
+    if(r.is_add){ b.fcl_add+=fcl; b.pal_add+=pal; }
+    if(r.is_expo){ b.fcl_expo+=fcl; b.pal_expo+=pal; }
+    if(r.is_exadd){ b.fcl_exadd+=fcl; b.pal_exadd+=pal; }
+    if(r.is_airadd){ b.fcl_airadd+=fcl; b.pal_airadd+=pal; }
+  });
+  return weeks.map(wk=>{
+    const b = byWeek[wk];
+    b.fcl_addon = b.fcl_add + b.fcl_exadd;
+    b.pal_addon = b.pal_add + b.pal_exadd;
+    return b;
+  });
+}
+
+function fcChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked')].map(cb=>cb.value); }
+function fcSetAllWeeks(state){ document.querySelectorAll('.fc-cb-week').forEach(cb=>cb.checked=state); refreshForecast(); }
+function fcSetMetric(m){
+  fcMetric = m;
+  document.querySelectorAll('.fc-metric-btn').forEach(b=>b.classList.toggle('active', b.dataset.metric===m));
+  refreshForecast();
+}
+
 function renderForecast(){
   const rows = FORECAST_RAW || [];
+  const shippers = [...new Set(rows.map(r=>r.shipper).filter(Boolean))].sort();
+  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
+  const modes = [...new Set(rows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
   const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
-  const byWeek = weeks.map(wk=>{
-    const wr = rows.filter(r=>r.pack_plan===wk);
-    const conf = sum(wr.filter(r=>r.status==='Confirmado').map(r=>r.fcl));
-    const proj = sum(wr.filter(r=>r.is_pre||r.status==='Confirmado'||r.status==='Cancelado').map(r=>r.fcl));
-    const add = sum(wr.filter(r=>r.is_add).map(r=>r.fcl));
-    const expo = sum(wr.filter(r=>r.is_expo).map(r=>r.fcl));
-    const exadd = sum(wr.filter(r=>r.is_exadd).map(r=>r.fcl));
-    const total = proj + add + exadd;
-    const ejec = total ? calcPct(conf, total) : 0;
-    return {semana:`S${wk}`, proy:proj, add, expo, exadd, total, conf, desv:+(conf-proj).toFixed(1), ejec};
-  });
-  const totalProy = sum(byWeek.map(w=>w.total));
-  const totalConf = sum(byWeek.map(w=>w.conf));
-  const desviacion = totalProy ? +((totalConf-totalProy)/totalProy*100).toFixed(1) : 0;
-  const modeOf = m => sum(rows.filter(r=>r.mode===m && r.status==='Confirmado').map(r=>r.fcl));
-  const modes = ['Marítimo','Aéreo','Terrestre'].map(m=>({l:m, v:modeOf(m)})).filter(m=>m.v>0);
-  const maxMode = Math.max(...modes.map(m=>m.v), 1);
   return `
-  <div class="kg">
-    <div class="kc" style="--acc:var(--blue)"><div class="kl">Proyección total</div><div class="kv">${fmt1(totalProy)}<span class="u">FCL</span></div><div class="kf">${weeks.length} semanas (S${weeks[0]||'–'}–S${weeks[weeks.length-1]||'–'})</div></div>
-    <div class="kc" style="--acc:var(--amber)"><div class="kl">Confirmado</div><div class="kv">${fmt1(totalConf)}<span class="u">FCL</span></div><div class="kf">${totalProy?calcPct(totalConf,totalProy):0}% de ejecución</div></div>
-    <div class="kc" style="--acc:${desviacion<0?'var(--bad)':'var(--ok)'}"><div class="kl">Desviación</div><div class="kv">${desviacion}<span class="u">%</span></div><div class="kf">vs. proyección</div></div>
-    <div class="kc" style="--acc:var(--purple)"><div class="kl">Última semana</div><div class="kv">S${weeks[weeks.length-1]||'–'}</div></div>
+  <div id="fcTooltip" class="fc-tooltip"></div>
+  <div class="card" style="margin-bottom:14px;">
+    <div class="ct">Filtro global <span class="sub" id="fc-stat"></span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start;">
+      <div>
+        <div class="fc-label">Métrica</div>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="fc-metric-btn active" data-metric="fcl" onclick="fcSetMetric('fcl')">📦 FCL</button>
+          <button type="button" class="fc-metric-btn" data-metric="pallets" onclick="fcSetMetric('pallets')">🧱 Pallets</button>
+        </div>
+      </div>
+      <div>
+        <div class="fc-label">Shipper</div>
+        <div class="fc-chip-group">${shippers.length ? shippers.map(s=>`<label class="fc-chip"><input type="checkbox" class="fc-cb-shipper" value="${s.replace(/"/g,'&quot;')}" checked onchange="refreshForecast()">${s}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>'}</div>
+      </div>
+      <div>
+        <div class="fc-label">Modo</div>
+        <div class="fc-chip-group">${modes.length ? modes.map(m=>`<label class="fc-chip"><input type="checkbox" class="fc-cb-mode" value="${m}" checked onchange="refreshForecast()">${m==='Aéreo'?'✈':m==='Marítimo'?'⚓':'🚚'} ${m}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>'}</div>
+      </div>
+      <div style="flex:1;min-width:280px;">
+        <div class="fc-label" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>Pack Plan</span>
+          <span style="display:flex;gap:10px;">
+            <a class="fc-mini-link" onclick="fcSetAllWeeks(true)">Todos</a>
+            <a class="fc-mini-link" onclick="fcSetAllWeeks(false)">Ninguno</a>
+          </span>
+        </div>
+        <div class="fc-chip-group">${weeks.length ? weeks.map(w=>`<label class="fc-chip mono"><input type="checkbox" class="fc-cb-week" value="${w}" checked onchange="refreshForecast()">S${w}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>'}</div>
+      </div>
+    </div>
+  </div>
+  <div id="fc-kg"></div>
+  <div class="card">
+    <div class="ct">Curva global <span class="sub">hover para detalle</span></div>
+    <div id="fc-chart-wrap" style="position:relative;"></div>
+    <div style="display:flex;gap:16px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-soft);">
+      <div style="display:flex;align-items:center;gap:6px;"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="var(--blue)" stroke-width="2.5"/></svg>Confirmado</div>
+      <div style="display:flex;align-items:center;gap:6px;"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="var(--amber)" stroke-width="2" stroke-dasharray="5 2"/></svg>Proyección</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">Desviación Confirmado vs Proyección</div>
+    <div class="tbl-wrap"><table class="std"><thead><tr><th>Semana</th><th style="text-align:right">Proyección</th><th style="text-align:right">ADD</th><th style="text-align:right">EXPO</th><th style="text-align:right">EXADD</th><th style="text-align:right">Total c/ADD+EXADD</th><th style="text-align:right">Confirmado</th><th style="text-align:right">Desviación</th><th>% Ejecución</th></tr></thead><tbody id="fc-dev-body"></tbody></table></div>
   </div>
   <div class="g2">
-    <div class="card">
-      <div class="ct">Desviación Confirmado vs Proyección <span class="sub">${weeks.length} semana(s) · datos reales</span></div>
-      <div class="tbl-wrap"><table class="std"><thead><tr><th>Semana</th><th style="text-align:right">Proyección</th><th style="text-align:right">ADD</th><th style="text-align:right">EXPO</th><th style="text-align:right">EXADD</th><th style="text-align:right">Total c/ADD+EXADD</th><th style="text-align:right">Confirmado</th><th style="text-align:right">Desviación</th><th>% Ejecución</th></tr></thead>
-      <tbody>${byWeek.length ? byWeek.map(r=>`<tr><td class="mono">${r.semana}</td><td class="mono" style="text-align:right">${fmt1(r.proy)}</td><td class="mono" style="text-align:right">${r.add?fmt1(r.add):'—'}</td><td class="mono" style="text-align:right">${r.expo?fmt1(r.expo):'—'}</td><td class="mono" style="text-align:right">${r.exadd?fmt1(r.exadd):'—'}</td><td class="mono" style="text-align:right">${fmt1(r.total)}</td><td class="mono" style="text-align:right">${r.conf?fmt1(r.conf):'—'}</td><td class="mono" style="text-align:right;color:${r.desv<0?'var(--bad)':'var(--ok)'}">${r.conf?(r.desv>=0?'+':'')+fmt1(r.desv):'—'}</td><td><span class="pill ${r.conf?badge(r.ejec):'neu'}">${r.conf?r.ejec+'%':'Sin ejec.'}</span></td></tr>`).join('') : `<tr><td colspan="9" class="empty-state">Sin datos de FORECAST_RAW todavía</td></tr>`}</tbody>
-      </table></div>
-    </div>
-    <div class="card">
-      <div class="ct">FCL confirmado por modo</div>
-      <div class="bars">${modes.length ? modes.map(m=>`<div class="br"><span class="bl">${m.l}</span><div class="bt"><div class="bf" style="width:${calcPct(m.v,maxMode)}%"></div></div><span class="bv">${fmt1(m.v)}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div>
-    </div>
-  </div>`;
+    <div class="card"><div class="ct">✈ Aéreo</div><div id="fc-wrap-air" style="position:relative;"></div></div>
+    <div class="card"><div class="ct">🚚 Terrestre</div><div id="fc-wrap-ter" style="position:relative;"></div></div>
+  </div>
+  <div class="card"><div class="ct">⚓ Marítimo</div><div id="fc-wrap-mar" style="position:relative;"></div></div>`;
 }
+
+function refreshForecast(){
+  const rows = FORECAST_RAW || [];
+  if(!document.getElementById('fc-kg')) return; // panel de Forecast no está en el DOM todavía
+  const selShippers = fcChecked('fc-cb-shipper');
+  const selModes = fcChecked('fc-cb-mode');
+  const selWeeks = fcChecked('fc-cb-week').map(Number);
+
+  let ft = rows;
+  if(selShippers.length) ft = ft.filter(r=>selShippers.includes(r.shipper));
+  if(selModes.length) ft = ft.filter(r=>selModes.includes(r.mode));
+  if(selWeeks.length) ft = ft.filter(r=>selWeeks.includes(r.pack_plan));
+
+  const allWeeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
+  const weeks = selWeeks.length ? selWeeks.slice().sort((a,b)=>a-b) : allWeeks;
+
+  const wks = fcAggregate(ft, weeks);
+  const wAir = fcAggregate(ft.filter(r=>r.mode==='Aéreo'), weeks);
+  const wTer = fcAggregate(ft.filter(r=>r.mode==='Terrestre'), weeks);
+  const wMar = fcAggregate(ft.filter(r=>r.mode==='Marítimo'), weeks);
+
+  const kC = fcMetric==='fcl'?'fcl_conf':'pal_conf', kP = fcMetric==='fcl'?'fcl_proj':'pal_proj', kA = fcMetric==='fcl'?'fcl_addon':'pal_addon';
+  const kAdd = fcMetric==='fcl'?'fcl_add':'pal_add', kExpo = fcMetric==='fcl'?'fcl_expo':'pal_expo', kExadd = fcMetric==='fcl'?'fcl_exadd':'pal_exadd', kAirAdd = fcMetric==='fcl'?'fcl_airadd':'pal_airadd';
+  const unit = fcMetric==='fcl' ? 'FCL' : 'Pallets';
+  const fmtM = v => fcMetric==='fcl' ? fmt1(v) : Math.round(v).toLocaleString('es-PE');
+
+  const totC = sum(wks.map(w=>w[kC])), totP = sum(wks.map(w=>w[kP])), totA = sum(wks.map(w=>w[kA]));
+  const totAdd = sum(wks.map(w=>w[kAdd])), totExpo = sum(wks.map(w=>w[kExpo])), totExadd = sum(wks.map(w=>w[kExadd])), totAirAdd = sum(wks.map(w=>w[kAirAdd]));
+
+  document.getElementById('fc-kg').innerHTML = `<div class="kg">
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">${unit} Confirmado</div><div class="kv">${fmtM(totC)}<span class="u">${unit}</span></div><div class="kf">${wks.length} semana(s)</div></div>
+    <div class="kc" style="--acc:var(--amber)"><div class="kl">AIRADD</div><div class="kv">${fmtM(totAirAdd)}<span class="u">${unit}</span></div><div class="kf">adicionales</div></div>
+    <div class="kc" style="--acc:var(--ok)"><div class="kl">ADD</div><div class="kv">${fmtM(totAdd)}<span class="u">${unit}</span></div><div class="kf">adicionales</div></div>
+    <div class="kc" style="--acc:var(--purple)"><div class="kl">EXPO</div><div class="kv">${fmtM(totExpo)}<span class="u">${unit}</span></div><div class="kf">adicionales</div></div>
+    <div class="kc" style="--acc:var(--warn)"><div class="kl">EXADD</div><div class="kv">${fmtM(totExadd)}<span class="u">${unit}</span></div><div class="kf">adicionales</div></div>
+    <div class="kc" style="--acc:var(--navy2)"><div class="kl">Total proyectado</div><div class="kv">${fmtM(totP+totA)}<span class="u">${unit}</span></div></div>
+  </div>`;
+
+  const rowsHtml = wks.map(w=>{
+    const hasC = w[kC] > 0;
+    const ej = w[kP] ? pct(w[kC], w[kP]) : 0;
+    const cls = hasC ? (ej>=90?'ok':ej>=70?'warn':'bad') : 'neu';
+    const up = (w[kP]+w[kA]) >= w[kC];
+    const dev = hasC ? (w[kC]-w[kP]>=0?'+':'')+fmtM(w[kC]-w[kP]) : '—';
+    return `<tr><td class="mono">${w.label}</td><td class="mono" style="text-align:right">${fmtM(w[kP])}</td><td class="mono" style="text-align:right">${w[kAdd]?fmtM(w[kAdd]):'—'}</td><td class="mono" style="text-align:right">${w[kExpo]?fmtM(w[kExpo]):'—'}</td><td class="mono" style="text-align:right">${w[kExadd]?fmtM(w[kExadd]):'—'}</td><td class="mono" style="text-align:right">${fmtM(w[kP]+w[kA])}${w[kA]?`<span class="pill ${up?'ok':'bad'}" style="margin-left:6px;font-size:9px;">${up?'▲':'▼'}${fmtM(w[kA])}</span>`:''}</td><td class="mono" style="text-align:right;color:var(--blue);font-weight:600;">${hasC?fmtM(w[kC]):'—'}</td><td class="mono" style="text-align:right;color:${hasC && w[kC]<w[kP] ? 'var(--bad)':'var(--ok)'};font-weight:600;">${dev}</td><td><span class="pill ${cls}">${hasC?ej+'%':'Sin ejec.'}</span></td></tr>`;
+  }).join('');
+  document.getElementById('fc-dev-body').innerHTML = rowsHtml || `<tr><td colspan="9" class="empty-state">Selecciona al menos un Pack Plan</td></tr>`;
+  document.getElementById('fc-stat').textContent = `${wks.length} de ${allWeeks.length} semanas · métrica: ${unit}`;
+
+  if (wks.length > 1) {
+    renderForecastCurve('fc-chart-wrap', wks, fcMetric);
+    renderForecastCurve('fc-wrap-air', wAir, fcMetric);
+    renderForecastCurve('fc-wrap-ter', wTer, fcMetric);
+    renderForecastCurve('fc-wrap-mar', wMar, fcMetric);
+  } else {
+    ['fc-chart-wrap','fc-wrap-air','fc-wrap-ter','fc-wrap-mar'].forEach(id=>{
+      document.getElementById(id).innerHTML = '<div class="empty-state">Selecciona 2+ semanas para trazar la curva</div>';
+    });
+  }
+}
+
+function renderForecastCurve(wrapId, weeksData, metric){
+  const el = document.getElementById(wrapId);
+  if(!el) return;
+  if(!weeksData.length || weeksData.length < 2){
+    el.innerHTML = '<div class="empty-state">Selecciona 2+ semanas para trazar la curva</div>';
+    return;
+  }
+  const kC = metric==='fcl'?'fcl_conf':'pal_conf', kP = metric==='fcl'?'fcl_proj':'pal_proj', kA = metric==='fcl'?'fcl_addon':'pal_addon';
+  const fmtM = v => metric==='fcl' ? fmt1(v) : Math.round(v).toLocaleString('es-PE');
+  const W=900, H=240, pL=38, pB=26, pT=12;
+  const mx = Math.max(...weeksData.map(w=>Math.max(w[kC], w[kP]+w[kA])), 1);
+  const xOf = i => pL + i*(W-pL-14)/(weeksData.length-1);
+  const yOf = v => H-pB-(v/mx)*(H-pT-pB);
+  const grid = [0,.25,.5,.75,1].map(f=>{
+    const y = pT+(1-f)*(H-pT-pB);
+    return `<line x1="${pL}" y1="${y.toFixed(0)}" x2="${W-4}" y2="${y.toFixed(0)}" stroke="var(--line)" stroke-width="1"/><text x="${pL-6}" y="${(y+3).toFixed(0)}" text-anchor="end" font-size="9" fill="var(--ink-faint)" font-family="JetBrains Mono">${fmtM(mx*f)}</text>`;
+  }).join('');
+  const xlbls = weeksData.map((w,i)=>`<text x="${xOf(i).toFixed(0)}" y="${H-6}" text-anchor="middle" font-size="9" fill="var(--ink-soft)" font-family="JetBrains Mono">${w.label}</text>`).join('');
+  const projPts = weeksData.map((w,i)=>({x:xOf(i), y:yOf(w[kP]+w[kA])}));
+  const confPts = weeksData.map((w,i)=>({x:xOf(i), y:yOf(w[kC])}));
+  const pathOf = pts => pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
+  const areaOf = pts => `${pathOf(pts)} L${pts[pts.length-1].x.toFixed(1)},${(H-pB).toFixed(1)} L${pts[0].x.toFixed(1)},${(H-pB).toFixed(1)} Z`;
+  const badges = weeksData.map((w,i)=>{
+    if(!w[kA]) return '';
+    const p = projPts[i];
+    return `<div class="fc-badge" style="left:${(p.x/W*100).toFixed(2)}%; top:${(Math.max(p.y-20,0)/H*100).toFixed(2)}%;">▲${fmtM(w[kA])}</div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;" preserveAspectRatio="none">
+      ${grid}
+      <path d="${areaOf(projPts)}" fill="var(--amber)" opacity="0.12"/>
+      <path d="${pathOf(projPts)}" fill="none" stroke="var(--amber)" stroke-width="2" stroke-dasharray="5 3"/>
+      <path d="${areaOf(confPts)}" fill="var(--blue)" opacity="0.10"/>
+      <path d="${pathOf(confPts)}" fill="none" stroke="var(--blue)" stroke-width="2.4"/>
+      ${confPts.map((p,i)=>`<circle class="fc-dot" data-i="${i}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.6" fill="var(--blue)" stroke="var(--surface)" stroke-width="1.3" style="cursor:pointer;"/>`).join('')}
+      ${projPts.map((p,i)=>`<circle class="fc-dot" data-i="${i}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.2" fill="var(--amber)" stroke="var(--surface)" stroke-width="1.3" style="cursor:pointer;"/>`).join('')}
+      ${xlbls}
+    </svg>
+    <div style="position:relative;">${badges}</div>`;
+
+  el.querySelectorAll('circle.fc-dot').forEach(dot=>{
+    dot.addEventListener('mouseenter', ()=>{
+      const i = +dot.dataset.i;
+      const w = weeksData[i];
+      const tip = document.getElementById('fcTooltip');
+      const ej = w[kP] ? pct(w[kC], w[kP]) : 0;
+      tip.innerHTML = `<b>${w.label}</b><br>Proyección: <b class="mono">${fmtM(w[kP]+w[kA])}</b><br>Confirmado: <b class="mono">${fmtM(w[kC])}</b><br>% Ejec.: <b class="mono">${w[kP]?ej+'%':'—'}</b>`;
+      tip.style.opacity = '1';
+      const rect = el.getBoundingClientRect();
+      const scaleX = rect.width / W, scaleY = rect.height / H;
+      const cx = +dot.getAttribute('cx') * scaleX, cy = +dot.getAttribute('cy') * scaleY;
+      tip.style.left = (rect.left + cx + window.scrollX + 12) + 'px';
+      tip.style.top = (rect.top + cy + window.scrollY - 10) + 'px';
+    });
+    dot.addEventListener('mouseleave', ()=>{ document.getElementById('fcTooltip').style.opacity='0'; });
+  });
+}
+
+window.postRender_forecast = refreshForecast;
 
 function renderPorts(){
   const rows = PORTS_RAW || [];
@@ -1062,6 +1250,10 @@ function buildPanels(){
   main.innerHTML = Object.keys(PANEL_RENDERERS).map(id => `<div class="panel" id="p-${id}"></div>`).join('');
   Object.keys(PANEL_RENDERERS).forEach(id => {
     document.getElementById('p-'+id).innerHTML = PANEL_RENDERERS[id]();
+    // Algunas vistas (ej. Forecast) insertan un shell con filtros y contenedores
+    // vacíos, y llenan el contenido dinámico recién cuando el shell ya existe
+    // en el DOM — igual patrón que usaba AXIS 1.0 (setTimeout tras insertar).
+    if (window['postRender_'+id]) window['postRender_'+id]();
   });
   // instanciar Chart.js solo para las vistas de Transporte
   Object.keys(CHART_VIEWS).forEach(view => {

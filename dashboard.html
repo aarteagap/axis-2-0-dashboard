@@ -255,6 +255,14 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
 .air-btn-driver{background:var(--navy); color:#fff; border:none; border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer;}
 .air-btn-driver:hover{background:var(--navy2);}
 
+/* ---- Transporte: banner de calidad de datos, barras de progreso ---- */
+.dq-banner{background:var(--warn-bg); border:1px solid rgba(232,163,61,.35); border-radius:10px; padding:10px 16px; margin-bottom:16px; font-size:12px; color:var(--warn); display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer;}
+.dq-details{display:none; margin-top:10px; padding-top:10px; border-top:1px solid rgba(232,163,61,.3); font-size:11px; color:var(--ink-soft);}
+.dq-details.open{display:block;}
+.stage-badge-count{display:inline-flex; align-items:center; gap:6px; background:var(--ok-bg); color:var(--ok); font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700; padding:6px 12px; border-radius:999px;}
+.kpi-progress{height:6px; border-radius:3px; overflow:hidden; display:flex; margin-top:10px; background:var(--surface-soft);}
+.kpi-progress .seg{height:100%;}
+
 @media(max-width:900px){
   .shell{grid-template-columns:64px 1fr;}
   .sb-brand h1,.sb-brand p,.sb-group-label,.sb-label,.sb-metric{display:none;}
@@ -2010,30 +2018,155 @@ function weeklyCount(rows){
 }
 function currentRows(){ return TRANSPORT_RAW || TRANSPORT_RAW_FALLBACK; }
 
+/* ============================================================
+   # 10a PICKUP — versión completa (KPIs con barra de progreso,
+   detención por almacén con Chart.js, cumplimiento por puerto y
+   naviera, tendencia semanal, y banner de calidad de datos que
+   excluye outliers reales de los promedios), portada del Stage 01
+   de control_tower_transporte__4_.html. Dataset real: TRANSPORT_RAW.
+   ============================================================ */
+function trGroupDetention(rows, groupField, detField){
+  const g = {};
+  rows.forEach(r=>{
+    const key = r[groupField]; const cat = r[detField];
+    if(!key || !cat) return;
+    g[key] = g[key] || {STANDARD:0, HIGH:0, CRITICAL:0};
+    if(g[key][cat]!==undefined) g[key][cat]++;
+  });
+  return g;
+}
+function trAvgFiltered(rows, field, maxH){
+  maxH = maxH || 72;
+  const valid = [], excluded = [];
+  rows.forEach(r=>{
+    const v = r[field];
+    if(v===null || v===undefined) return;
+    if(v < 0 || v > maxH) excluded.push({field, value:v, id:r.pp});
+    else valid.push(v);
+  });
+  return { avg: valid.length ? sum(valid)/valid.length : null, validCount: valid.length, excluded };
+}
+function trComplianceByGroup(rows, groupField, complianceField, detHField){
+  const g = {};
+  rows.forEach(r=>{
+    const key = r[groupField];
+    if(!key) return;
+    g[key] = g[key] || { on:0, late:0, detSum:0, detCount:0 };
+    const c = r[complianceField];
+    if(c==='ON TIME') g[key].on++; else if(c==='LATE') g[key].late++;
+    if(detHField && r[detHField]!=null && r[detHField]>=0 && r[detHField]<=72){ g[key].detSum += r[detHField]; g[key].detCount++; }
+  });
+  return Object.entries(g).map(([name,v])=>({
+    name, total: v.on+v.late, latePct: (v.on+v.late)?pct(v.late,v.on+v.late):0,
+    avgDet: v.detCount ? v.detSum/v.detCount : null,
+  })).sort((a,b)=>b.total-a.total);
+}
+function trComplianceCritByGroup(rows, groupField, complianceField, detField){
+  const g = {};
+  rows.forEach(r=>{
+    const key = r[groupField];
+    if(!key) return;
+    g[key] = g[key] || { on:0, late:0, crit:0, detTotal:0 };
+    const c = r[complianceField];
+    if(c==='ON TIME') g[key].on++; else if(c==='LATE') g[key].late++;
+    const d = r[detField];
+    if(d){ g[key].detTotal++; if(d==='CRITICAL') g[key].crit++; }
+  });
+  return Object.entries(g).map(([name,v])=>({
+    name, total: v.on+v.late, latePct: (v.on+v.late)?pct(v.late,v.on+v.late):0,
+    critPct: v.detTotal ? pct(v.crit,v.detTotal) : 0,
+  })).sort((a,b)=>b.total-a.total);
+}
+function trDataQualityBadge(excludedTotal, containerId){
+  return `<div class="dq-banner" onclick="document.getElementById('${containerId}').classList.toggle('open')">
+    <span>⚠ Calidad de datos: ${excludedTotal} valor(es) excluidos de los promedios automáticamente</span>
+    <span>Ver detalle ▾</span>
+  </div>`;
+}
+
 function renderRetiro(){
   const rows = currentRows();
   const gateOut = countBy(rows, 'gateOutCompliance');
   const gateOutTotal = (gateOut['ON TIME']||0) + (gateOut['LATE']||0);
   const compliancePct = pct(gateOut['ON TIME']||0, gateOutTotal);
-  const almacenGroup = groupOnLate(rows, 'almacenRetiro', 'gateOutCompliance', ['ON TIME']);
+  const latePct = pct(gateOut['LATE']||0, gateOutTotal);
+
+  const detGO = countBy(rows, 'detentionGateOut');
+  const detGOTotal = (detGO['STANDARD']||0)+(detGO['HIGH']||0)+(detGO['CRITICAL']||0);
+  const critPct = pct(detGO['CRITICAL']||0, detGOTotal);
+  const highPct = pct(detGO['HIGH']||0, detGOTotal);
+  const stdPct = pct(detGO['STANDARD']||0, detGOTotal);
+
+  const emptyStats = trAvgFiltered(rows, 'emptyOutboundH');
+  const routeStats = trAvgFiltered(rows, 'routeStartDelayH');
+  const excludedTotal = emptyStats.excluded.length + routeStats.excluded.length;
+
+  const almGroups = trGroupDetention(rows, 'almacenRetiro', 'detentionGateOut');
+  const almLabels = Object.keys(almGroups).sort((a,b)=>{
+    const totA = almGroups[a].STANDARD+almGroups[a].HIGH+almGroups[a].CRITICAL;
+    const totB = almGroups[b].STANDARD+almGroups[b].HIGH+almGroups[b].CRITICAL;
+    return totB-totA;
+  });
+
+  window.build_chRetiroAlmacen = () => mountChart('chRetiroAlmacen', {
+    type:'bar',
+    data:{ labels: almLabels, datasets:[
+      {label:'Standard', data: almLabels.map(l=>almGroups[l].STANDARD), backgroundColor: chartColor('--ok')},
+      {label:'High', data: almLabels.map(l=>almGroups[l].HIGH), backgroundColor: chartColor('--warn')},
+      {label:'Critical', data: almLabels.map(l=>almGroups[l].CRITICAL), backgroundColor: chartColor('--bad')},
+    ]},
+    options: baseChartOptions({ indexAxis:'y', scales:{ x:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{color:chartColor('--line')}}, y:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{display:false}} } }),
+  });
+
+  const portStats = trComplianceCritByGroup(rows, 'puertoRetiro', 'gateOutCompliance', 'detentionGateOut').map(p=>({...p, avgDet: (()=>{ const dr=rows.filter(r=>r.puertoRetiro===p.name && r.detGateOutH!=null && r.detGateOutH>=0 && r.detGateOutH<=72).map(r=>r.detGateOutH); return dr.length ? sum(dr)/dr.length : null; })() }));
+  const lineStats = trComplianceCritByGroup(rows, 'naviera', 'gateOutCompliance', 'detentionGateOut');
   const wk = weeklyCount(rows);
-  const almLabels = Object.keys(almacenGroup);
-  window.build_chRetiroAlmacen = () => mountChart('chRetiroAlmacen', stackedBarConfig(almLabels, [
-    {label:'On time', data:almLabels.map(l=>almacenGroup[l].on), color:chartColor('--ok')},
-    {label:'Late', data:almLabels.map(l=>almacenGroup[l].late), color:chartColor('--bad')},
-  ]));
+
   window.build_chRetiroWeekly = () => mountChart('chRetiroWeekly', lineConfig(wk.labels, wk.data, chartColor('--teal')));
+
   return `
-  <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local) — snapshot de TABLEAU_CONSOLIDADO_DE_TRANSPORTE_2627.xlsx'} · ${rows.length} registros</span>
+  <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local)'} · ${rows.length} registros</span>
+  ${trDataQualityBadge(excludedTotal, 'retiro-dq-details')}
+  <div class="dq-details" id="retiro-dq-details">
+    Se excluyeron ${emptyStats.excluded.length} valor(es) de "Avg. Empty Outbound Time" y ${routeStats.excluded.length} de "Route Start Delay" por estar fuera de rango razonable (negativos o &gt;72h) — probablemente errores de captura en el Excel origen.
+  </div>
+  <div class="ph" style="margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+      <div>
+        <h2 style="margin:0;font-size:20px;">Pickup Process</h2>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">Stage 1 · Gate-Out — desde la cita en el depósito hasta la salida hacia la planta</div>
+      </div>
+      <span class="stage-badge-count">${rows.length} SHIPMENTS · ${gateOutTotal} WITH RECORDED APPOINTMENT</span>
+    </div>
+  </div>
   <div class="kg">
-    <div class="kc" style="--acc:${compliancePct>=50?'var(--ok)':'var(--bad)'}"><div class="kl">Gate-Out Appointment Compliance</div><div class="kv">${compliancePct}<span class="u">%</span></div><div class="kf"><span class="pill ${stageBadge(compliancePct)}">Stage 01 · Gate Out</span></div></div>
-    <div class="kc"><div class="kl">Citas con registro</div><div class="kv">${gateOutTotal}</div></div>
-    <div class="kc"><div class="kl">Empty Outbound (avg)</div><div class="kv">${avgField(rows,'emptyOutboundH')?.toFixed(1) ?? '–'}<span class="u">h</span></div></div>
+    <div class="kc" style="--acc:var(--bad)">
+      <div class="kl">Gate-Out Appointment Compliance</div><div class="kv">${compliancePct}<span class="u">% on time</span></div>
+      <div class="kf"><span class="pill bad">${latePct}% LATE</span></div>
+      <div class="kpi-progress"><div class="seg" style="width:${compliancePct}%;background:var(--ok);"></div><div class="seg" style="width:${latePct}%;background:var(--bad);"></div></div>
+    </div>
+    <div class="kc" style="--acc:var(--warn)">
+      <div class="kl">Detention at Gate-Out Storage</div><div class="kv">${critPct}<span class="u">% critical</span></div>
+      <div class="kf"><span class="pill warn">${highPct}% HIGH</span> <span class="pill neu">${stdPct}% STANDARD</span></div>
+      <div class="kpi-progress"><div class="seg" style="width:${stdPct}%;background:var(--ok);"></div><div class="seg" style="width:${highPct}%;background:var(--warn);"></div><div class="seg" style="width:${critPct}%;background:var(--bad);"></div></div>
+    </div>
+    <div class="kc"><div class="kl">Avg. Empty Outbound Time</div><div class="kv">${emptyStats.avg!=null?emptyStats.avg.toFixed(2):'–'}<span class="u">h</span></div><div class="kf">Route Start → Arrival at Plant</div></div>
+    <div class="kc" style="--acc:var(--teal)"><div class="kl">Route Start Delay</div><div class="kv">${routeStats.avg!=null?routeStats.avg.toFixed(2):'–'}<span class="u">h avg.</span></div><div class="kf">vs. Warehouse Departure</div></div>
   </div>
   <div class="g2">
-    <div class="card"><div class="ct">On time vs Late por almacén de retiro</div><div style="height:220px;"><canvas id="chRetiroAlmacen"></canvas></div></div>
-    <div class="card"><div class="ct">Volumen por Pack Plan</div><div style="height:220px;"><canvas id="chRetiroWeekly"></canvas></div></div>
-  </div>`;
+    <div class="card"><div class="ct">Detention by Gate-Out Warehouse <span class="sub">Standard · High · Critical</span></div><div style="height:280px;"><canvas id="chRetiroAlmacen"></canvas></div></div>
+    <div>
+      <div class="card"><div class="ct">Compliance &amp; Detention by Port <span class="sub">Gate-Out</span></div>
+        <div class="tbl-wrap"><table class="std"><thead><tr><th>Port</th><th style="text-align:right">N°</th><th style="text-align:right">% Late</th><th style="text-align:right">Avg. Detention</th></tr></thead>
+        <tbody>${portStats.length ? portStats.map(p=>`<tr><td>${p.name}</td><td class="mono" style="text-align:right">${p.total}</td><td class="mono" style="text-align:right;color:var(--bad);">${p.latePct}%</td><td class="mono" style="text-align:right">${p.avgDet!=null?p.avgDet.toFixed(2)+' h':'–'}</td></tr>`).join('') : '<tr><td colspan="4" class="empty-state">Sin datos</td></tr>'}</tbody></table></div>
+      </div>
+      <div class="card" style="margin-bottom:0;"><div class="ct">Compliance &amp; Detention by Shipping Line <span class="sub">Gate-Out</span></div>
+        <div class="tbl-wrap"><table class="std"><thead><tr><th>Shipping Line</th><th style="text-align:right">N°</th><th style="text-align:right">% Late</th><th style="text-align:right">% Crit. Det.</th></tr></thead>
+        <tbody>${lineStats.length ? lineStats.map(l=>`<tr><td>${l.name}</td><td class="mono" style="text-align:right">${l.total}</td><td class="mono" style="text-align:right;color:var(--bad);">${l.latePct}%</td><td class="mono" style="text-align:right">${l.critPct}%</td></tr>`).join('') : '<tr><td colspan="4" class="empty-state">Sin datos</td></tr>'}</tbody></table></div>
+      </div>
+    </div>
+  </div>
+  <div class="card"><div class="ct">Containers Picked Up by Week <span class="sub">Trend · Pack Plan</span></div><div style="height:220px;"><canvas id="chRetiroWeekly"></canvas></div></div>`;
 }
 
 function renderPacking(){

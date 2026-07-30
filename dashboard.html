@@ -318,9 +318,16 @@ function goTo(id){
   // Los canvas de Chart.js quedan con tamaño 0x0 si se instancian mientras
   // su panel tiene display:none (buildPanels() los crea todos de una vez).
   // Al navegar a una vista de Transporte, se reconstruyen ya con el panel
-  // visible para que tomen el tamaño real.
+  // visible para que tomen el tamaño real. requestAnimationFrame asegura que
+  // el navegador ya aplicó el display:block antes de medir el canvas.
   if (typeof CHART_VIEWS !== 'undefined' && CHART_VIEWS[id]) {
-    CHART_VIEWS[id].forEach(chId => { const b = window['build_'+chId]; if (b) b(); });
+    requestAnimationFrame(() => {
+      CHART_VIEWS[id].forEach(chId => {
+        const b = window['build_'+chId];
+        if (b) { try { b(); } catch(e) { console.error('Error construyendo chart', chId, e); } }
+        else { console.warn('No existe build_'+chId+' — ¿renderRetiro/Packing/Ingreso corrió antes?'); }
+      });
+    });
   }
   if (window['onShow_'+id]) window['onShow_'+id]();
 }
@@ -362,7 +369,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['weekly', 'wep', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;

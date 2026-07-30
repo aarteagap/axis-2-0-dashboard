@@ -1246,6 +1246,7 @@ function wepPickCurrentWeek(rows){
 
 function renderWEP(){
   const all = WROWS || [];
+  const weeks = [...new Set(all.map(r=>r.pack_plan))].sort((a,b)=>a-b);
   const curWeek = wepPickCurrentWeek(all);
   const baseRows = all.filter(r=>r.pack_plan===curWeek);
   const packings = [...new Set(baseRows.map(r=>r.packing).filter(Boolean))].sort();
@@ -1268,7 +1269,7 @@ function renderWEP(){
   <div id="wep-kg"></div>
   <div class="wep-filterbar">
     <span class="wep-filter-lbl">VISTA</span>
-    <div class="wep-pill-select"><span class="wep-filter-lbl">Pack Plan</span><b class="mono" style="font-size:11.5px;">${curWeek?'S'+curWeek:'—'}</b></div>
+    <div class="wep-pill-select"><span class="wep-filter-lbl">Pack Plan</span><select id="wep-pp-select" onchange="wepOnPlanChange()">${weeks.map(w=>`<option value="${w}" ${w===curWeek?'selected':''}>S${w}</option>`).join('')}</select></div>
     <div class="wep-pill-select"><span class="wep-filter-lbl">Packing</span><select id="wep-pk-select" onchange="refreshWEP()"><option value="ALL">Todos</option>${packings.map(p=>`<option value="${p}">${p}</option>`).join('')}</select></div>
     <div class="wep-pill-select"><span class="wep-filter-lbl">Shipper</span><select id="wep-sh-select" onchange="refreshWEP()"><option value="ALL">Todos</option>${shippers.map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>
     <div class="wep-pill-select"><span class="wep-filter-lbl">Modo</span><select id="wep-mo-select" onchange="refreshWEP()"><option value="ALL">Todos</option>${modes.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
@@ -1283,10 +1284,26 @@ function renderWEP(){
   </div>`;
 }
 
+function wepOnPlanChange(){
+  const all = WROWS || [];
+  const curWeek = Number(document.getElementById('wep-pp-select').value);
+  const weekRows = all.filter(r=>r.pack_plan===curWeek);
+  const packings = [...new Set(weekRows.map(r=>r.packing).filter(Boolean))].sort();
+  const shippers = [...new Set(weekRows.map(r=>r.shipper).filter(Boolean))].sort();
+  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
+  const modes = [...new Set(weekRows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
+
+  document.getElementById('wep-pk-select').innerHTML = '<option value="ALL">Todos</option>' + packings.map(p=>`<option value="${p}">${p}</option>`).join('');
+  document.getElementById('wep-sh-select').innerHTML = '<option value="ALL">Todos</option>' + shippers.map(s=>`<option value="${s}">${s}</option>`).join('');
+  document.getElementById('wep-mo-select').innerHTML = '<option value="ALL">Todos</option>' + modes.map(m=>`<option value="${m}">${m}</option>`).join('');
+  refreshWEP();
+}
+
 function refreshWEP(){
   const all = WROWS || [];
   if (!document.getElementById('wep-kg')) return;
-  const curWeek = wepPickCurrentWeek(all);
+  const ppSelect = document.getElementById('wep-pp-select');
+  const curWeek = ppSelect ? Number(ppSelect.value) : wepPickCurrentWeek(all);
   let rows = all.filter(r=>r.pack_plan===curWeek);
 
   const selPK = wepChecked_select('wep-pk-select');

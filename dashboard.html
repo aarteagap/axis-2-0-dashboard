@@ -263,6 +263,33 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
 .kpi-progress{height:6px; border-radius:3px; overflow:hidden; display:flex; margin-top:10px; background:var(--surface-soft);}
 .kpi-progress .seg{height:100%;}
 
+/* ---- Weekly Export Program: diseño de referencia (celdas, badges, panel) ---- */
+.wep-filterbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
+.wep-filter-lbl{font-size:9px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); margin-right:2px;}
+.wep-pill-select{display:flex; align-items:center; gap:7px; background:var(--surface-soft); border:1px solid var(--line); border-radius:999px; padding:6px 8px 6px 14px;}
+.wep-pill-select select{background:none; border:none; color:var(--ink); font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:11.5px; cursor:pointer; padding:2px 4px;}
+.wep-plant-header{display:flex; align-items:center; justify-content:space-between; background:var(--surface-soft); border-radius:8px; padding:10px 14px; margin:16px 0 4px; border-left:4px solid var(--pc,var(--amber));}
+.wep-plant-header:first-child{margin-top:0;}
+.wep-plant-name{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px;}
+.wep-plant-sub{font-size:10.5px; color:var(--ink-faint); font-family:'JetBrains Mono',monospace; margin-left:8px;}
+.wep-mode-row{display:flex; align-items:center; gap:9px; padding:8px 4px 4px; font-size:11.5px; color:var(--ink-soft);}
+.wep-mode-badge{display:inline-flex; align-items:center; gap:4px; font-size:9.5px; font-weight:700; letter-spacing:.03em; padding:3px 9px; border-radius:5px; border:1px solid; text-transform:uppercase;}
+.wep-mode-badge.mM{color:var(--teal); border-color:var(--teal); background:rgba(31,158,146,.1);}
+.wep-mode-badge.mA{color:var(--purple); border-color:var(--purple); background:rgba(122,111,208,.1);}
+.wep-mode-badge.mT{color:var(--amber); border-color:var(--amber); background:rgba(232,163,61,.1);}
+.wep-cell{display:inline-block; min-width:34px; text-align:center; padding:4px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:11.5px;}
+.wep-cell.has-val{background:rgba(232,163,61,.14); border:1px solid rgba(232,163,61,.35); color:var(--amber); font-weight:600;}
+.wep-cell.zero{color:var(--ink-faint);}
+.wep-pod-bar-wrap{height:5px; border-radius:3px; background:var(--surface-soft); overflow:hidden; margin-top:5px;}
+.wep-pod-bar{height:100%; background:linear-gradient(90deg,var(--amber),#a97430); border-radius:3px;}
+.wep-top-tag{font-size:8.5px; font-weight:700; background:var(--amber); color:#3a2a06; padding:2px 6px; border-radius:4px; margin-left:6px; vertical-align:middle;}
+.wep-side-bar-col{display:flex; flex-direction:column; align-items:center; gap:6px; flex:1;}
+.wep-side-bar-track{width:100%; height:110px; display:flex; align-items:flex-end;}
+.wep-side-bar-fill{width:100%; border-radius:4px 4px 2px 2px;}
+.wep-insight{font-size:11.5px; color:var(--ink-soft); line-height:1.6; margin-top:14px; padding-top:12px; border-top:1px solid var(--line);}
+.wep-top-dest-row{margin-bottom:12px;}
+.wep-top-dest-row .hd{display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:4px;}
+
 @media(max-width:900px){
   .shell{grid-template-columns:64px 1fr;}
   .sb-brand h1,.sb-brand p,.sb-group-label,.sb-label,.sb-metric{display:none;}
@@ -1184,109 +1211,153 @@ function refreshWeekly(){
 window.postRender_weekly = refreshWeekly;
 
 function pillCellStyle(v,max){ const a = (v/max*0.34+0.05).toFixed(2); return v? `background:rgba(240,179,87,${a});` : ''; }
+/* ============================================================
+   # 09g WEEKLY EXPORT PROGRAM — versión con el diseño de referencia
+   (Weekly_Export_Program.html): filtros por Packing/Shipper/Modo,
+   secciones por planta con badges de modo, celdas ámbar, mini-barras
+   por POD, y panel lateral con carga por día + insight + top destinos.
+   Dataset real: WROWS (Planta=packing, Modo=mode, Shipper=shipper,
+   Destino=pod, Fecha de carga=date, FCL=fcl).
+   ============================================================ */
+function wepChecked_select(id){ const el = document.getElementById(id); return el ? el.value : 'ALL'; }
+
 function renderWEP(){
   const all = WROWS || [];
   const weeks = [...new Set(all.map(r=>r.pack_plan))].sort((a,b)=>b-a);
   const curWeek = weeks[0];
-  const rows = all.filter(r=>r.pack_plan===curWeek);
-  const days = [...new Set(rows.map(r=>r.date).filter(Boolean))].sort();
-  const dayLabel = ds => { const dt = new Date(ds); return isNaN(dt) ? ds : dt.toLocaleDateString('es-PE',{weekday:'short'}).toUpperCase().replace('.',''); };
-  const packings = [...new Set(rows.map(r=>r.packing).filter(Boolean))].sort();
-  const plantColors = ['var(--amber)','var(--teal)','var(--purple)','var(--blue)'];
-  const cellFor = (pk,mode,sh,pod,day) => sum(rows.filter(r=>r.packing===pk&&r.mode===mode&&r.shipper===sh&&r.pod===pod&&r.date===day).map(r=>r.fcl));
-  const totalFCL = sum(rows.map(r=>r.fcl));
-  const maxDay = Math.max(1, ...days.map(dy=>sum(rows.filter(r=>r.date===dy).map(r=>r.fcl))));
-  const weekdayTotals = days.map(dy=>sum(rows.filter(r=>r.date===dy).map(r=>r.fcl)));
-  const maxW = Math.max(...weekdayTotals, 1);
-  const peakIdx = weekdayTotals.indexOf(Math.max(...weekdayTotals));
-  const pods = [...new Set(rows.map(r=>r.pod))];
-  const topDest = pods.map(p=>({name:p, val:sum(rows.filter(r=>r.pod===p).map(r=>r.fcl))})).sort((a,b)=>b.val-a.val).slice(0,6);
-  const maxDest = Math.max(1, ...topDest.map(t=>t.val));
-  const modes = [...new Set(rows.map(r=>r.mode))];
-  const split = modes.map((m,i)=>({l:m, v:sum(rows.filter(r=>r.mode===m).map(r=>r.fcl)), c:['var(--teal)','var(--purple)','var(--ink-faint)'][i%3]}));
+  const baseRows = all.filter(r=>r.pack_plan===curWeek);
+  const packings = [...new Set(baseRows.map(r=>r.packing).filter(Boolean))].sort();
+  const shippers = [...new Set(baseRows.map(r=>r.shipper).filter(Boolean))].sort();
+  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
+  const modes = [...new Set(baseRows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
 
   return `
   <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap;">
     <div>
-      <div class="crumb" style="margin-bottom:6px;"><span>03b · Programa semanal</span><span class="sep">·</span><span>Exportación multimodal</span></div>
+      <div class="crumb" style="margin-bottom:6px;"><span>03 · Programa semanal</span><span class="sep">·</span><span>Exportación multimodal</span></div>
       <h2 style="margin:0;font-size:24px;">Weekly Export Program</h2>
-      <div class="mono" style="font-size:12px;color:var(--ink-soft);margin-top:4px;">${curWeek?`S${curWeek}`:'—'} · datos reales de WROWS · FCL por fecha de carga</div>
+      <div class="mono" style="font-size:12px;color:var(--ink-soft);margin-top:4px;" id="wep-week-label"></div>
     </div>
-    <div class="pill ok" style="padding:7px 13px;font-size:11px;">${rows.length ? 'DATOS REALES' : 'SIN DATOS'}</div>
+    <div style="text-align:right;">
+      <div class="pill ok" style="padding:7px 13px;font-size:11px;">● CONFIRMADO</div>
+      <div class="mono" style="font-size:9.5px;color:var(--ink-faint);margin-top:6px;">FCL por fecha de carga${META&&META.excel_modified_iso?' · act. '+new Date(META.excel_modified_iso).toLocaleString('es-PE',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</div>
+    </div>
   </div>
-  ${!rows.length ? '<div class="empty-state">Sin datos de WROWS para la semana más reciente</div>' : `
-  <div class="kg">
-    <div class="kc" style="--acc:var(--amber)"><div class="kl">Total FCL</div><div class="kv">${fmt1(totalFCL)}</div></div>
-    <div class="kc"><div class="kl">Pico del día</div><div class="kv">${fmt1(weekdayTotals[peakIdx]||0)}<span class="u">${days[peakIdx]?dayLabel(days[peakIdx]):''}</span></div></div>
-    <div class="kc"><div class="kl">Plantas</div><div class="kv">${packings.length}<span class="u">${packings.join(' · ')}</span></div></div>
-    <div class="kc"><div class="kl">Destinos (POD)</div><div class="kv">${pods.length}</div></div>
+  <div id="wep-kg"></div>
+  <div class="wep-filterbar">
+    <span class="wep-filter-lbl">VISTA</span>
+    <div class="wep-pill-select"><span class="wep-filter-lbl">Pack Plan</span><b class="mono" style="font-size:11.5px;">${curWeek?'S'+curWeek:'—'}</b></div>
+    <div class="wep-pill-select"><span class="wep-filter-lbl">Packing</span><select id="wep-pk-select" onchange="refreshWEP()"><option value="ALL">Todos</option>${packings.map(p=>`<option value="${p}">${p}</option>`).join('')}</select></div>
+    <div class="wep-pill-select"><span class="wep-filter-lbl">Shipper</span><select id="wep-sh-select" onchange="refreshWEP()"><option value="ALL">Todos</option>${shippers.map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>
+    <div class="wep-pill-select"><span class="wep-filter-lbl">Modo</span><select id="wep-mo-select" onchange="refreshWEP()"><option value="ALL">Todos</option>${modes.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+    <span class="sub" id="wep-linecount" style="margin-left:auto;"></span>
   </div>
   <div class="g2">
-    <div class="card">
-      <div class="ct">Programa por planta / modo / POD</div>
-      <div style="display:grid;grid-template-columns:180px repeat(${days.length||1},minmax(0,1fr)) 60px;gap:6px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-faint);text-transform:uppercase;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:8px;">
-        <span>Destino</span>${days.map(dy=>`<span style="text-align:center">${dayLabel(dy)}</span>`).join('')}<span style="text-align:right">FCL</span>
-      </div>
-      ${packings.map(pk=>{
-        const pkRows = rows.filter(r=>r.packing===pk);
-        const modesPk = [...new Set(pkRows.map(r=>r.mode))].sort((a,b)=>['Marítimo','Aéreo','Terrestre'].indexOf(a)-['Marítimo','Aéreo','Terrestre'].indexOf(b));
-        return `<div style="display:flex;align-items:center;gap:8px;margin:12px 0 6px;"><span style="width:8px;height:8px;border-radius:2px;background:${plantColors[packings.indexOf(pk)%plantColors.length]};"></span><b style="font-family:'Space Grotesk',sans-serif;font-size:12.5px;">${pk}</b></div>
-        ${modesPk.map(mode=>{
-          const shippers = [...new Set(pkRows.filter(r=>r.mode===mode).map(r=>r.shipper))];
-          return shippers.map(sh=>{
-            const podsForSh = [...new Set(pkRows.filter(r=>r.mode===mode&&r.shipper===sh).map(r=>r.pod))];
-            return `<div style="font-size:11px;color:var(--ink-soft);margin:4px 0 4px 16px;">${mode} · ${sh}</div>
-            ${podsForSh.map(pod=>{
-              const fclRow = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod).map(r=>r.fcl));
-              return `<div style="display:grid;grid-template-columns:180px repeat(${days.length||1},minmax(0,1fr)) 60px;gap:6px 10px;align-items:center;padding:3px 0;">
-                <span style="padding-left:16px;font-size:12px;">${pod}</span>
-                ${days.map(dy=>{ const v = cellFor(pk,mode,sh,pod,dy); return `<span class="mono" style="text-align:center;padding:3px 0;border-radius:4px;${pillCellStyle(v,maxDay)}color:${v?'#fff':'var(--ink-faint)'}">${v?fmt1(v):'·'}</span>`; }).join('')}
-                <span class="mono" style="text-align:right;font-weight:600;">${fmt1(fclRow)}</span>
-              </div>`;
-            }).join('')}`;
-          }).join('');
-        }).join('')}`;
-      }).join('')}
-    </div>
+    <div class="card" style="margin-bottom:0;"><div class="tbl-wrap"><table class="std" id="wep-table"><thead id="wep-head"></thead></table><div id="wep-body"></div></div></div>
     <div>
-      <div class="card">
-        <div class="ct">FCL por día</div>
-        <div style="display:grid;grid-template-columns:repeat(${days.length||1},1fr);gap:8px;align-items:end;height:120px;">
-          ${weekdayTotals.map(v=>`<div style="display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;"><span class="mono" style="font-size:10.5px;color:${v===maxW?'var(--amber)':'var(--ink-soft)'};font-weight:${v===maxW?700:400}">${fmt1(v)}</span><div style="width:100%;height:${Math.max(6,calcPct(v,maxW))}%;border-radius:4px 4px 2px 2px;background:${v===maxW?'linear-gradient(180deg,var(--amber),#a97430)':'linear-gradient(180deg,var(--navy2),var(--navy))'};"></div></div>`).join('')}
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(${days.length||1},1fr);gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);">
-          ${days.map(dy=>`<span class="mono" style="text-align:center;font-size:9.5px;color:var(--ink-faint);">${dayLabel(dy)}</span>`).join('')}
-        </div>
-      </div>
-      <div class="card">
-        <div class="ct">Top destinos</div>
-        <div style="display:flex;flex-direction:column;gap:10px;">${topDest.map(t=>`<div><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px;"><span>${t.name}</span><span class="mono" style="color:var(--amber);">${fmt1(t.val)}</span></div><div class="bt"><div class="bf" style="width:${calcPct(t.val,maxDest)}%;background:var(--amber);"></div></div></div>`).join('')}</div>
-      </div>
-      <div class="card" style="margin-bottom:0;">
-        <div class="ct">Split por modo</div>
-        <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px;margin-bottom:12px;">${split.map(s=>`<div style="width:${calcPct(s.v,totalFCL)}%;background:${s.c};"></div>`).join('')}</div>
-        ${split.map(s=>`<div style="display:flex;align-items:center;gap:9px;margin-top:8px;"><span style="width:8px;height:8px;border-radius:2px;background:${s.c};"></span><span style="flex:1;font-size:12.5px;">${s.l}</span><span class="mono" style="font-size:12px;">${fmt1(s.v)}</span></div>`).join('')}
-      </div>
+      <div class="card"><div class="ct">Carga por día · FCL</div><div id="wep-daybars" style="display:flex;gap:10px;align-items:flex-end;"></div><div class="wep-insight" id="wep-insight"></div></div>
+      <div class="card" style="margin-bottom:0;"><div class="ct">Top destinos</div><div id="wep-topdest"></div></div>
     </div>
-  </div>`}`;
+  </div>`;
 }
 
-/* ============================================================
-   # 09d PMI — 4 secciones (KPIs, SENASA Program, Dispatch Control
-   con descarga a Excel, T.R. Program), portadas de bPMI/renderPMIAll
-   /renderPMIKPIs/renderSenasa/renderEmbarques/renderTR en AXIS 1.0.
-   Datasets reales: EMBARQUES, SENASA, TR_PROGRAM.
-   ============================================================ */
-function pmiChipGroup(cls, opts, labelFn){
-  return opts.length ? opts.map(o=>`<label class="fc-chip mono"><input type="checkbox" class="${cls}" value="${String(o).replace(/"/g,'&quot;')}" checked onchange="refreshPMIAll()">${labelFn?labelFn(o):o}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>';
+function refreshWEP(){
+  const all = WROWS || [];
+  if (!document.getElementById('wep-kg')) return;
+  const weeks = [...new Set(all.map(r=>r.pack_plan))].sort((a,b)=>b-a);
+  const curWeek = weeks[0];
+  let rows = all.filter(r=>r.pack_plan===curWeek);
+
+  const selPK = wepChecked_select('wep-pk-select');
+  const selSH = wepChecked_select('wep-sh-select');
+  const selMO = wepChecked_select('wep-mo-select');
+  if (selPK!=='ALL') rows = rows.filter(r=>r.packing===selPK);
+  if (selSH!=='ALL') rows = rows.filter(r=>r.shipper===selSH);
+  if (selMO!=='ALL') rows = rows.filter(r=>r.mode===selMO);
+
+  const days = [...new Set(rows.map(r=>r.date).filter(Boolean))].sort();
+  const dayLabel = ds => { const dt = new Date(ds); return isNaN(dt) ? ds : dt.toLocaleDateString('es-PE',{weekday:'short'}).toUpperCase().replace('.',''); };
+  const dayDateLabel = ds => { const dt = new Date(ds); return isNaN(dt) ? '' : dt.toLocaleDateString('es-PE',{day:'2-digit',month:'short'}).toUpperCase(); };
+
+  const totalFCL = sum(rows.map(r=>r.fcl||0));
+  const packings = [...new Set(rows.map(r=>r.packing).filter(Boolean))];
+  const pods = [...new Set(rows.map(r=>r.pod))];
+  const modesUsed = [...new Set(rows.map(r=>r.mode).filter(Boolean))];
+  const weekdayTotals = days.map(dy=>sum(rows.filter(r=>r.date===dy).map(r=>r.fcl||0)));
+  const maxW = Math.max(...weekdayTotals, 1);
+  const peakIdx = weekdayTotals.indexOf(Math.max(...weekdayTotals));
+
+  document.getElementById('wep-week-label').textContent = `${curWeek?'S'+curWeek:'—'} · ${days.length?dayDateLabel(days[0])+' – '+dayDateLabel(days[days.length-1]):''} · FCL por fecha de carga`;
+  document.getElementById('wep-linecount').textContent = `${rows.length} líneas · ${fmt1(totalFCL)} FCL`;
+
+  document.getElementById('wep-kg').innerHTML = `<div class="kg">
+    <div class="kc" style="--acc:var(--amber)"><div class="kl">Total FCL</div><div class="kv">${fmt1(totalFCL)}</div></div>
+    <div class="kc"><div class="kl">Pico del día</div><div class="kv">${fmt1(weekdayTotals[peakIdx]||0)}<span class="u">${days[peakIdx]?dayLabel(days[peakIdx])+' '+dayDateLabel(days[peakIdx]).split(' ')[0]:''}</span></div></div>
+    <div class="kc"><div class="kl">Plantas</div><div class="kv">${packings.length}<span class="u">${packings.join(' · ')||'—'}</span></div></div>
+    <div class="kc"><div class="kl">Destinos (POD)</div><div class="kv">${pods.length}</div></div>
+    <div class="kc"><div class="kl">Modos</div><div class="kv">${modesUsed.length}<span class="u">${modesUsed.map(m=>m.slice(0,3).toUpperCase()).join(' · ')||'—'}</span></div></div>
+  </div>`;
+
+  document.getElementById('wep-head').innerHTML = `<thead><tr><th>Destino</th>${days.map(dy=>`<th style="text-align:center">${dayLabel(dy)}<br><span style="font-weight:400;">${dayDateLabel(dy)}</span></th>`).join('')}<th style="text-align:right">FCL</th></tr></thead>`;
+
+  const podTotalsAll = pods.map(p=>({name:p, val:sum(rows.filter(r=>r.pod===p).map(r=>r.fcl||0))})).sort((a,b)=>b.val-a.val);
+  const topPodName = podTotalsAll[0] ? podTotalsAll[0].name : null;
+  const maxPodVal = Math.max(...podTotalsAll.map(p=>p.val), 1);
+  const plantColors = ['var(--amber)','var(--teal)','var(--purple)','var(--blue)'];
+  const mCls = m => m==='Marítimo'?'mM':m==='Aéreo'?'mA':'mT';
+
+  let bodyHtml = '';
+  packings.forEach((pk,pkIdx)=>{
+    const pkRows = rows.filter(r=>r.packing===pk);
+    const pkPods = new Set(pkRows.map(r=>r.pod));
+    const pkTotal = sum(pkRows.map(r=>r.fcl||0));
+    bodyHtml += `<div class="wep-plant-header" style="--pc:${plantColors[pkIdx%plantColors.length]};"><div class="wep-plant-name">${pk}<span class="wep-plant-sub">${pkRows.length} líneas · ${pkPods.size} POD</span></div><div class="mono" style="font-weight:700;color:${plantColors[pkIdx%plantColors.length]};">${fmt1(pkTotal)}</div></div>`;
+    const modesInPk = [...new Set(pkRows.map(r=>r.mode))].sort((a,b)=>modeOrderIdx(a)-modeOrderIdx(b));
+    modesInPk.forEach(mode=>{
+      const shippersInMode = [...new Set(pkRows.filter(r=>r.mode===mode).map(r=>r.shipper))];
+      shippersInMode.forEach(sh=>{
+        bodyHtml += `<div class="wep-mode-row"><span class="wep-mode-badge ${mCls(mode)}">${mode}</span><b>${sh}</b></div>`;
+        const podsForSh = [...new Set(pkRows.filter(r=>r.mode===mode&&r.shipper===sh).map(r=>r.pod))];
+        bodyHtml += `<table class="std" style="margin-bottom:6px;"><tbody>`;
+        podsForSh.forEach(pod=>{
+          const podTotal = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod).map(r=>r.fcl||0));
+          const cells = days.map(dy=>{
+            const v = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod&&r.date===dy).map(r=>r.fcl||0));
+            return `<td style="text-align:center;border:none;"><span class="wep-cell ${v?'has-val':'zero'}">${v?fmt1(v):'·'}</span></td>`;
+          }).join('');
+          const isTop = pod===topPodName;
+          bodyHtml += `<tr><td style="border:none;width:220px;">${pod}${isTop?'<span class="wep-top-tag">TOP</span>':''}</td>${cells}<td style="border:none;text-align:right;width:170px;"><div class="mono" style="font-weight:600;">${fmt1(podTotal)}</div><div class="wep-pod-bar-wrap"><div class="wep-pod-bar" style="width:${calcPct(podTotal,maxPodVal)}%;"></div></div></td></tr>`;
+        });
+        bodyHtml += `</tbody></table>`;
+      });
+    });
+  });
+  document.getElementById('wep-body').innerHTML = bodyHtml || '<div class="empty-state">Sin datos de WROWS para esta semana</div>';
+
+  // Carga por día
+  document.getElementById('wep-daybars').innerHTML = days.map((dy,i)=>{
+    const v = weekdayTotals[i];
+    const isPeak = i===peakIdx;
+    return `<div class="wep-side-bar-col"><span class="mono" style="font-size:10.5px;font-weight:${isPeak?700:400};color:${isPeak?'var(--amber)':'var(--ink-soft)'};">${v?fmt1(v):''}</span><div class="wep-side-bar-track"><div class="wep-side-bar-fill" style="height:${Math.max(4,calcPct(v,maxW))}%;background:${isPeak?'linear-gradient(180deg,var(--amber),#a97430)':'var(--navy2)'};"></div></div><span class="mono" style="font-size:9px;color:var(--ink-faint);">${dayLabel(dy)}</span></div>`;
+  }).join('') || '<div class="empty-state">Sin datos</div>';
+
+  // Insight dinámico: los 2 días con más carga
+  if (days.length >= 2 && totalFCL > 0) {
+    const idxSorted = weekdayTotals.map((v,i)=>({v,i})).sort((a,b)=>b.v-a.v);
+    const top2 = idxSorted.slice(0,2).sort((a,b)=>a.i-b.i);
+    const top2Pct = pct(top2.reduce((a,t)=>a+t.v,0), totalFCL);
+    document.getElementById('wep-insight').textContent = top2.length===2 ? `El ${top2Pct}% del programa se despacha entre ${dayLabel(days[top2[0].i]).toLowerCase()} y ${dayLabel(days[top2[1].i]).toLowerCase()}.` : '';
+  } else {
+    document.getElementById('wep-insight').textContent = '';
+  }
+
+  // Top destinos
+  document.getElementById('wep-topdest').innerHTML = podTotalsAll.slice(0,6).map(p=>`
+    <div class="wep-top-dest-row"><div class="hd"><span>${p.name}</span><span class="mono" style="color:var(--amber);">${fmt1(p.val)}</span></div><div class="bt"><div class="bf" style="width:${calcPct(p.val,maxPodVal)}%;background:var(--amber);"></div></div></div>`).join('') || '<div class="empty-state">Sin datos</div>';
 }
-function pmiSetAll(cls, state){ document.querySelectorAll('.'+cls).forEach(cb=>cb.checked=state); refreshPMIAll(); }
-function pmiChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked')].map(cb=>cb.value); }
-function pmiRing(pctVal, color){
-  const r=22, c=2*Math.PI*r, off=c-(Math.min(pctVal,100)/100)*c;
-  return `<svg width="52" height="52" viewBox="0 0 52 52" style="flex-shrink:0;"><circle cx="26" cy="26" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="26" cy="26" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 26 26)"/></svg>`;
-}
-function pmiFmtDate(d){ if(!d) return ''; const dt=new Date(d); return isNaN(dt)?d:dt.toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'short',year:'2-digit'}).toUpperCase(); }
+function modeOrderIdx(m){ return ['Marítimo','Aéreo','Terrestre'].indexOf(m); }
+
+window.postRender_wep = refreshWEP;
 
 function renderPMI(){
   const em = EMBARQUES || [];

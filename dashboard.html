@@ -1270,9 +1270,9 @@ function renderWEP(){
   <div class="wep-filterbar">
     <span class="wep-filter-lbl">VISTA</span>
     <div class="wep-pill-select"><span class="wep-filter-lbl">Pack Plan</span><select id="wep-pp-select" onchange="wepOnPlanChange()">${weeks.map(w=>`<option value="${w}" ${w===curWeek?'selected':''}>S${w}</option>`).join('')}</select></div>
-    <div class="wep-pill-select"><span class="wep-filter-lbl">Packing</span><select id="wep-pk-select" onchange="refreshWEP()"><option value="ALL">Todos</option>${packings.map(p=>`<option value="${p}">${p}</option>`).join('')}</select></div>
-    <div class="wep-pill-select"><span class="wep-filter-lbl">Shipper</span><select id="wep-sh-select" onchange="refreshWEP()"><option value="ALL">Todos</option>${shippers.map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>
-    <div class="wep-pill-select"><span class="wep-filter-lbl">Modo</span><select id="wep-mo-select" onchange="refreshWEP()"><option value="ALL">Todos</option>${modes.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+    <div class="wep-pill-select"><span class="wep-filter-lbl">Packing</span><select id="wep-pk-select" onchange="refreshWEP()"><option value="ALL" selected>Todos</option>${packings.map(p=>`<option value="${p}">${p}</option>`).join('')}</select></div>
+    <div class="wep-pill-select"><span class="wep-filter-lbl">Shipper</span><select id="wep-sh-select" onchange="refreshWEP()"><option value="ALL" selected>Todos</option>${shippers.map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>
+    <div class="wep-pill-select"><span class="wep-filter-lbl">Modo</span><select id="wep-mo-select" onchange="refreshWEP()"><option value="ALL" selected>Todos</option>${modes.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
     <span class="sub" id="wep-linecount" style="margin-left:auto;"></span>
   </div>
   <div class="g2">
@@ -1293,9 +1293,9 @@ function wepOnPlanChange(){
   const modeOrder = ['Marítimo','Aéreo','Terrestre'];
   const modes = [...new Set(weekRows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
 
-  document.getElementById('wep-pk-select').innerHTML = '<option value="ALL">Todos</option>' + packings.map(p=>`<option value="${p}">${p}</option>`).join('');
-  document.getElementById('wep-sh-select').innerHTML = '<option value="ALL">Todos</option>' + shippers.map(s=>`<option value="${s}">${s}</option>`).join('');
-  document.getElementById('wep-mo-select').innerHTML = '<option value="ALL">Todos</option>' + modes.map(m=>`<option value="${m}">${m}</option>`).join('');
+  document.getElementById('wep-pk-select').innerHTML = '<option value="ALL" selected>Todos</option>' + packings.map(p=>`<option value="${p}">${p}</option>`).join('');
+  document.getElementById('wep-sh-select').innerHTML = '<option value="ALL" selected>Todos</option>' + shippers.map(s=>`<option value="${s}">${s}</option>`).join('');
+  document.getElementById('wep-mo-select').innerHTML = '<option value="ALL" selected>Todos</option>' + modes.map(m=>`<option value="${m}">${m}</option>`).join('');
   refreshWEP();
 }
 
@@ -1396,6 +1396,17 @@ function refreshWEP(){
 function modeOrderIdx(m){ return ['Marítimo','Aéreo','Terrestre'].indexOf(m); }
 
 window.postRender_wep = refreshWEP;
+
+function pmiChipGroup(cls, opts, labelFn){
+  return opts.length ? opts.map(o=>`<label class="fc-chip mono"><input type="checkbox" class="${cls}" value="${String(o).replace(/"/g,'&quot;')}" checked onchange="refreshPMIAll()">${labelFn?labelFn(o):o}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>';
+}
+function pmiSetAll(cls, state){ document.querySelectorAll('.'+cls).forEach(cb=>cb.checked=state); refreshPMIAll(); }
+function pmiChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked')].map(cb=>cb.value); }
+function pmiRing(pctVal, color){
+  const r=22, c=2*Math.PI*r, off=c-(Math.min(pctVal,100)/100)*c;
+  return `<svg width="52" height="52" viewBox="0 0 52 52" style="flex-shrink:0;"><circle cx="26" cy="26" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="26" cy="26" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 26 26)"/></svg>`;
+}
+function pmiFmtDate(d){ if(!d) return ''; const dt=new Date(d); return isNaN(dt)?d:dt.toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'short',year:'2-digit'}).toUpperCase(); }
 
 function renderPMI(){
   const em = EMBARQUES || [];

@@ -183,6 +183,31 @@ table.std tbody tr:hover{background:var(--surface-soft);}
 .fc-mini-link{font-size:10px; color:var(--blue); cursor:pointer; text-decoration:none;}
 .fc-mini-link:hover{text-decoration:underline;}
 
+/* ---- Ports: cards, donut, proyección por semana ---- */
+.port-card{border:1px solid var(--line); border-radius:12px; padding:14px 16px; background:var(--surface); border-left:4px solid var(--pc,var(--blue));}
+.port-card .pcn{display:flex; justify-content:space-between; align-items:center; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px; margin-bottom:8px;}
+.port-card .pcs{display:flex; justify-content:space-between; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;}
+.port-card .pcm{display:flex; height:8px; border-radius:4px; overflow:hidden; margin-top:8px;}
+.port-card .pc-footer{display:flex; justify-content:space-around; margin-top:10px; padding-top:10px; border-top:1px solid var(--line);}
+.port-card .pc-stat{text-align:center;}
+.port-card .pc-stat-val{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:20px;}
+.port-card .pc-stat-lbl{font-size:9.5px; color:var(--ink-faint); text-transform:uppercase;}
+.donut-wrap{display:flex; align-items:center; gap:18px; flex-wrap:wrap;}
+.donut-ring{width:120px; height:120px; border-radius:50%; flex-shrink:0; position:relative;}
+.donut-ring::after{content:''; position:absolute; inset:16px; background:var(--surface); border-radius:50%;}
+.donut-center{position:absolute; inset:16px; display:flex; align-items:center; justify-content:center; flex-direction:column; z-index:1;}
+.donut-legend{display:flex; flex-direction:column; gap:8px;}
+.donut-legend .dli{display:flex; align-items:center; gap:8px; font-size:12px;}
+.donut-legend .dls{width:9px; height:9px; border-radius:2px; flex-shrink:0;}
+.donut-legend .dlv{margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--ink-soft);}
+.sc-chart{display:flex; align-items:flex-end; gap:6px; overflow-x:auto; padding-bottom:4px;}
+.sc-col{display:flex; flex-direction:column; align-items:center; gap:6px; min-width:34px; height:100%; justify-content:flex-end; cursor:pointer;}
+.sc-col .sc-bars{width:100%; display:flex; flex-direction:column-reverse; border-radius:4px 4px 2px 2px; overflow:hidden; min-height:2px;}
+.sc-col .seg{width:100%;}
+.sc-col .sc-val{font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--ink-soft);}
+.sc-col .sc-lbl{font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--ink-faint);}
+.ports-badge{display:block; text-align:center; margin-top:8px; font-size:10px; font-weight:600; padding:5px 8px; border-radius:6px;}
+
 @media(max-width:900px){
   .shell{grid-template-columns:64px 1fr;}
   .sb-brand h1,.sb-brand p,.sb-group-label,.sb-label,.sb-metric{display:none;}
@@ -381,7 +406,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['weekly', 'wep', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
@@ -764,72 +789,337 @@ function renderForecastCurve(wrapId, weeksData, metric){
 
 window.postRender_forecast = refreshForecast;
 
+/* ============================================================
+   # 09b PORTS — versión completa (filtros reales + port cards +
+   donut + proyección por semana con hover), portada de renderPorts
+   en AXIS_1_0_.html.
+   ============================================================ */
+let portsMetric = 'fcl';
+const PORTS_LIST = [
+  {name:'Lima', color:'var(--amber)'},
+  {name:'Callao', color:'var(--blue)'},
+  {name:'Chancay', color:'var(--navy2)'},
+  {name:'Paita', color:'var(--purple)'},
+];
+
+function portsMetricAgg(rows){
+  if (portsMetric==='fcl') return sum(rows.map(r=>r.fcl||0));
+  return new Set(rows.filter(r=>r.po).map(r=>r.po)).size;
+}
+function portsFmt(v){ return portsMetric==='fcl' ? fmt1(v) : Math.round(v); }
+function portsSetMetric(m){
+  portsMetric = m;
+  document.querySelectorAll('.ports-metric-btn').forEach(b=>b.classList.toggle('active', b.dataset.metric===m));
+  refreshPorts();
+}
+
 function renderPorts(){
   const rows = PORTS_RAW || [];
-  const portDefs = [{name:'Lima',color:'var(--amber)'},{name:'Callao',color:'var(--blue)'},{name:'Chancay',color:'var(--navy2)'},{name:'Paita',color:'var(--purple)'}];
-  const agg = st => sum(rows.filter(r=>r.status===st).map(r=>r.fcl));
-  const total = sum(rows.map(r=>r.fcl)), conf = agg('Confirmado'), proy = agg('Proyectado'), canc = agg('Cancelado');
-  const portStats = portDefs.map(p=>{
-    const sub = rows.filter(r=>r.port===p.name);
-    const c = sum(sub.filter(r=>r.status==='Confirmado').map(r=>r.fcl));
-    const pr = sum(sub.filter(r=>r.status==='Proyectado').map(r=>r.fcl));
-    const k = sum(sub.filter(r=>r.status==='Cancelado').map(r=>r.fcl));
-    const tot = c+pr+k;
-    const modeCounts = {}; sub.forEach(r=>{ if(r.mode) modeCounts[r.mode]=(modeCounts[r.mode]||0)+1; });
-    const mode = Object.keys(modeCounts).sort((a,b)=>modeCounts[b]-modeCounts[a])[0] || '—';
-    return {...p, conf:c, proy:pr, canc:k, total:tot, cumpl:tot?calcPct(c,tot):0, mode, recCount:sub.length};
-  }).filter(p=>p.recCount>0);
+  const statuses = [...new Set(rows.map(r=>r.status).filter(Boolean))].sort();
+  const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
   return `
-  <div class="kg">
-    <div class="kc" style="--acc:var(--blue)"><div class="kl">Total FCL</div><div class="kv">${fmt1(total)}</div></div>
-    <div class="kc" style="--acc:var(--blue)"><div class="kl">Confirmados</div><div class="kv">${fmt1(conf)}</div><div class="kf">${total?calcPct(conf,total):0}%</div></div>
-    <div class="kc"><div class="kl">Proyectados</div><div class="kv">${fmt1(proy)}</div><div class="kf">${total?calcPct(proy,total):0}%</div></div>
-    <div class="kc" style="--acc:var(--bad)"><div class="kl">Cancelados</div><div class="kv">${fmt1(canc)}</div><div class="kf">${total?calcPct(canc,total):0}%</div></div>
+  <div id="portsTooltip" class="fc-tooltip"></div>
+  <div class="card" style="margin-bottom:14px;">
+    <div class="ct">Filtro global <span class="sub" id="ports-stat"></span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start;">
+      <div>
+        <div class="fc-label">Métrica</div>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="fc-metric-btn ports-metric-btn active" data-metric="fcl" onclick="portsSetMetric('fcl')">📦 FCL</button>
+          <button type="button" class="fc-metric-btn ports-metric-btn" data-metric="po" onclick="portsSetMetric('po')">🧾 PO</button>
+        </div>
+      </div>
+      <div>
+        <div class="fc-label">Status</div>
+        <div class="fc-chip-group">${statuses.length ? statuses.map(s=>`<label class="fc-chip"><input type="checkbox" class="ports-cb-status" value="${s}" checked onchange="refreshPorts()">${s}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>'}</div>
+      </div>
+      <div style="flex:1;min-width:280px;">
+        <div class="fc-label" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>Pack Plan</span>
+          <span style="display:flex;gap:10px;">
+            <a class="fc-mini-link" onclick="document.querySelectorAll('.ports-cb-week').forEach(cb=>cb.checked=true);refreshPorts();">Todos</a>
+            <a class="fc-mini-link" onclick="document.querySelectorAll('.ports-cb-week').forEach(cb=>cb.checked=false);refreshPorts();">Ninguno</a>
+          </span>
+        </div>
+        <div class="fc-chip-group">${weeks.length ? weeks.map(w=>`<label class="fc-chip mono"><input type="checkbox" class="ports-cb-week" value="${w}" checked onchange="refreshPorts()">S${w}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>'}</div>
+      </div>
+    </div>
   </div>
-  <div class="g3">
-    ${portStats.length ? portStats.map(p=>{ const cc = p.cumpl>=80?'ok':p.cumpl>=50?'warn':'bad';
-      return `<div class="card" style="border-left:4px solid ${p.color};margin-bottom:0;">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;"><b style="font-family:'Space Grotesk',sans-serif;font-size:14px;">${p.name}</b><span class="pill neu">${p.mode}</span></div>
-      <div class="kv" style="font-size:24px;">${p.cumpl}<span class="u">% cumplim.</span></div>
-      <div class="kf">Confirmado <b class="mono">${fmt1(p.conf)}</b> · Proyectado <b class="mono">${fmt1(p.proy)}</b></div>
-      <div class="kf"><span class="pill ${cc}">${fmt1(p.total)} FCL total</span></div>
-    </div>`; }).join('') : '<div class="empty-state">Sin registros en PORTS_RAW</div>'}
+  <div id="ports-kg"></div>
+  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">⚓ Puertos (POL)</div>
+  <div class="g3" id="ports-cards" style="margin-bottom:14px;"></div>
+  <div class="g2">
+    <div class="card"><div class="ct">Estado global</div><div id="ports-donut"></div></div>
+    <div class="card"><div class="ct">Registros por puerto</div><div id="ports-bars"></div></div>
+  </div>
+  <div class="card">
+    <div class="ct">Proyección por Puertos <span class="sub" id="ports-proj-stat"></span></div>
+    <div class="sc-chart" id="ports-proj-chart" style="height:230px;"></div>
+    <div class="lrow" id="ports-proj-legend" style="display:flex;gap:14px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);flex-wrap:wrap;"></div>
   </div>`;
 }
 
+function refreshPorts(){
+  const rows = PORTS_RAW || [];
+  if(!document.getElementById('ports-kg')) return;
+  const selStatus = [...document.querySelectorAll('.ports-cb-status:checked')].map(cb=>cb.value);
+  const selWeeks = [...document.querySelectorAll('.ports-cb-week:checked')].map(cb=>Number(cb.value));
+
+  let ft = rows;
+  if (selStatus.length) ft = ft.filter(r=>selStatus.includes(r.status));
+  if (selWeeks.length) ft = ft.filter(r=>selWeeks.includes(r.pack_plan));
+
+  document.getElementById('ports-stat').textContent = `${ft.length} de ${rows.length} registros · métrica: ${portsMetric==='fcl'?'FCL':'PO'}`;
+
+  const unitLbl = portsMetric==='fcl' ? 'FCL' : 'PO';
+  const totalAll = portsMetricAgg(ft);
+  const confAll = portsMetricAgg(ft.filter(r=>r.status==='Confirmado'));
+  const proyAll = portsMetricAgg(ft.filter(r=>r.status==='Proyectado'));
+  const cancAll = portsMetricAgg(ft.filter(r=>r.status==='Cancelado'));
+
+  document.getElementById('ports-kg').innerHTML = `<div class="kg">
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">Total (${unitLbl})</div><div class="kv">${portsFmt(totalAll)}</div></div>
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">Confirmados</div><div class="kv">${portsFmt(confAll)}</div><div class="kf">${totalAll?pct(confAll,totalAll):0}%</div></div>
+    <div class="kc"><div class="kl">Proyectados</div><div class="kv">${portsFmt(proyAll)}</div><div class="kf">${totalAll?pct(proyAll,totalAll):0}%</div></div>
+    <div class="kc" style="--acc:var(--bad)"><div class="kl">Cancelados</div><div class="kv">${portsFmt(cancAll)}</div><div class="kf">${totalAll?pct(cancAll,totalAll):0}%</div></div>
+  </div>`;
+
+  const portStats = PORTS_LIST.map(p=>{
+    const sub = ft.filter(r=>r.port===p.name);
+    const c = portsMetricAgg(sub.filter(r=>r.status==='Confirmado'));
+    const pr = portsMetricAgg(sub.filter(r=>r.status==='Proyectado'));
+    const k = portsMetricAgg(sub.filter(r=>r.status==='Cancelado'));
+    const tot = c+pr+k;
+    const modeCounts = {}; sub.forEach(r=>{ if(r.mode) modeCounts[r.mode]=(modeCounts[r.mode]||0)+1; });
+    const mode = Object.keys(modeCounts).sort((a,b)=>modeCounts[b]-modeCounts[a])[0] || '—';
+    return {...p, conf:c, proy:pr, canc:k, total:tot, cumpl: tot?pct(c,tot):0, mode, recCount:sub.length};
+  }).filter(p=>p.recCount>0);
+
+  document.getElementById('ports-cards').innerHTML = portStats.length ? portStats.map(p=>{
+    const cumpl = Math.min(p.cumpl,100);
+    const cc = cumpl>=80?'ok':cumpl>=50?'warn':'bad';
+    const label = cumpl>=80?'✅ Óptimo':cumpl>=50?'⚠️ Revisar':'🔴 Crítico';
+    const ccVar = cumpl>=80?'var(--ok)':cumpl>=50?'var(--warn)':'var(--bad)';
+    const ccBg = cumpl>=80?'var(--ok-bg)':cumpl>=50?'var(--warn-bg)':'var(--bad-bg)';
+    const modeIcon = p.mode==='Aéreo'?'✈':p.mode==='Marítimo'?'⚓':p.mode==='Terrestre'?'🚚':'';
+    return `<div class="port-card" style="--pc:${p.color};">
+      <div class="pcn">${p.name}<span class="pill neu">${modeIcon} ${p.mode}</span></div>
+      <div class="pcs"><span>Confirmado</span><b class="mono" style="color:var(--blue);">${portsFmt(p.conf)}</b></div>
+      <div class="pcs"><span>Proyectado</span><b class="mono">${portsFmt(p.proy)}</b></div>
+      <div class="pcs"><span>Cancelado</span><b class="mono" style="color:var(--bad);">${portsFmt(p.canc)}</b></div>
+      <div class="pcs"><span>% Cumplimiento</span><b class="mono" style="color:${ccVar};">${cumpl}%</b></div>
+      <div class="pcm">
+        <div style="width:${p.total?(p.conf/p.total*100).toFixed(1):0}%;background:var(--blue);"></div>
+        <div style="width:${p.total?(p.proy/p.total*100).toFixed(1):0}%;background:var(--ink-faint);"></div>
+        <div style="width:${p.total?(p.canc/p.total*100).toFixed(1):0}%;background:var(--bad);"></div>
+      </div>
+      <div class="pc-footer">
+        <div class="pc-stat"><div class="pc-stat-val">${portsFmt(p.total)}</div><div class="pc-stat-lbl">${unitLbl}</div></div>
+        <div class="pc-stat"><div class="pc-stat-val" style="font-size:15px;color:${ccVar};">${cumpl}%</div><div class="pc-stat-lbl">Cumplim.</div></div>
+      </div>
+      <div class="ports-badge" style="background:${ccBg};color:${ccVar};">${label}</div>
+    </div>`;
+  }).join('') : '<div class="empty-state">Sin registros para este filtro</div>';
+
+  const slices = [{n:'Confirmado', v:confAll, c:'var(--blue)'}, {n:'Proyectado', v:proyAll, c:'var(--ink-faint)'}, {n:'Cancelado', v:cancAll, c:'var(--bad)'}];
+  let cum = 0;
+  const conic = totalAll ? slices.map(s=>{ const st=cum, en=cum+(s.v/totalAll*360); cum=en; return `${s.c} ${st.toFixed(1)}deg ${en.toFixed(1)}deg`; }).join(',') : 'var(--line) 0deg 360deg';
+  document.getElementById('ports-donut').innerHTML = `<div class="donut-wrap">
+    <div class="donut-ring" style="background:conic-gradient(${conic});">
+      <div class="donut-center"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;">${portsFmt(totalAll)}</div><div style="font-size:8px;color:var(--ink-faint);">total ${unitLbl}</div></div>
+    </div>
+    <div class="donut-legend">${slices.map(s=>`<div class="dli"><span class="dls" style="background:${s.c};"></span><span>${s.n}</span><span class="dlv">${portsFmt(s.v)}·${totalAll?pct(s.v,totalAll):0}%</span></div>`).join('')}</div>
+  </div>`;
+
+  document.getElementById('ports-bars').innerHTML = portStats.length ? portStats.map(p=>`
+    <div style="display:grid;grid-template-columns:72px 1fr 64px;align-items:center;gap:8px;margin-bottom:9px;">
+      <div style="text-align:right;font-size:11px;font-weight:500;">${p.name}</div>
+      <div style="background:var(--surface-soft);border-radius:5px;height:14px;overflow:hidden;display:flex;border:1px solid var(--line);">
+        <div style="width:${p.total?(p.conf/p.total*100).toFixed(1):0}%;background:var(--blue);height:100%;"></div>
+        <div style="width:${p.total?(p.proy/p.total*100).toFixed(1):0}%;background:var(--ink-faint);height:100%;"></div>
+        <div style="width:${p.total?(p.canc/p.total*100).toFixed(1):0}%;background:var(--bad);height:100%;"></div>
+      </div>
+      <div class="mono" style="font-weight:600;font-size:11px;">${portsFmt(p.total)}</div>
+    </div>`).join('') : '<div class="empty-state">Sin datos</div>';
+
+  // Proyección por Puertos — distribución apilada por Pack Plan
+  const weeksAll = [...new Set(ft.map(r=>r.pack_plan))].sort((a,b)=>a-b);
+  const byWeekPort = {};
+  weeksAll.forEach(wk=>{ byWeekPort[wk] = {}; PORTS_LIST.forEach(p=>{ byWeekPort[wk][p.name] = portsMetric==='po' ? new Set() : 0; }); });
+  ft.forEach(r=>{
+    if (!PORTS_LIST.some(p=>p.name===r.port)) return;
+    if (portsMetric==='fcl') byWeekPort[r.pack_plan][r.port] += (r.fcl||0);
+    else if (r.po) byWeekPort[r.pack_plan][r.port].add(r.po);
+  });
+  if (portsMetric==='po') weeksAll.forEach(wk=>PORTS_LIST.forEach(p=>{ byWeekPort[wk][p.name] = byWeekPort[wk][p.name].size; }));
+  const mx = Math.max(1, ...weeksAll.map(wk=>PORTS_LIST.reduce((a,p)=>a+byWeekPort[wk][p.name],0)));
+
+  const chartEl = document.getElementById('ports-proj-chart');
+  chartEl.innerHTML = weeksAll.length ? weeksAll.map(wk=>{
+    const tot = PORTS_LIST.reduce((a,p)=>a+byWeekPort[wk][p.name],0);
+    const h = Math.max(2, (tot/mx*100));
+    const segs = PORTS_LIST.map(p=>`<div class="seg" style="height:${tot?(byWeekPort[wk][p.name]/tot*100).toFixed(1):0}%;background:${p.color};"></div>`).join('');
+    return `<div class="sc-col" data-wk="${wk}" style="height:100%;">
+      <span class="sc-val">${portsFmt(tot)}</span>
+      <div class="sc-bars" style="height:${h}%;">${segs}</div>
+      <span class="sc-lbl">S${wk}</span>
+    </div>`;
+  }).join('') : '<div class="empty-state">Sin registros para este filtro</div>';
+
+  document.getElementById('ports-proj-legend').innerHTML = PORTS_LIST.map(p=>`<div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-soft);"><span style="width:9px;height:9px;border-radius:2px;background:${p.color};"></span>${p.name}</div>`).join('');
+  document.getElementById('ports-proj-stat').textContent = `${weeksAll.length} semana(s) · métrica: ${unitLbl}`;
+
+  chartEl.querySelectorAll('.sc-col').forEach(col=>{
+    col.addEventListener('mouseenter', ()=>{
+      const wk = +col.dataset.wk;
+      const tot = PORTS_LIST.reduce((a,p)=>a+byWeekPort[wk][p.name],0);
+      const tip = document.getElementById('portsTooltip');
+      tip.innerHTML = `<b>Pack Plan S${wk}</b><br>` +
+        PORTS_LIST.map(p=>`<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${p.color};margin-right:6px;"></span>${p.name}: <b class="mono">${portsFmt(byWeekPort[wk][p.name])} ${unitLbl}</b><br>`).join('') +
+        `<div style="border-top:1px solid rgba(255,255,255,.2);margin-top:6px;padding-top:5px;">Total: <b class="mono">${portsFmt(tot)} ${unitLbl}</b></div>`;
+      tip.style.opacity = '1';
+      const rect = col.getBoundingClientRect();
+      tip.style.left = (rect.left + rect.width/2 + window.scrollX - 90) + 'px';
+      tip.style.top = (rect.top + window.scrollY - 8) + 'px';
+    });
+    col.addEventListener('mouseleave', ()=>{ document.getElementById('portsTooltip').style.opacity='0'; });
+  });
+}
+
+window.postRender_ports = refreshPorts;
+
+/* ============================================================
+   # 09c WEEKLY — tabla dinámica completa (filtros multi-select +
+   jerarquía Packing→Modo→Shipper→POD con rowspan), portada de
+   bWeekly/renderWeekly en AXIS_1_0_.html.
+   ============================================================ */
+function wkChipGroup(cls, opts, labelFn){
+  return opts.length ? opts.map(o=>`<label class="fc-chip mono"><input type="checkbox" class="${cls}" value="${String(o).replace(/"/g,'&quot;')}" checked onchange="refreshWeekly()">${labelFn?labelFn(o):o}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>';
+}
+function wkSetAll(cls, state){ document.querySelectorAll('.'+cls).forEach(cb=>cb.checked=state); refreshWeekly(); }
+function wkChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked')].map(cb=>cb.value); }
+
 function renderWeekly(){
   const rows = WROWS || [];
+  const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
   const packings = [...new Set(rows.map(r=>r.packing).filter(Boolean))].sort();
-  const mO = ['Aéreo','Marítimo','Terrestre'];
+  const shippers = [...new Set(rows.map(r=>r.shipper).filter(Boolean))].sort();
+  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
+  const modes = [...new Set(rows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
   const dates = [...new Set(rows.map(r=>r.date).filter(Boolean))].sort();
-  let html = '';
-  let grandTotal = 0;
-  packings.forEach(pk=>{
-    const pkRows = rows.filter(r=>r.packing===pk);
-    const modes = [...new Set(pkRows.map(r=>r.mode))].sort((a,b)=>mO.indexOf(a)-mO.indexOf(b));
-    let pkTotal = 0;
-    let body = '';
-    modes.forEach(mode=>{
-      const shippers = [...new Set(pkRows.filter(r=>r.mode===mode).map(r=>r.shipper))].sort();
-      shippers.forEach(sh=>{
-        const pods = [...new Set(pkRows.filter(r=>r.mode===mode&&r.shipper===sh).map(r=>r.pod))].sort();
-        pods.forEach(pod=>{
-          const rowFcl = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod).map(r=>r.fcl));
-          pkTotal += rowFcl;
-          body += `<tr><td class="mono">${mode}</td><td>${sh}</td><td>${pod}</td><td class="mono" style="text-align:right;font-weight:600;">${fmt1(rowFcl)}</td></tr>`;
-        });
-      });
-    });
-    grandTotal += pkTotal;
-    html += `<div style="margin:${html?'18px':'0'} 0 8px;display:flex;align-items:center;gap:8px;"><b style="font-family:'Space Grotesk',sans-serif;font-size:13.5px;">${pk}</b><span class="pill neu">${fmt1(pkTotal)} FCL</span></div>
-    <div class="tbl-wrap"><table class="std"><thead><tr><th>Modo</th><th>Shipper</th><th>POD</th><th style="text-align:right">FCL</th></tr></thead><tbody>${body}</tbody></table></div>`;
-  });
+
+  const filterBlock = (label, cls, opts, labelFn) => `
+    <div>
+      <div class="fc-label" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <span>${label}</span>
+        <span style="display:flex;gap:8px;">
+          <a class="fc-mini-link" onclick="wkSetAll('${cls}',true)">Todos</a>
+          <a class="fc-mini-link" onclick="wkSetAll('${cls}',false)">Ninguno</a>
+        </span>
+      </div>
+      <div class="fc-chip-group" style="max-height:96px;overflow-y:auto;">${wkChipGroup(cls, opts, labelFn)}</div>
+    </div>`;
+
   return `
+  <div class="card" style="margin-bottom:14px;">
+    <div class="ct">Tabla dinámica unificada <span class="sub" id="wk-stat"></span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px;">
+      ${filterBlock('Pack Plan', 'wk-cb-pp', weeks, w=>'S'+w)}
+      ${filterBlock('Packing', 'wk-cb-pk', packings)}
+      ${filterBlock('Shipper', 'wk-cb-sh', shippers)}
+      ${filterBlock('Modo', 'wk-cb-mo', modes, m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
+      ${filterBlock('Loading Date', 'wk-cb-dt', dates)}
+    </div>
+  </div>
   <div class="card">
-    <div class="ct">Programa semanal — todos los packings <span class="sub">${rows.length} filas reales · ${dates.length} fecha(s) · ${fmt1(grandTotal)} FCL</span></div>
-    ${html || '<div class="empty-state">Sin datos de WROWS todavía</div>'}
+    <div class="ct">Export Summary — todos los modos <span class="sub" id="wk-cols-stat"></span></div>
+    <div class="tbl-wrap"><div style="overflow-x:auto;"><table class="std" id="wk-table"><thead id="wk-head"></thead><tbody id="wk-body"></tbody></table></div></div>
   </div>`;
 }
+
+function refreshWeekly(){
+  const rows = WROWS || [];
+  if(!document.getElementById('wk-body')) return;
+  const selPP = wkChecked('wk-cb-pp').map(Number);
+  const selPK = wkChecked('wk-cb-pk');
+  const selSH = wkChecked('wk-cb-sh');
+  const selMO = wkChecked('wk-cb-mo');
+  const selDT = wkChecked('wk-cb-dt');
+
+  let ft = rows;
+  if (selPP.length) ft = ft.filter(r=>selPP.includes(r.pack_plan));
+  if (selPK.length) ft = ft.filter(r=>selPK.includes(r.packing));
+  if (selSH.length) ft = ft.filter(r=>selSH.includes(r.shipper));
+  if (selMO.length) ft = ft.filter(r=>selMO.includes(r.mode));
+  if (selDT.length) ft = ft.filter(r=>selDT.includes(r.date||''));
+
+  const allDates = [...new Set(ft.map(r=>r.date).filter(Boolean))].sort();
+  const hasSF = ft.some(r=>!r.date);
+  const cols = [...allDates, ...(hasSF?['']:[])];
+  const dayLabel = d => { if(!d) return 'Sin fecha'; const dt=new Date(d); return isNaN(dt) ? d : dt.toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'short'}).toUpperCase(); };
+
+  document.getElementById('wk-head').innerHTML = `<tr><th>Packing</th><th>Modo</th><th>Shipper</th><th>POD</th>${cols.map(d=>`<th style="text-align:center">${dayLabel(d)}</th>`).join('')}<th style="text-align:right">Total</th></tr>`;
+
+  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
+  const packings = [...new Set(ft.map(r=>r.packing).filter(Boolean))].sort();
+  const gt = {}; cols.forEach(d=>gt[d]=0); gt['__t']=0;
+
+  // Filas como objetos: pkCell/modeCell/shCell solo llevan {span} en su primera
+  // aparición, así el render final ya sale con los rowspan correctos sin
+  // necesidad de parchear el DOM después.
+  let bodyRows = [];
+  packings.forEach(pk=>{
+    const pkRows = ft.filter(r=>r.packing===pk);
+    const pkT = {}; cols.forEach(d=>pkT[d]=0); pkT['__t']=0;
+    const modes = [...new Set(pkRows.map(r=>r.mode))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
+    let pkRowSpan = 0;
+    const pkFirstRowIdx = bodyRows.length;
+
+    modes.forEach(mode=>{
+      const shippers = [...new Set(pkRows.filter(r=>r.mode===mode).map(r=>r.shipper))].sort();
+      let modeRowSpan = 0;
+      const modeFirstRowIdx = bodyRows.length;
+      const modeIcon = mode==='Aéreo'?'✈':mode==='Marítimo'?'⚓':'🚚';
+
+      shippers.forEach(sh=>{
+        const pods = [...new Set(pkRows.filter(r=>r.mode===mode&&r.shipper===sh).map(r=>r.pod))].sort();
+        const shFirstRowIdx = bodyRows.length;
+        pods.forEach(pod=>{
+          const cellsData = {};
+          cols.forEach(d=>{ cellsData[d] = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod&&(r.date||'')===d).map(r=>r.fcl)); });
+          const rt = sum(Object.values(cellsData));
+          cols.forEach(d=>{ pkT[d]+=cellsData[d]; gt[d]+=cellsData[d]; });
+          pkT['__t']+=rt; gt['__t']+=rt;
+          bodyRows.push({ pkCell:null, modeCell:null, shCell:null, pod, cellsData, rt });
+          pkRowSpan++; modeRowSpan++;
+        });
+        bodyRows[shFirstRowIdx].shCell = { shipper: sh, span: pods.length };
+      });
+      bodyRows[modeFirstRowIdx].modeCell = { icon: modeIcon, mode, span: modeRowSpan };
+    });
+    bodyRows[pkFirstRowIdx].pkCell = { pk, span: pkRowSpan };
+    bodyRows.push({ isPkTotal:true, pk, pkT });
+  });
+
+  let html = bodyRows.map(r=>{
+    if (r.isPkTotal){
+      return `<tr style="background:var(--surface-soft);font-weight:600;"><td colspan="3">Total ${r.pk}</td>${cols.map(d=>r.pkT[d]>0?`<td class="mono" style="text-align:center;">${fmt1(r.pkT[d])}</td>`:`<td class="mono" style="text-align:center;color:var(--ink-faint);">·</td>`).join('')}<td class="mono" style="text-align:right;font-weight:700;">${fmt1(r.pkT['__t'])}</td></tr>`;
+    }
+    const pkTd = r.pkCell ? `<td rowspan="${r.pkCell.span}" style="background:var(--surface-soft);font-weight:700;border-right:2px solid var(--blue);vertical-align:top;">${r.pkCell.pk}</td>` : '';
+    const modeTd = r.modeCell ? `<td rowspan="${r.modeCell.span}" style="vertical-align:top;"><span class="pill neu">${r.modeCell.icon} ${r.modeCell.mode}</span></td>` : '';
+    const shTd = r.shCell ? `<td rowspan="${r.shCell.span}" style="vertical-align:top;font-weight:500;">${r.shCell.shipper}</td>` : '';
+    const cellsHtml = cols.map(d=>r.cellsData[d]>0 ? `<td class="mono" style="text-align:center;">${fmt1(r.cellsData[d])}</td>` : `<td class="mono" style="text-align:center;color:var(--ink-faint);">·</td>`).join('');
+    return `<tr>${pkTd}${modeTd}${shTd}<td>${r.pod}</td>${cellsHtml}<td class="mono" style="text-align:right;font-weight:600;">${fmt1(r.rt)}</td></tr>`;
+  }).join('');
+
+  html += `<tr style="background:var(--navy);color:#fff;font-weight:700;"><td colspan="4">Total general</td>${cols.map(d=>gt[d]>0?`<td class="mono" style="text-align:center;">${fmt1(gt[d])}</td>`:`<td class="mono" style="text-align:center;opacity:.5;">·</td>`).join('')}<td class="mono" style="text-align:right;">${fmt1(gt['__t'])}</td></tr>`;
+
+  document.getElementById('wk-body').innerHTML = html || `<tr><td colspan="${4+cols.length+1}" class="empty-state">Sin datos para este filtro</td></tr>`;
+  document.getElementById('wk-stat').textContent = `${ft.length} filas · ${fmt1(gt['__t'])} FCL`;
+  document.getElementById('wk-cols-stat').textContent = `${cols.length} fecha(s) de carga`;
+}
+
+window.postRender_weekly = refreshWeekly;
 
 function pillCellStyle(v,max){ const a = (v/max*0.34+0.05).toFixed(2); return v? `background:rgba(240,179,87,${a});` : ''; }
 function renderWEP(){

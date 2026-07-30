@@ -1220,11 +1220,33 @@ function pillCellStyle(v,max){ const a = (v/max*0.34+0.05).toFixed(2); return v?
    Destino=pod, Fecha de carga=date, FCL=fcl).
    ============================================================ */
 function wepChecked_select(id){ const el = document.getElementById(id); return el ? el.value : 'ALL'; }
+function wepPickCurrentWeek(rows){
+  // Elige la semana cuyo rango de fechas de carga contiene HOY (o la más
+  // cercana en el tiempo). Evita el bug de tomar el pack_plan numéricamente
+  // más alto, que puede ser una reserva aislada muy a futuro con 1 sola fila.
+  const weeks = [...new Set(rows.map(r=>r.pack_plan))];
+  const now = new Date();
+  let best = null, bestDist = Infinity, bestCount = -1;
+  weeks.forEach(wk=>{
+    const wkRows = rows.filter(r=>r.pack_plan===wk);
+    const dates = wkRows.map(r=>new Date(r.date)).filter(d=>!isNaN(d));
+    if (!dates.length) return;
+    const minD = Math.min(...dates), maxD = Math.max(...dates);
+    let dist;
+    if (now >= minD && now <= maxD) dist = 0;
+    else if (now < minD) dist = minD - now;
+    else dist = now - maxD;
+    // Ante empate de distancia, prioriza la semana con más filas (más representativa)
+    if (dist < bestDist || (dist === bestDist && wkRows.length > bestCount)) {
+      best = wk; bestDist = dist; bestCount = wkRows.length;
+    }
+  });
+  return best !== null ? best : weeks.sort((a,b)=>b-a)[0];
+}
 
 function renderWEP(){
   const all = WROWS || [];
-  const weeks = [...new Set(all.map(r=>r.pack_plan))].sort((a,b)=>b-a);
-  const curWeek = weeks[0];
+  const curWeek = wepPickCurrentWeek(all);
   const baseRows = all.filter(r=>r.pack_plan===curWeek);
   const packings = [...new Set(baseRows.map(r=>r.packing).filter(Boolean))].sort();
   const shippers = [...new Set(baseRows.map(r=>r.shipper).filter(Boolean))].sort();
@@ -1264,8 +1286,7 @@ function renderWEP(){
 function refreshWEP(){
   const all = WROWS || [];
   if (!document.getElementById('wep-kg')) return;
-  const weeks = [...new Set(all.map(r=>r.pack_plan))].sort((a,b)=>b-a);
-  const curWeek = weeks[0];
+  const curWeek = wepPickCurrentWeek(all);
   let rows = all.filter(r=>r.pack_plan===curWeek);
 
   const selPK = wepChecked_select('wep-pk-select');

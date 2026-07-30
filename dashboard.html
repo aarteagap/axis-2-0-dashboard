@@ -2169,77 +2169,286 @@ function renderRetiro(){
   <div class="card"><div class="ct">Containers Picked Up by Week <span class="sub">Trend · Pack Plan</span></div><div style="height:220px;"><canvas id="chRetiroWeekly"></canvas></div></div>`;
 }
 
+/* ============================================================
+   # 10b PACKING — versión completa (KPIs, donut Pre-Loading, bar de
+   Dispatch Delay, tendencia semanal de loading time, detención +
+   delays promedio, cumplimiento por naviera apilado, card de
+   Positioning), portada del Stage 02 de control_tower_transporte.
+   Dataset real: TRANSPORT_RAW.
+   ============================================================ */
+function trAvgSigned(rows, field, capAbs){
+  capAbs = capAbs || 720;
+  const valid = rows.map(r=>r[field]).filter(v=>v!=null && Math.abs(v)<=capAbs);
+  return valid.length ? sum(valid)/valid.length : null;
+}
+function trWeeklyAvg(rows, field, filterFn){
+  const g = {};
+  rows.forEach(r=>{
+    const v = r[field];
+    if (v==null || (filterFn && !filterFn(v))) return;
+    g[r.pp] = g[r.pp] || [];
+    g[r.pp].push(v);
+  });
+  const weeks = Object.keys(g).map(Number).sort((a,b)=>a-b);
+  return { labels: weeks.map(w=>'PP'+w), data: weeks.map(w=>+(sum(g[w])/g[w].length).toFixed(2)) };
+}
+function minutesToHM(m){
+  if (m==null || isNaN(m)) return '–';
+  const sign = m<0 ? '-' : '';
+  const abs = Math.abs(Math.round(m));
+  return `${sign}${Math.floor(abs/60)}h ${abs%60}min`;
+}
+function trStackedCompliance3(rows, groupField, complianceField){
+  const g = {};
+  rows.forEach(r=>{
+    const key = r[groupField]; const c = r[complianceField];
+    if (!key || !c) return;
+    g[key] = g[key] || {'ON TIME':0,'LATE':0,'CRITICAL LATE':0};
+    if (g[key][c]!==undefined) g[key][c]++;
+  });
+  return g;
+}
+
 function renderPacking(){
   const rows = currentRows();
   const comp = countBy(rows, 'packingCompliance');
   const compTotal = Object.values(comp).reduce((a,b)=>a+b,0);
   const onTimePct = pct(comp['ON TIME']||0, compTotal);
-  const critPct = pct(comp['CRITICAL LATE']||0, compTotal);
-  const preload = countBy(rows, 'preLoadingWait');
-  const preloadTotal = Object.values(preload).reduce((a,b)=>a+b,0);
-  const onTrackPct = pct(preload['ON TRACK']||0, preloadTotal);
-  const dispatch = countBy(rows, 'dispatchDelay');
-  const navieraGroup = groupOnLate(rows, 'naviera', 'packingCompliance', ['ON TIME']);
-  const navLabels = Object.keys(navieraGroup);
-  const wk = weeklyCount(rows);
-  const avgCarga = avgField(rows, 'tiempoCargaMin');
+  const latePct = pct(comp['LATE']||0, compTotal);
+  const critLatePct = pct(comp['CRITICAL LATE']||0, compTotal);
 
-  window.build_chPackingDonut = () => mountChart('chPackingDonut', donutConfig(['On Track','Off Track'], [onTrackPct, +(100-onTrackPct).toFixed(1)], [chartColor('--ok'), chartColor('--bad')]));
-  window.build_chPackingDispatch = () => mountChart('chPackingDispatch', barSimpleConfig(Object.keys(dispatch), Object.values(dispatch), Object.keys(dispatch).map(l=>l==='ON TIME'?chartColor('--ok'):l==='HIGH DELAY'?chartColor('--warn'):chartColor('--bad'))));
-  window.build_chPackingWeekly = () => mountChart('chPackingWeekly', lineConfig(wk.labels, wk.data, chartColor('--amber')));
-  window.build_chPackingNaviera = () => mountChart('chPackingNaviera', stackedBarConfig(navLabels, [
-    {label:'On time', data:navLabels.map(l=>navieraGroup[l].on), color:chartColor('--ok')},
-    {label:'Late', data:navLabels.map(l=>navieraGroup[l].late), color:chartColor('--bad')},
-  ]));
+  const det = countBy(rows, 'detentionPacking');
+  const detTotal = Object.values(det).reduce((a,b)=>a+b,0);
+  const noDetPct = pct(det['NO DETENTION']||0, detTotal);
+  const highDetPct = pct(det['HIGH DETENTION']||0, detTotal);
+  const critDetPct = pct(det['CRITICAL DETENTION']||0, detTotal);
+
+  const avgCargaStats = trAvgFiltered(rows, 'tiempoCargaMin', 1440);
+  const avgCarga = avgCargaStats.avg;
+  const dispatch = countBy(rows, 'dispatchDelay');
+  const dispatchTotal = Object.values(dispatch).reduce((a,b)=>a+b,0);
+  const dispOnTimePct = pct(dispatch['ON TIME']||0, dispatchTotal);
+  const dispHighPct = pct(dispatch['HIGH DELAY']||0, dispatchTotal);
+  const dispCritPct = pct(dispatch['CRITICAL DELAY']||0, dispatchTotal);
+
+  const preload = countBy(rows, 'preLoadingWait');
+  const checkInAvg = trAvgFiltered(rows, 'checkInDelayH');
+  const entryAvg = trAvgFiltered(rows, 'entryDelayH');
+  const posAvg = trAvgSigned(rows, 'positioningDeltaMin');
+
+  const detHoursByCat = ['NO DETENTION','HIGH DETENTION','CRITICAL DETENTION'].map(cat=>{
+    const vals = rows.filter(r=>r.detentionPacking===cat && r.detPackingH!=null && r.detPackingH>=0 && r.detPackingH<=72).map(r=>r.detPackingH);
+    return { cat, n: det[cat]||0, pct: pct(det[cat]||0, detTotal), avgH: vals.length ? sum(vals)/vals.length : null };
+  });
+
+  const navieraGroup = trStackedCompliance3(rows, 'naviera', 'packingCompliance');
+  const navieraLabels = Object.keys(navieraGroup).sort((a,b)=>{
+    const totA = Object.values(navieraGroup[a]).reduce((x,y)=>x+y,0);
+    const totB = Object.values(navieraGroup[b]).reduce((x,y)=>x+y,0);
+    return totB-totA;
+  });
+
+  const wk = trWeeklyAvg(rows, 'tiempoCargaMin', v=>v>=0 && v<=1440);
+
+  window.build_chPackingDonut = () => mountChart('chPackingDonut', donutConfig(['On Track','Off Track'], [preload['ON TRACK']||0, preload['OFF TRACK']||0], [chartColor('--ok'), chartColor('--bad')]));
+  window.build_chPackingDispatch = () => mountChart('chPackingDispatch', barSimpleConfig(['On Time','High Delay','Critical Delay'], [dispatch['ON TIME']||0, dispatch['HIGH DELAY']||0, dispatch['CRITICAL DELAY']||0], [chartColor('--ok'), chartColor('--warn'), chartColor('--bad')]));
+  window.build_chPackingWeekly = () => mountChart('chPackingWeekly', lineConfig(wk.labels, wk.data.map(v=>+(v/60).toFixed(2)), chartColor('--teal')));
+  window.build_chPackingNaviera = () => mountChart('chPackingNaviera', {
+    type:'bar',
+    data:{ labels: navieraLabels, datasets:[
+      {label:'On Time', data: navieraLabels.map(l=>navieraGroup[l]['ON TIME']), backgroundColor: chartColor('--ok')},
+      {label:'Late', data: navieraLabels.map(l=>navieraGroup[l]['LATE']), backgroundColor: chartColor('--warn')},
+      {label:'Critical Late', data: navieraLabels.map(l=>navieraGroup[l]['CRITICAL LATE']), backgroundColor: chartColor('--bad')},
+    ]},
+    options: baseChartOptions({ indexAxis:'y', scales:{ x:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{color:chartColor('--line')}}, y:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{display:false}} } }),
+  });
+
+  const detPackingOutliers = rows.filter(r=>r.detPackingH!=null && (r.detPackingH<0 || r.detPackingH>72)).length;
+  const excludedTotal = checkInAvg.excluded.length + entryAvg.excluded.length + detPackingOutliers;
+
   return `
-  <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local) — snapshot de TABLEAU_CONSOLIDADO_DE_TRANSPORTE_2627.xlsx'} · ${rows.length} registros</span>
+  <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local)'} · ${rows.length} registros</span>
+  ${trDataQualityBadge(excludedTotal, 'packing-dq-details')}
+  <div class="dq-details" id="packing-dq-details">
+    Se excluyeron ${detPackingOutliers} valor(es) de "Detention at Packing" (horas fuera de rango razonable) y ${checkInAvg.excluded.length + entryAvg.excluded.length} de los delays promedio (Check-In/Entry) — probablemente errores de captura en el Excel origen.
+  </div>
+  <div class="ph" style="margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+      <div>
+        <h2 style="margin:0;font-size:20px;">Packing Process</h2>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">Stage 2 · Plant — desde el posicionamiento hasta la salida con carga</div>
+      </div>
+      <span class="stage-badge-count">${rows.length} SHIPMENTS · ${compTotal} WITH RECORDED APPOINTMENT</span>
+    </div>
+  </div>
   <div class="kg">
-    <div class="kc" style="--acc:${critPct>=30?'var(--bad)':'var(--ok)'}"><div class="kl">Critical appointment</div><div class="kv">${critPct}<span class="u">%</span></div><div class="kf"><span class="pill ${critPct>=30?'bad':'ok'}">Stage 02 · Plant</span></div></div>
-    <div class="kc" style="--acc:var(--ok)"><div class="kl">Packing on time</div><div class="kv">${onTimePct}<span class="u">%</span></div></div>
-    <div class="kc"><div class="kl">Avg. Loading Time</div><div class="kv">${avgCarga? Math.floor(avgCarga/60)+'h '+Math.round(avgCarga%60)+'m' : '–'}</div></div>
+    <div class="kc" style="--acc:var(--ok)">
+      <div class="kl">Packing Appointment Compliance</div><div class="kv">${onTimePct}<span class="u">% on time</span></div>
+      <div class="kf"><span class="pill warn">${latePct}% LATE</span> <span class="pill bad">${critLatePct}% CRITICAL LATE</span></div>
+      <div class="kpi-progress"><div class="seg" style="width:${onTimePct}%;background:var(--ok);"></div><div class="seg" style="width:${latePct}%;background:var(--warn);"></div><div class="seg" style="width:${critLatePct}%;background:var(--bad);"></div></div>
+    </div>
+    <div class="kc" style="--acc:var(--ok)">
+      <div class="kl">Detention at Packing</div><div class="kv">${noDetPct}<span class="u">% no detention</span></div>
+      <div class="kf"><span class="pill warn">${highDetPct}% HIGH</span> <span class="pill bad">${critDetPct}% CRITICAL</span></div>
+      <div class="kpi-progress"><div class="seg" style="width:${noDetPct}%;background:var(--ok);"></div><div class="seg" style="width:${highDetPct}%;background:var(--warn);"></div><div class="seg" style="width:${critDetPct}%;background:var(--bad);"></div></div>
+    </div>
+    <div class="kc"><div class="kl">Avg. Loading Time</div><div class="kv" style="font-size:22px;">${avgCarga!=null?minutesToHM(avgCarga):'–'}</div><div class="kf">${avgCarga!=null?avgCarga.toFixed(1):'–'} MIN AVG.</div></div>
+    <div class="kc" style="--acc:var(--warn)">
+      <div class="kl">Dispatch Delay</div><div class="kv">${dispOnTimePct}<span class="u">% on time</span></div>
+      <div class="kf"><span class="pill warn">${dispHighPct}% HIGH</span> <span class="pill bad">${dispCritPct}% CRITICAL</span></div>
+      <div class="kpi-progress"><div class="seg" style="width:${dispOnTimePct}%;background:var(--ok);"></div><div class="seg" style="width:${dispHighPct}%;background:var(--warn);"></div><div class="seg" style="width:${dispCritPct}%;background:var(--bad);"></div></div>
+    </div>
   </div>
   <div class="g2">
-    <div class="card"><div class="ct">Pre-Loading Wait Time</div><div style="height:200px;"><canvas id="chPackingDonut"></canvas></div></div>
-    <div class="card"><div class="ct">Dispatch Delay</div><div style="height:200px;"><canvas id="chPackingDispatch"></canvas></div></div>
+    <div class="card"><div class="ct">Pre-Loading Wait Time <span class="sub">On Track vs. Off Track</span></div><div style="height:230px;"><canvas id="chPackingDonut"></canvas></div></div>
+    <div class="card"><div class="ct">Dispatch Delay <span class="sub">Shipment distribution</span></div><div style="height:230px;"><canvas id="chPackingDispatch"></canvas></div></div>
   </div>
   <div class="g2">
-    <div class="card"><div class="ct">Volumen por Pack Plan</div><div style="height:200px;"><canvas id="chPackingWeekly"></canvas></div></div>
-    <div class="card"><div class="ct">Packing Appointment Compliance por naviera</div><div style="height:200px;"><canvas id="chPackingNaviera"></canvas></div></div>
+    <div class="card"><div class="ct">Avg. Loading Time by Week <span class="sub">Start → end of loading, en horas</span></div><div style="height:220px;"><canvas id="chPackingWeekly"></canvas></div></div>
+    <div>
+      <div class="card">
+        <div class="ct">Detention at Packing <span class="sub">${detTotal} records</span></div>
+        <div class="tbl-wrap"><table class="std"><thead><tr><th>Status</th><th style="text-align:right">N°</th><th style="text-align:right">%</th><th style="text-align:right">Avg. Hours</th></tr></thead>
+        <tbody>${detHoursByCat.map(d=>{ const c=d.cat==='NO DETENTION'?'ok':d.cat==='HIGH DETENTION'?'warn':'bad'; const label=d.cat==='NO DETENTION'?'No Detention':d.cat==='HIGH DETENTION'?'High Detention':'Critical Detention'; return `<tr><td><span class="pill ${c}" style="font-size:9px;">●</span> ${label}</td><td class="mono" style="text-align:right">${d.n}</td><td class="mono" style="text-align:right">${d.pct}%</td><td class="mono" style="text-align:right">${d.avgH!=null?d.avgH.toFixed(2)+' h':'–'}</td></tr>`; }).join('')}</tbody></table></div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);">
+          <div class="fc-label">Average Delays <span style="text-transform:none;float:right;">Hours</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:8px;"><span>Check-In Delay</span><b class="mono">${checkInAvg.avg!=null?checkInAvg.avg.toFixed(2)+' h':'–'}</b></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:6px;"><span>Entry Delay</span><b class="mono">${entryAvg.avg!=null?entryAvg.avg.toFixed(2)+' h':'–'}</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">Appointment Compliance by Shipping Line <span class="sub">On Time · Late · Critical Late</span></div><div style="height:${Math.max(180,navieraLabels.length*38)}px;"><canvas id="chPackingNaviera"></canvas></div></div>
+    <div class="card">
+      <div class="ct">Positioning <span class="sub">Arrival vs. scheduled time</span></div>
+      <div style="border-left:3px solid var(--ok);padding-left:14px;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:26px;">${posAvg!=null?minutesToHM(Math.abs(posAvg)):'–'}<span style="font-size:14px;color:var(--ink-soft);font-weight:500;"> ${posAvg!=null?(posAvg<0?'early':'late'):''}</span></div>
+        <div class="pill ok" style="margin-top:8px;">OVERALL AVERAGE</div>
+      </div>
+      <div style="font-size:12.5px;color:var(--ink-soft);margin-top:14px;line-height:1.6;">En promedio, los camiones llegan ${posAvg!=null?minutesToHM(Math.abs(posAvg)):'–'} ${posAvg!=null&&posAvg<0?'antes':'después'} de la hora de posicionamiento programada.</div>
+      <div style="font-size:10.5px;color:var(--ink-faint);margin-top:10px;">Fuente: campo <b>Cita - Hora de Posicionamiento</b>, del Excel de Transporte. Alimenta el cálculo de Packing Appointment Compliance.</div>
+    </div>
   </div>`;
 }
 
+/* ============================================================
+   # 10c RECEIVING — versión completa (KPIs, detención por almacén,
+   cumplimiento por puerto, carrier y naviera, tendencia semanal),
+   portada del Stage 03 de control_tower_transporte. Dataset real:
+   TRANSPORT_RAW.
+   ============================================================ */
 function renderIngreso(){
   const rows = currentRows();
   const gateIn = countBy(rows, 'gateInCompliance');
   const gateInTotal = (gateIn['ON TIME']||0) + (gateIn['LATE']||0);
   const onTimePct = pct(gateIn['ON TIME']||0, gateInTotal);
-  const almacenGroup = groupOnLate(rows, 'almacenIngreso', 'gateInCompliance', ['ON TIME']);
-  const carrierGroup = groupOnLate(rows, 'transportista', 'gateInCompliance', ['ON TIME']);
-  const wk = weeklyCount(rows);
-  const almLabels = Object.keys(almacenGroup), carLabels = Object.keys(carrierGroup);
-  const rechazados = rows.filter(r=>r.estatus && r.estatus!=='OK').length;
+  const latePct = pct(gateIn['LATE']||0, gateInTotal);
 
-  window.build_chIngresoAlmacen = () => mountChart('chIngresoAlmacen', stackedBarConfig(almLabels, [
-    {label:'On time', data:almLabels.map(l=>almacenGroup[l].on), color:chartColor('--ok')},
-    {label:'Late', data:almLabels.map(l=>almacenGroup[l].late), color:chartColor('--bad')},
-  ]));
-  window.build_chIngresoCarrier = () => mountChart('chIngresoCarrier', stackedBarConfig(carLabels, [
-    {label:'On time', data:carLabels.map(l=>carrierGroup[l].on), color:chartColor('--ok')},
-    {label:'Late', data:carLabels.map(l=>carrierGroup[l].late), color:chartColor('--bad')},
-  ]));
+  const detGI = countBy(rows, 'detentionGateIn');
+  const detGITotal = (detGI['STANDARD']||0)+(detGI['HIGH']||0)+(detGI['CRITICAL']||0);
+  const stdPct = pct(detGI['STANDARD']||0, detGITotal);
+  const highPct = pct(detGI['HIGH']||0, detGITotal);
+  const critPct = pct(detGI['CRITICAL']||0, detGITotal);
+
+  const fullInboundStats = trAvgFiltered(rows, 'fullInboundH');
+  const excludedTotal = fullInboundStats.excluded.length;
+
+  const almGroups = trGroupDetention(rows, 'almacenIngreso', 'detentionGateIn');
+  const almLabels = Object.keys(almGroups).sort((a,b)=>{
+    const totA = almGroups[a].STANDARD+almGroups[a].HIGH+almGroups[a].CRITICAL;
+    const totB = almGroups[b].STANDARD+almGroups[b].HIGH+almGroups[b].CRITICAL;
+    return totB-totA;
+  });
+
+  const portStats = (() => {
+    const g = {};
+    rows.forEach(r=>{ const key=r.puertoIngreso; if(!key) return; g[key]=g[key]||{on:0,total:0}; const c=r.gateInCompliance; if(c){ g[key].total++; if(c==='ON TIME') g[key].on++; } });
+    return Object.entries(g).map(([name,v])=>({name, total:v.total, onTimePct: v.total?pct(v.on,v.total):0})).sort((a,b)=>b.total-a.total);
+  })();
+
+  const carrierGroup = (() => {
+    const g = {};
+    rows.forEach(r=>{ const key=r.transportista; if(!key) return; g[key]=g[key]||{on:0,late:0}; const c=r.gateInCompliance; if(c==='ON TIME') g[key].on++; else if(c==='LATE') g[key].late++; });
+    return g;
+  })();
+  const carrierLabels = Object.keys(carrierGroup).sort((a,b)=>{
+    const totA = carrierGroup[a].on+carrierGroup[a].late, totB = carrierGroup[b].on+carrierGroup[b].late;
+    return totB-totA;
+  });
+
+  const lineStats = (() => {
+    const g = {};
+    rows.forEach(r=>{ const key=r.naviera; if(!key) return; g[key]=g[key]||{on:0,total:0,crit:0,detTotal:0}; const c=r.gateInCompliance; if(c){ g[key].total++; if(c==='ON TIME') g[key].on++; } const d=r.detentionGateIn; if(d){ g[key].detTotal++; if(d==='CRITICAL') g[key].crit++; } });
+    return Object.entries(g).map(([name,v])=>({name, total:v.total, onTimePct: v.total?pct(v.on,v.total):0, critPct: v.detTotal?pct(v.crit,v.detTotal):0})).sort((a,b)=>b.total-a.total);
+  })();
+
+  const wk = weeklyCount(rows);
+
+  window.build_chIngresoAlmacen = () => mountChart('chIngresoAlmacen', {
+    type:'bar',
+    data:{ labels: almLabels, datasets:[
+      {label:'Standard', data: almLabels.map(l=>almGroups[l].STANDARD), backgroundColor: chartColor('--ok')},
+      {label:'High', data: almLabels.map(l=>almGroups[l].HIGH), backgroundColor: chartColor('--warn')},
+      {label:'Critical', data: almLabels.map(l=>almGroups[l].CRITICAL), backgroundColor: chartColor('--bad')},
+    ]},
+    options: baseChartOptions({ indexAxis:'y', scales:{ x:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{color:chartColor('--line')}}, y:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{display:false}} } }),
+  });
+  window.build_chIngresoCarrier = () => mountChart('chIngresoCarrier', {
+    type:'bar',
+    data:{ labels: carrierLabels, datasets:[
+      {label:'On Time', data: carrierLabels.map(l=>carrierGroup[l].on), backgroundColor: chartColor('--ok')},
+      {label:'Late', data: carrierLabels.map(l=>carrierGroup[l].late), backgroundColor: chartColor('--bad')},
+    ]},
+    options: baseChartOptions({ indexAxis:'y', scales:{ x:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{color:chartColor('--line')}}, y:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{display:false}} } }),
+  });
   window.build_chIngresoWeekly = () => mountChart('chIngresoWeekly', lineConfig(wk.labels, wk.data, chartColor('--teal')));
+
   return `
-  <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local) — snapshot de TABLEAU_CONSOLIDADO_DE_TRANSPORTE_2627.xlsx'} · ${rows.length} registros</span>
+  <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local)'} · ${rows.length} registros</span>
+  ${trDataQualityBadge(excludedTotal, 'ingreso-dq-details')}
+  <div class="dq-details" id="ingreso-dq-details">
+    Se excluyeron ${excludedTotal} valor(es) de "Full Inbound Time" por estar fuera de rango razonable (negativos o &gt;72h).
+  </div>
+  <div class="ph" style="margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+      <div>
+        <h2 style="margin:0;font-size:20px;">Receiving Process</h2>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">Stage 3 · Gate-In — desde la cita de ingreso hasta la salida del almacén portuario</div>
+      </div>
+      <span class="stage-badge-count">${rows.length} SHIPMENTS · ${gateInTotal} WITH RECORDED APPOINTMENT</span>
+    </div>
+  </div>
   <div class="kg">
-    <div class="kc" style="--acc:${onTimePct>=50?'var(--ok)':'var(--bad)'}"><div class="kl">Gate-In Appointment Compliance</div><div class="kv">${onTimePct}<span class="u">%</span></div><div class="kf"><span class="pill ${stageBadge(onTimePct)}">Stage 03 · Gate In</span></div></div>
-    <div class="kc"><div class="kl">Recibidos</div><div class="kv">${rows.length}</div></div>
-    <div class="kc" style="--acc:var(--bad)"><div class="kl">Con incidencia (ESTATUS≠OK)</div><div class="kv">${rechazados}</div></div>
+    <div class="kc" style="--acc:${onTimePct>=50?'var(--ok)':'var(--bad)'}">
+      <div class="kl">Gate-In Appointment Compliance</div><div class="kv">${onTimePct}<span class="u">% on time</span></div>
+      <div class="kf"><span class="pill bad">${latePct}% LATE</span></div>
+      <div class="kpi-progress"><div class="seg" style="width:${onTimePct}%;background:var(--ok);"></div><div class="seg" style="width:${latePct}%;background:var(--bad);"></div></div>
+    </div>
+    <div class="kc" style="--acc:var(--ok)">
+      <div class="kl">Detention at Gate-In Storage</div><div class="kv">${stdPct}<span class="u">% standard</span></div>
+      <div class="kf"><span class="pill warn">${highPct}% HIGH</span> <span class="pill bad">${critPct}% CRITICAL</span></div>
+      <div class="kpi-progress"><div class="seg" style="width:${stdPct}%;background:var(--ok);"></div><div class="seg" style="width:${highPct}%;background:var(--warn);"></div><div class="seg" style="width:${critPct}%;background:var(--bad);"></div></div>
+    </div>
+    <div class="kc" style="--acc:var(--teal)"><div class="kl">Full Inbound Time</div><div class="kv">${fullInboundStats.avg!=null?fullInboundStats.avg.toFixed(2):'–'}<span class="u">h avg.</span></div><div class="kf">Total Receiving Cycle</div></div>
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">Containers Received</div><div class="kv">${rows.length}<span class="u">containers</span></div><div class="kf">Con filtros actuales</div></div>
   </div>
   <div class="g2">
-    <div class="card"><div class="ct">On time vs Late por almacén de ingreso</div><div style="height:220px;"><canvas id="chIngresoAlmacen"></canvas></div></div>
-    <div class="card"><div class="ct">On time vs Late por transportista</div><div style="height:220px;"><canvas id="chIngresoCarrier"></canvas></div></div>
+    <div class="card"><div class="ct">Detention by Gate-In Warehouse <span class="sub">Standard · High · Critical</span></div><div style="height:280px;"><canvas id="chIngresoAlmacen"></canvas></div></div>
+    <div>
+      <div class="card"><div class="ct">Compliance by Port <span class="sub">Gate-In on time</span></div>
+        <div class="tbl-wrap"><table class="std"><thead><tr><th>Port</th><th style="text-align:right">N°</th><th style="text-align:right">% On Time</th></tr></thead>
+        <tbody>${portStats.length ? portStats.map(p=>`<tr><td>${p.name}</td><td class="mono" style="text-align:right">${p.total}</td><td class="mono" style="text-align:right;color:${p.onTimePct>=50?'var(--ok)':'var(--warn)'};">${p.onTimePct}%</td></tr>`).join('') : '<tr><td colspan="3" class="empty-state">Sin datos</td></tr>'}</tbody></table></div>
+      </div>
+      <div class="card" style="margin-bottom:0;"><div class="ct">By Carrier <span class="sub">On Time vs. Late</span></div><div style="height:${Math.max(140,carrierLabels.length*32)}px;"><canvas id="chIngresoCarrier"></canvas></div></div>
+    </div>
   </div>
-  <div class="card"><div class="ct">Volumen por Pack Plan</div><div style="height:200px;"><canvas id="chIngresoWeekly"></canvas></div></div>`;
+  <div class="card">
+    <div class="ct">Compliance &amp; Detention by Shipping Line <span class="sub">Gate-In</span></div>
+    <div class="tbl-wrap"><table class="std"><thead><tr><th>Shipping Line</th><th style="text-align:right">N°</th><th style="text-align:right">% On Time</th><th style="text-align:right">% Crit. Det.</th></tr></thead>
+    <tbody>${lineStats.length ? lineStats.map(l=>`<tr><td>${l.name}</td><td class="mono" style="text-align:right">${l.total}</td><td class="mono" style="text-align:right;color:${l.onTimePct>=50?'var(--ok)':'var(--warn)'};">${l.onTimePct}%</td><td class="mono" style="text-align:right">${l.critPct}%</td></tr>`).join('') : '<tr><td colspan="4" class="empty-state">Sin datos</td></tr>'}</tbody></table></div>
+  </div>
+  <div class="card"><div class="ct">Containers Received by Week <span class="sub">Trend · Pack Plan</span></div><div style="height:220px;"><canvas id="chIngresoWeekly"></canvas></div></div>`;
 }
 
 const PANEL_RENDERERS = {

@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AXIS 2.0 · Plataforma Consolidada</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+/* ============================================================
+   # 00 TOKENS — sistema de diseño dual (claro = AXIS / oscuro = Weekly Export Program)
+   Cambiar [data-theme] en <html> conmuta todas las variables.
+   ============================================================ */
+:root, [data-theme="light"]{
+  --bg:#F6F4EF; --bg-halo: radial-gradient(1200px 600px at 12% -10%, #EFE9DC 0%, #F6F4EF 55%);
+  --surface:#FFFFFF; --surface-soft:#FBFAF6;
+  --line:#E2DED3; --line-strong:#D3CDBD;
+  --ink:#101B26; --ink-soft:#5C6B78; --ink-faint:#93A0AB;
+
+  --navy:#0E2A3D; --navy2:#163B54; --navy-deep:#081420;
+  --blue:#2E8FB0; --amber:#E8A33D; --purple:#7A6FD0; --teal:#1F9E92;
+
+  --ok:#2E8B57; --ok-bg:#E5F3EA;
+  --warn:#C77D1E; --warn-bg:#FCEFDC;
+  --bad:#C0392B; --bad-bg:#FBE5E1;
+
+  --sidebar-bg: linear-gradient(180deg, var(--navy-deep), var(--navy) 82%);
+  --sidebar-ink: #A8C4D2; --sidebar-ink-active:#FFFFFF;
+  --shadow: 0 1px 2px rgba(16,27,38,.04), 0 8px 24px rgba(16,27,38,.06);
+  --radius:14px; --radius-sm:9px;
+}
+[data-theme="dark"]{
+  --bg:#0a121c; --bg-halo: radial-gradient(1200px 600px at 12% -10%, #14293e 0%, #0a121c 60%);
+  --surface:#0d1928; --surface-soft:#0e1a28;
+  --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.14);
+  --ink:#e6edf5; --ink-soft:#8ba0b6; --ink-faint:#5d7086;
+
+  --navy:#0a121c; --navy2:#14293e; --navy-deep:#060b12;
+  --blue:#4fd1c5; --amber:#f0b357; --purple:#a8c8f0; --teal:#4fd1c5;
+
+  --ok:#3ddc84; --ok-bg:rgba(61,220,132,.12);
+  --warn:#f0b357; --warn-bg:rgba(240,179,87,.12);
+  --bad:#ff6b6b; --bad-bg:rgba(255,107,107,.12);
+
+  --sidebar-bg: linear-gradient(180deg, #060b12, #0d1928 88%);
+  --sidebar-ink:#7f93a6; --sidebar-ink-active:#ffffff;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg); background-image:var(--bg-halo); background-attachment:fixed;
+  color:var(--ink); font-family:'Instrument Sans', Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing:antialiased; font-size:13px;
+  transition:background-color .2s ease, color .2s ease;
+}
+h1,h2,h3,.disp{font-family:'Space Grotesk', sans-serif;}
+.mono{font-family:'JetBrains Mono', monospace;}
+a{color:inherit;}
+button{font-family:inherit;}
+
+/* ============================================================
+   # 01 SHELL — grid sidebar + main
+   ============================================================ */
+.shell{display:grid; grid-template-columns:224px 1fr; min-height:100vh; transition:grid-template-columns .2s ease;}
+.shell.collapsed{grid-template-columns:64px 1fr;}
+
+/* ---- sidebar ---- */
+.sidebar{
+  background:var(--sidebar-bg); position:sticky; top:0; height:100vh; overflow-y:auto;
+  display:flex; flex-direction:column; padding:16px 12px 16px; gap:4px;
+}
+.sb-top{display:flex; align-items:center; gap:10px; padding:4px 6px 18px; justify-content:space-between;}
+.sb-brand{display:flex; align-items:center; gap:10px; overflow:hidden;}
+.sb-mark{width:34px;height:34px;min-width:34px;border-radius:8px;background:linear-gradient(135deg,var(--blue),var(--amber));display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;color:var(--navy-deep);}
+.sb-brand h1{font-size:14px;font-weight:700;color:#fff;white-space:nowrap;}
+.sb-brand p{font-size:9px;color:#7f9aab;font-family:'JetBrains Mono',monospace;margin-top:1px;white-space:nowrap;}
+.shell.collapsed .sb-brand h1, .shell.collapsed .sb-brand p, .shell.collapsed .sb-group-label, .shell.collapsed .sb-label, .shell.collapsed .sb-metric{display:none;}
+.sb-toggle{background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); color:#9db4c4; width:26px;height:26px;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;}
+.sb-toggle:hover{background:rgba(255,255,255,.12); color:#fff;}
+
+.sb-group-label{font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.12em; color:#4f6376; text-transform:uppercase; padding:14px 10px 6px;}
+.sb-item{display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; cursor:pointer; color:var(--sidebar-ink); text-decoration:none; white-space:nowrap; overflow:hidden;}
+.sb-item:hover{background:rgba(255,255,255,.06); color:#fff;}
+.sb-item.active{background:rgba(255,255,255,.1); color:var(--sidebar-ink-active); box-shadow:inset 3px 0 0 var(--blue);}
+.sb-ix{font-family:'JetBrains Mono',monospace; font-size:9px; opacity:.6; min-width:15px;}
+.sb-icn{width:16px;height:16px;flex:none; display:flex;align-items:center;justify-content:center;}
+.sb-icn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;}
+.sb-label{font-size:12.5px; font-weight:500; flex:1;}
+.sb-new{font-size:8px; font-weight:700; font-family:'JetBrains Mono',monospace; background:var(--amber); color:#3a2a06; padding:2px 5px; border-radius:5px; letter-spacing:.04em;}
+.shell.collapsed .sb-new{display:none;}
+.sb-div{height:1px; background:rgba(255,255,255,.08); margin:10px 4px;}
+.sb-foot{margin-top:auto; padding-top:14px;}
+.sb-role{display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06);}
+.sb-role .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none;box-shadow:0 0 6px var(--ok);}
+.sb-role-txt{overflow:hidden;}
+.sb-role-txt b{display:block; font-size:11.5px; color:#fff; white-space:nowrap;}
+.sb-role-txt span{font-size:9.5px; color:#7f93a6; font-family:'JetBrains Mono',monospace;}
+
+/* ---- main / topbar ---- */
+.main-col{min-width:0;}
+.topbar{
+  position:sticky; top:0; z-index:20; background:var(--surface); border-bottom:1px solid var(--line);
+  padding:14px 26px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+}
+.crumb{display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.08em;}
+.crumb .sep{opacity:.5;}
+.crumb .cur{color:var(--ink); font-weight:600;}
+.crumb-title{font-family:'Space Grotesk',sans-serif; font-size:19px; font-weight:700; margin-top:2px;}
+.topbar-right{display:flex; align-items:center; gap:10px;}
+.theme-toggle{
+  display:flex; align-items:center; gap:7px; padding:7px 12px; border-radius:999px;
+  background:var(--surface-soft); border:1px solid var(--line); cursor:pointer; color:var(--ink);
+  font-size:11.5px; font-weight:600;
+}
+.theme-toggle:hover{border-color:var(--blue);}
+.theme-toggle svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;}
+.status-chip{display:flex; align-items:center; gap:7px; padding:7px 12px; border-radius:999px; background:var(--ok-bg); border:1px solid rgba(46,139,87,.25); font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ok); font-weight:600;}
+.status-chip .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);}
+
+main{padding:22px 26px 60px;}
+.panel{display:none; animation:fi .25s ease;}
+.panel.active{display:block;}
+@keyframes fi{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
+
+/* ============================================================
+   # 02 COMPONENTES COMPARTIDOS — KPI cards, tablas, pills, bars
+   ============================================================ */
+.kg{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:18px;}
+.kc{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px; position:relative; overflow:hidden; box-shadow:var(--shadow);}
+.kc::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--acc, var(--blue));}
+.kl{font-size:10px; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-soft); font-weight:600;}
+.kv{font-family:'Space Grotesk',sans-serif; font-size:25px; font-weight:700; margin-top:4px; line-height:1;}
+.kv .u{font-size:11.5px; color:var(--ink-faint); font-weight:500; margin-left:3px;}
+.kf{font-size:10px; color:var(--ink-soft); margin-top:7px; display:flex; align-items:center; gap:5px;}
+
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; margin-bottom:14px; box-shadow:var(--shadow);}
+.ct{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13.5px; display:flex; align-items:center; justify-content:space-between; margin-bottom:13px; flex-wrap:wrap; gap:8px;}
+.ct .sub{font-size:10px; color:var(--ink-faint); font-family:'JetBrains Mono',monospace; font-weight:400;}
+.g2{display:grid; grid-template-columns:1.4fr 1fr; gap:14px; align-items:start;}
+.g3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+@media(max-width:1080px){.g2,.g3{grid-template-columns:1fr;}}
+
+.pill{display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:10.5px; font-weight:600;}
+.pill.ok{background:var(--ok-bg); color:var(--ok);}
+.pill.warn{background:var(--warn-bg); color:var(--warn);}
+.pill.bad{background:var(--bad-bg); color:var(--bad);}
+.pill.neu{background:var(--surface-soft); color:var(--ink-soft); border:1px solid var(--line);}
+
+table.std{width:100%; border-collapse:collapse;}
+table.std th{text-align:left; padding:8px 10px; font-size:9.8px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-soft); border-bottom:2px solid var(--line); font-weight:600; white-space:nowrap; background:var(--surface); position:sticky; top:0;}
+table.std td{padding:7px 10px; border-bottom:1px solid var(--line); white-space:nowrap; font-size:12px;}
+table.std td.mono{font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-soft);}
+table.std tbody tr:hover{background:var(--surface-soft);}
+.tbl-wrap{overflow-x:auto; border-radius:10px; border:1px solid var(--line);}
+.tbl-scroll{max-height:420px; overflow-y:auto; border-radius:10px; border:1px solid var(--line);}
+
+.bars{display:flex; flex-direction:column; gap:9px;}
+.br{display:grid; grid-template-columns:110px 1fr 46px; align-items:center; gap:10px;}
+.bl{font-size:11.5px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.bt{height:8px; border-radius:4px; background:var(--surface-soft); overflow:hidden; border:1px solid var(--line);}
+.bf{height:100%; border-radius:4px; background:linear-gradient(90deg,var(--blue),var(--navy2));}
+.bv{font-family:'JetBrains Mono',monospace; font-size:11px; text-align:right; color:var(--ink);}
+
+.empty-state{padding:36px 20px; text-align:center; color:var(--ink-faint); font-size:12.5px;}
+.empty-state svg{width:34px;height:34px; stroke:var(--ink-faint); fill:none; stroke-width:1.5; margin-bottom:10px;}
+
+.mock-tag{display:inline-flex; align-items:center; gap:5px; font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--amber); background:var(--warn-bg); border:1px solid rgba(232,163,61,.35); padding:3px 8px; border-radius:6px; margin-bottom:14px;}
+
+@media(max-width:900px){
+  .shell{grid-template-columns:64px 1fr;}
+  .sb-brand h1,.sb-brand p,.sb-group-label,.sb-label,.sb-metric{display:none;}
+}
+</style>
+</head>
+<body>
+
+<style>
+/* ---- login gate ---- */
+.gate-overlay{position:fixed;inset:0;background:linear-gradient(165deg,var(--navy-deep),var(--navy) 78%);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
+.gate-box{background:var(--surface);border-radius:16px;width:360px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden;}
+.gate-head{padding:22px 24px 18px;text-align:center;}
+.gate-head .bm{width:40px;height:40px;margin:0 auto 12px;border-radius:9px;background:linear-gradient(135deg,var(--blue),var(--amber));display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;color:var(--navy-deep);}
+.gate-head h2{margin:0;font-size:17px;}
+.gate-head p{margin:4px 0 0;font-size:11.5px;color:var(--ink-soft);font-family:'JetBrains Mono',monospace;}
+.gate-body{padding:0 24px 24px; display:flex; flex-direction:column; gap:10px;}
+.gate-body input{padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface-soft);color:var(--ink);font-family:inherit;font-size:13px;}
+.gate-body button{padding:11px;border-radius:8px;border:none;background:var(--navy);color:#fff;font-weight:600;font-size:12.5px;cursor:pointer;font-family:'Space Grotesk',sans-serif;}
+.gate-body button:hover{background:var(--navy2);}
+.gate-err{font-size:11px;color:var(--bad);min-height:14px;}
+.gate-foot{padding:12px 24px;border-top:1px solid var(--line);text-align:center;font-size:9.5px;color:var(--ink-faint);font-family:'JetBrains Mono',monospace;}
+.shell{display:none;}
+.shell.ready{display:grid;}
+</style>
+
+<div class="gate-overlay" id="gateOverlay">
+  <div class="gate-box">
+    <div class="gate-head">
+      <div class="bm">A</div>
+      <h2>AXIS 2.0</h2>
+      <p>Inicia sesión para continuar</p>
+    </div>
+    <div class="gate-body">
+      <input type="email" id="gateEmail" placeholder="correo" autocomplete="username" />
+      <input type="password" id="gatePass" placeholder="contraseña" autocomplete="current-password" />
+      <div class="gate-err" id="gateErr"></div>
+      <button id="gateBtn" onclick="tryLogin()">Ingresar</button>
+    </div>
+    <div class="gate-foot">Conectado a Supabase · dashboard_data</div>
+  </div>
+</div>
+
+<div class="shell" id="shell">
+
+  <!-- ============================================================
+       # 03 SIDEBAR — navegación unificada EXPORT + TRANSPORTE
+       ============================================================ -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sb-top">
+      <div class="sb-brand">
+        <div class="sb-mark">A</div>
+        <div>
+          <h1>AXIS 2.0</h1>
+          <p>Plataforma consolidada</p>
+        </div>
+      </div>
+      <button class="sb-toggle" id="sbToggle" title="Colapsar menú">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+    </div>
+
+    <div id="navContainer"><!-- generado por JS: renderSidebar() --></div>
+
+    <div class="sb-foot">
+      <div class="sb-role">
+        <span class="dot"></span>
+        <div class="sb-role-txt">
+          <b id="sbRoleName">Hortifrut</b>
+          <span id="sbRoleTag">rol: hortifrut</span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       # 04 MAIN — topbar + panels
+       ============================================================ -->
+  <div class="main-col">
+    <div class="topbar">
+      <div>
+        <div class="crumb"><span id="crumbModule">EXPORT</span><span class="sep">▸</span><span class="cur" id="crumbView">Forecast</span></div>
+        <div class="crumb-title" id="crumbTitle">Forecast</div>
+      </div>
+      <div class="topbar-right">
+        <div class="status-chip"><span class="dot"></span><span id="statusTxt">483 registros · S20–S32</span></div>
+        <button class="theme-toggle" id="themeToggle">
+          <svg id="themeIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <span id="themeLabel">MODO OSCURO</span>
+        </button>
+      </div>
+    </div>
+
+    <main id="main"><!-- paneles generados por JS --></main>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   # 05 CONFIG DE NAVEGACIÓN — fuente única de verdad para sidebar + routing
+   ============================================================ */
+const NAV = [
+  {group:'export', label:'Export (AXIS)', items:[
+    {id:'forecast', ix:'01', label:'Forecast'},
+    {id:'ports',    ix:'02', label:'Ports'},
+    {id:'weekly',   ix:'03', label:'Weekly'},
+    {id:'wep',      ix:'03b',label:'Weekly Export Program', tag:'NEW'},
+    {id:'pmi',      ix:'04', label:'PMI'},
+    {id:'air',      ix:'05', label:'Air Program'},
+    {id:'execute',  ix:'06', label:'Execute'},
+  ]},
+  {group:'transporte', label:'Transporte', items:[
+    {id:'retiro',   ix:'07', label:'Pickup'},
+    {id:'packing',  ix:'08', label:'Packing'},
+    {id:'ingreso',  ix:'09', label:'Receiving'},
+  ]},
+  {group:'sistema', label:'Sistema', items:[
+    {id:'upload',   ix:'10', label:'Actualizar Datos'},
+  ]},
+];
+const MODULE_OF = {}; NAV.forEach(g=>g.items.forEach(it=>MODULE_OF[it.id]=g.label));
+let currentView = 'forecast';
+
+function renderSidebar(){
+  const c = document.getElementById('navContainer');
+  c.innerHTML = NAV.map(g => `
+    <div class="sb-group-label">${g.label}</div>
+    ${g.items.map(it => `
+      <a class="sb-item" data-view="${it.id}" onclick="goTo('${it.id}')">
+        <span class="sb-ix">${it.ix}</span>
+        <span class="sb-label">${it.label}</span>
+        ${it.tag ? `<span class="sb-new">${it.tag}</span>` : ''}
+      </a>`).join('')}
+  `).join('<div class="sb-div"></div>');
+}
+
+function goTo(id){
+  currentView = id;
+  document.querySelectorAll('.sb-item').forEach(el=>el.classList.toggle('active', el.dataset.view===id));
+  document.querySelectorAll('.panel').forEach(el=>el.classList.toggle('active', el.id==='p-'+id));
+  const item = NAV.flatMap(g=>g.items).find(i=>i.id===id);
+  document.getElementById('crumbModule').textContent = MODULE_OF[id].toUpperCase();
+  document.getElementById('crumbView').textContent = item.label;
+  document.getElementById('crumbTitle').textContent = item.label;
+  if (window['onShow_'+id]) window['onShow_'+id]();
+}
+
+/* ============================================================
+   # 06 TOGGLE CLARO/OSCURO
+   ============================================================ */
+function applyTheme(mode){
+  document.documentElement.setAttribute('data-theme', mode);
+  document.getElementById('themeLabel').textContent = mode==='light' ? 'MODO OSCURO' : 'MODO CLARO';
+  localStorage.setItem('axis-theme', mode); // nota: en prototipo standalone; en producción usar preferencia de usuario en perfil
+  if (window.redrawChartTheme) window.redrawChartTheme();
+}
+document.getElementById('themeToggle').onclick = () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  applyTheme(cur === 'light' ? 'dark' : 'light');
+};
+// Por defecto: MODO CLARO (definido en el <html data-theme="light">)
+
+document.getElementById('sbToggle').onclick = () => {
+  document.getElementById('shell').classList.toggle('collapsed');
+};
+
+renderSidebar();
+
+/* ============================================================
+   # 05a CONEXIÓN REAL — Supabase Auth + dashboard_data
+   Mismo proyecto y patrón que AXIS 1.0 en producción (ver handoff:
+   mismo repo Supabase, RLS ya activo, roles hortifrut/supplier).
+   El ANON_KEY es público por diseño (protegido por RLS en el backend).
+   ============================================================ */
+const SUPABASE_URL = 'https://mgtboeifqijqipeokwgs.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ndGJvZWlmcWlqcWlwZW9rd2dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1NTc5MzIsImV4cCI6MjEwMDEzMzkzMn0.cn1PP77beZeph2ZcoAiHeP9KyZEugMJJ3rL3vUoJwHQ';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ⚠️ SEGURIDAD: a diferencia del ANON_KEY (público por diseño, protegido por RLS),
+// la API key del endpoint /publish es un secreto real y NO debe vivir en texto
+// plano dentro de un repo (menos uno nuevo). Reemplázala al desplegar, o mejor
+// aún, mueve la llamada de subida a una función server-side / Edge Function.
+const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
+
+const SUPPLIER_TABS = ['weekly', 'wep', 'pmi', 'air', 'upload'];
+let USER_ROLE = null;
+let SENASA,WROWS,AIR,AIRLINES,FWKS,WKL,KPI,EX,DEST,LINEAS,PMI_PORTS,FWKS_MODE,EMBARQUES,TR_PROGRAM,PORTS_RAW,FORECAST_RAW,META,EXECUTE_RAW;
+
+async function tryLogin(){
+  const email = document.getElementById('gateEmail').value.trim();
+  const pass = document.getElementById('gatePass').value;
+  const err = document.getElementById('gateErr');
+  const btn = document.getElementById('gateBtn');
+  err.textContent = '';
+  if(!email || !pass){ err.textContent = 'Ingresa correo y contraseña.'; return; }
+  btn.disabled = true; btn.textContent = 'Verificando…';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if(error){
+    btn.disabled = false; btn.textContent = 'Ingresar';
+    err.textContent = 'Credenciales inválidas o error de conexión.';
+    return;
+  }
+  const { data: profile } = await sb.from('profiles').select('role,full_name').eq('id', data.user.id).single();
+  USER_ROLE = profile ? profile.role : 'hortifrut';
+  document.getElementById('sbRoleName').textContent = profile?.full_name || email;
+  document.getElementById('sbRoleTag').textContent = 'rol: ' + USER_ROLE;
+  document.getElementById('gateOverlay').style.display = 'none';
+  document.getElementById('shell').classList.add('ready');
+  loadDataAndInit();
+}
+
+function VISIBLE_TABS(){
+  const all = NAV.flatMap(g=>g.items);
+  return USER_ROLE==='supplier' ? all.filter(t=>SUPPLIER_TABS.includes(t.id)) : all;
+}
+function applyRoleVisibility(){
+  const visible = new Set(VISIBLE_TABS().map(t=>t.id));
+  document.querySelectorAll('.sb-item').forEach(el=>{ el.style.display = visible.has(el.dataset.view) ? '' : 'none'; });
+}
+
+async function loadDataAndInit(){
+  document.getElementById('main').innerHTML = '<div class="empty-state" style="padding:80px;">Cargando datos reales desde Supabase…</div>';
+  try{
+    const { data: rows, error } = await sb.from('dashboard_data').select('dataset_name,payload');
+    if (error) throw error;
+    const d = {};
+    rows.forEach(r => { d[r.dataset_name] = r.payload; });
+    ({SENASA, WROWS, AIR, AIRLINES, FWKS, WKL, KPI, EX, DEST, LINEAS, PMI_PORTS, FWKS_MODE, EMBARQUES, TR_PROGRAM, PORTS_RAW, FORECAST_RAW, META, EXECUTE_RAW} = d);
+    if (META && META.excel_modified_iso) {
+      const dt = new Date(META.excel_modified_iso);
+      document.getElementById('statusTxt').textContent = `Datos AXIS · act. ${dt.toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}`;
+    }
+  } catch(e){
+    console.error('No se pudo conectar a Supabase, usando datos de muestra de respaldo:', e);
+    document.getElementById('statusTxt').innerHTML = '<span style="color:var(--warn);">⚠ Sin conexión a Supabase — datos de muestra</span>';
+    ({SENASA, WROWS, AIR, AIRLINES, FWKS, WKL, KPI, EX, DEST, LINEAS, PMI_PORTS, FWKS_MODE, EMBARQUES, TR_PROGRAM, PORTS_RAW, FORECAST_RAW, META, EXECUTE_RAW} = SAMPLE_FALLBACK);
+  }
+  applyRoleVisibility();
+  buildPanels();
+  goTo(VISIBLE_TABS()[0].id);
+}
+
+
+/* ============================================================
+   # 07 DATOS REALES — TRANSPORTE
+   Calculados desde TABLEAU_CONSOLIDADO_DE_TRANSPORTE_2627.xlsx (hoja
+   "CONSOLIDADO 2526", filas con 'pp' no nulo → 90 registros reales),
+   con las mismas fórmulas que control_tower_transporte__4_.html
+   (ver updatePipelineMetrics / renderPacking en el archivo original).
+   Snapshot procesado el 29 jul 2026. Reemplazar por sb.from('transport_data')
+   en cuanto el pipeline /publish-transportes esté confirmado en producción
+   (ver AXIS_2_0_handoff.md, sección 6) — mantiene la misma forma de datos.
+   ============================================================ */
+const REAL_TRANSPORT = {"total_rows": 90, "retiro": {"compliance_pct": 2.3, "citas": 43, "criticas": 42, "almacen": {"Chao": {"on": 1, "late": 42, "total": 43}}, "weekly": {"S22": 3, "S23": 5, "S24": 7, "S25": 7, "S26": 12, "S27": 19, "S28": 27, "S29": 10}}, "packing": {"critical_pct": 7.0, "preload_pct": 76.2, "dispatch_cat": {"LATE": 6, "ON TIME": 34, "CRITICAL LATE": 3}, "naviera": {"Seaboard": {"on": 0, "late": 3, "total": 3}, "Cosco": {"on": 16, "late": 2, "total": 18}, "Evergreen": {"on": 10, "late": 0, "total": 10}, "Seatrade": {"on": 3, "late": 1, "total": 4}, "PIL": {"on": 5, "late": 2, "total": 7}, "Maersk Line": {"on": 0, "late": 1, "total": 1}}, "weekly": {"S22": 3, "S23": 5, "S24": 7, "S25": 7, "S26": 12, "S27": 19, "S28": 27, "S29": 10}, "compliance_pct": 79.1}, "ingreso": {"compliance_pct": 26.7, "recibidos": 90, "rechazados": 0, "almacen": {"Chao": {"on": 24, "late": 65, "total": 89}, "Olmos": {"on": 0, "late": 1, "total": 1}}, "carrier": {"LIP": {"on": 8, "late": 55, "total": 63}, "CITITRANS": {"on": 6, "late": 3, "total": 9}, "MAERSK": {"on": 5, "late": 7, "total": 12}, "VESL": {"on": 2, "late": 1, "total": 3}, "EXPERT TRANSPORT": {"on": 3, "late": 0, "total": 3}}, "weekly": {"S22": 3, "S23": 5, "S24": 7, "S25": 7, "S26": 12, "S27": 19, "S28": 27, "S29": 10}}};
+
+/* ============================================================
+   # 07b FALLBACK DE MUESTRA — EXPORT
+   Solo se usa si Supabase no responde (offline / credenciales no
+   configuradas aún), para poder seguir revisando el diseño. La app
+   real siempre intenta sb.from('dashboard_data') primero.
+   Mantiene el ESQUEMA REAL de cada dataset (mismos nombres de campo
+   que consume AXIS 1.0 en producción), solo con pocos registros.
+   ============================================================ */
+const SAMPLE_FALLBACK = {
+  FORECAST_RAW: [
+    {pack_plan:28, mode:'Marítimo', shipper:'Olmos Export', status:'Confirmado', is_pre:false, is_add:false, is_expo:false, is_exadd:false, is_airadd:false, fcl:94.5, pallets:1620},
+    {pack_plan:28, mode:'Marítimo', shipper:'Agroindustrial Chao', status:'Confirmado', is_pre:true, is_add:true, is_expo:false, is_exadd:false, is_airadd:false, fcl:96.0, pallets:1650},
+    {pack_plan:29, mode:'Aéreo', shipper:'Olmos Export', status:'Confirmado', is_pre:true, is_add:false, is_expo:true, is_exadd:false, is_airadd:false, fcl:108.2, pallets:210},
+    {pack_plan:29, mode:'Aéreo', shipper:'Olmos Export', status:'Cancelado', is_pre:true, is_add:false, is_expo:false, is_exadd:false, is_airadd:false, fcl:110.0, pallets:220},
+  ],
+  PORTS_RAW: [
+    {status:'Confirmado', pack_plan:28, port:'Callao', mode:'Marítimo', fcl:96.2, po:'PO-001'},
+    {status:'Confirmado', pack_plan:28, port:'Paita', mode:'Marítimo', fcl:54.0, po:'PO-002'},
+    {status:'Proyectado', pack_plan:29, port:'Lima', mode:'Aéreo', fcl:64.0, po:'PO-003'},
+    {status:'Cancelado', pack_plan:29, port:'Paita', mode:'Terrestre', fcl:12.0, po:''},
+  ],
+  WROWS: [
+    {pack_plan:31, packing:'CHAO', mode:'Marítimo', shipper:'Olmos Export', pod:'Philadelphia', date:'2026-08-02', fcl:13.0},
+    {pack_plan:31, packing:'CHAO', mode:'Marítimo', shipper:'Olmos Export', pod:'Shanghai', date:'2026-07-31', fcl:6.0},
+    {pack_plan:31, packing:'OLMOS', mode:'Marítimo', shipper:'Agroindustrial Chao', pod:'Port Hueneme', date:'2026-08-03', fcl:5.0},
+    {pack_plan:31, packing:'OLMOS', mode:'Marítimo', shipper:'Agroindustrial Chao', pod:'Dover', date:'2026-08-04', fcl:4.0},
+    {pack_plan:31, packing:'OLMOS', mode:'Aéreo', shipper:'Agroindustrial Chao', pod:'Miami', date:'2026-08-04', fcl:1.0},
+  ],
+  EX: { dam_by_mode:[ {mode:'Marítimo', dam_with:412, dam_without:8, pct:98.1}, {mode:'Aéreo', dam_with:64, dam_without:2, pct:96.9}, {mode:'Terrestre', dam_with:39, dam_without:5, pct:87.2} ] },
+  DEST: [ {port:'Philadelphia', fcl:13.0}, {port:'Shanghai', fcl:6.0}, {port:'Port Hueneme', fcl:5.0}, {port:'Dover', fcl:4.0} ],
+  LINEAS: [ {line:'Cosco', fcl:18.0}, {line:'Evergreen', fcl:10.0}, {line:'PIL', fcl:7.0} ],
+  EXECUTE_RAW: [
+    {shipper:'Olmos Export', dispatch_date:'02/08/2026', pack_plan:31, mode:'Marítimo', booking:'BK-001', has_tr_time:true, senasa_att:'SENASA'},
+    {shipper:'Agroindustrial Chao', dispatch_date:'03/08/2026', pack_plan:31, mode:'Aéreo', booking:'BK-002', has_tr_time:false, senasa_att:''},
+  ],
+  AIR: [
+    {pack_plan:31, dispatch:'04/08/2026', log_op:'Ransa', shipper:'Agroindustrial Chao', instruction:'INS-3402', dest:'Miami', pallets:6, awb:'074-5521', file:'F-2291', line:'DHL', transp_op:'Transvip', basc:'FINALIZADO', dam:'OK', po:'PO-010', packing:'OLMOS'},
+  ],
+  PMI_PORTS: [ {mode:'Marítimo', val:35.3}, {mode:'Aéreo', val:1.0}, {mode:'Terrestre', val:1.0} ],
+  EMBARQUES: [
+    {shipper:'Agroindustrial Chao', dest:'Philadelphia', packing:'CHAO', mode:'Marítimo', pallets:24, basc:'OK', dam:'OK'},
+    {shipper:'Olmos Export', dest:'Shanghai', packing:'CHAO', mode:'Marítimo', pallets:18, basc:'OK', dam:'Pend.'},
+  ],
+  SENASA:[], AIRLINES:[], FWKS:[], WKL:[], KPI:{}, FWKS_MODE:[], TR_PROGRAM:[],
+  META: { excel_modified_iso: null },
+};
+
+/* ============================================================
+   # 08 CÁLCULOS PUROS — separados del render, auditables/reusables
+   ============================================================ */
+const calcPct = (num, den) => den ? +(100*num/den).toFixed(1) : 0;
+const sum = arr => arr.reduce((a,b)=>a+b,0);
+const badge = v => v>=90 ? 'ok' : v>=75 ? 'warn' : 'bad';
+const fmt1 = v => (Math.round(v*10)/10).toLocaleString('es-PE',{minimumFractionDigits:1,maximumFractionDigits:1});
+
+/* ============================================================
+   # 09 RENDER — EXPORT: Forecast / Ports / Weekly / WEP / PMI / Air / Execute
+   ============================================================ */
+/* ============================================================
+   # 09 RENDER — EXPORT (datos reales de Supabase dashboard_data)
+   Los nombres de campo (pack_plan, fcl, is_pre, etc.) son los mismos
+   que consume AXIS 1.0 en producción — ver AXIS_1_0_.html para el
+   detalle de filtros multi-select / tooltips que esta primera pasada
+   de producción todavía no replica 1:1 (ver nota al usuario).
+   ============================================================ */
+function renderForecast(){
+  const rows = FORECAST_RAW || [];
+  const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
+  const byWeek = weeks.map(wk=>{
+    const wr = rows.filter(r=>r.pack_plan===wk);
+    const conf = sum(wr.filter(r=>r.status==='Confirmado').map(r=>r.fcl));
+    const proj = sum(wr.filter(r=>r.is_pre||r.status==='Confirmado'||r.status==='Cancelado').map(r=>r.fcl));
+    const add = sum(wr.filter(r=>r.is_add).map(r=>r.fcl));
+    const expo = sum(wr.filter(r=>r.is_expo).map(r=>r.fcl));
+    const exadd = sum(wr.filter(r=>r.is_exadd).map(r=>r.fcl));
+    const total = proj + add + exadd;
+    const ejec = total ? calcPct(conf, total) : 0;
+    return {semana:`S${wk}`, proy:proj, add, expo, exadd, total, conf, desv:+(conf-proj).toFixed(1), ejec};
+  });
+  const totalProy = sum(byWeek.map(w=>w.total));
+  const totalConf = sum(byWeek.map(w=>w.conf));
+  const desviacion = totalProy ? +((totalConf-totalProy)/totalProy*100).toFixed(1) : 0;
+  const modeOf = m => sum(rows.filter(r=>r.mode===m && r.status==='Confirmado').map(r=>r.fcl));
+  const modes = ['Marítimo','Aéreo','Terrestre'].map(m=>({l:m, v:modeOf(m)})).filter(m=>m.v>0);
+  const maxMode = Math.max(...modes.map(m=>m.v), 1);
+  return `
+  <div class="kg">
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">Proyección total</div><div class="kv">${fmt1(totalProy)}<span class="u">FCL</span></div><div class="kf">${weeks.length} semanas (S${weeks[0]||'–'}–S${weeks[weeks.length-1]||'–'})</div></div>
+    <div class="kc" style="--acc:var(--amber)"><div class="kl">Confirmado</div><div class="kv">${fmt1(totalConf)}<span class="u">FCL</span></div><div class="kf">${totalProy?calcPct(totalConf,totalProy):0}% de ejecución</div></div>
+    <div class="kc" style="--acc:${desviacion<0?'var(--bad)':'var(--ok)'}"><div class="kl">Desviación</div><div class="kv">${desviacion}<span class="u">%</span></div><div class="kf">vs. proyección</div></div>
+    <div class="kc" style="--acc:var(--purple)"><div class="kl">Última semana</div><div class="kv">S${weeks[weeks.length-1]||'–'}</div></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ct">Desviación Confirmado vs Proyección <span class="sub">${weeks.length} semana(s) · datos reales</span></div>
+      <div class="tbl-wrap"><table class="std"><thead><tr><th>Semana</th><th style="text-align:right">Proyección</th><th style="text-align:right">ADD</th><th style="text-align:right">EXPO</th><th style="text-align:right">EXADD</th><th style="text-align:right">Total c/ADD+EXADD</th><th style="text-align:right">Confirmado</th><th style="text-align:right">Desviación</th><th>% Ejecución</th></tr></thead>
+      <tbody>${byWeek.length ? byWeek.map(r=>`<tr><td class="mono">${r.semana}</td><td class="mono" style="text-align:right">${fmt1(r.proy)}</td><td class="mono" style="text-align:right">${r.add?fmt1(r.add):'—'}</td><td class="mono" style="text-align:right">${r.expo?fmt1(r.expo):'—'}</td><td class="mono" style="text-align:right">${r.exadd?fmt1(r.exadd):'—'}</td><td class="mono" style="text-align:right">${fmt1(r.total)}</td><td class="mono" style="text-align:right">${r.conf?fmt1(r.conf):'—'}</td><td class="mono" style="text-align:right;color:${r.desv<0?'var(--bad)':'var(--ok)'}">${r.conf?(r.desv>=0?'+':'')+fmt1(r.desv):'—'}</td><td><span class="pill ${r.conf?badge(r.ejec):'neu'}">${r.conf?r.ejec+'%':'Sin ejec.'}</span></td></tr>`).join('') : `<tr><td colspan="9" class="empty-state">Sin datos de FORECAST_RAW todavía</td></tr>`}</tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="ct">FCL confirmado por modo</div>
+      <div class="bars">${modes.length ? modes.map(m=>`<div class="br"><span class="bl">${m.l}</span><div class="bt"><div class="bf" style="width:${calcPct(m.v,maxMode)}%"></div></div><span class="bv">${fmt1(m.v)}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div>
+    </div>
+  </div>`;
+}
+
+function renderPorts(){
+  const rows = PORTS_RAW || [];
+  const portDefs = [{name:'Lima',color:'var(--amber)'},{name:'Callao',color:'var(--blue)'},{name:'Chancay',color:'var(--navy2)'},{name:'Paita',color:'var(--purple)'}];
+  const agg = st => sum(rows.filter(r=>r.status===st).map(r=>r.fcl));
+  const total = sum(rows.map(r=>r.fcl)), conf = agg('Confirmado'), proy = agg('Proyectado'), canc = agg('Cancelado');
+  const portStats = portDefs.map(p=>{
+    const sub = rows.filter(r=>r.port===p.name);
+    const c = sum(sub.filter(r=>r.status==='Confirmado').map(r=>r.fcl));
+    const pr = sum(sub.filter(r=>r.status==='Proyectado').map(r=>r.fcl));
+    const k = sum(sub.filter(r=>r.status==='Cancelado').map(r=>r.fcl));
+    const tot = c+pr+k;
+    const modeCounts = {}; sub.forEach(r=>{ if(r.mode) modeCounts[r.mode]=(modeCounts[r.mode]||0)+1; });
+    const mode = Object.keys(modeCounts).sort((a,b)=>modeCounts[b]-modeCounts[a])[0] || '—';
+    return {...p, conf:c, proy:pr, canc:k, total:tot, cumpl:tot?calcPct(c,tot):0, mode, recCount:sub.length};
+  }).filter(p=>p.recCount>0);
+  return `
+  <div class="kg">
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">Total FCL</div><div class="kv">${fmt1(total)}</div></div>
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">Confirmados</div><div class="kv">${fmt1(conf)}</div><div class="kf">${total?calcPct(conf,total):0}%</div></div>
+    <div class="kc"><div class="kl">Proyectados</div><div class="kv">${fmt1(proy)}</div><div class="kf">${total?calcPct(proy,total):0}%</div></div>
+    <div class="kc" style="--acc:var(--bad)"><div class="kl">Cancelados</div><div class="kv">${fmt1(canc)}</div><div class="kf">${total?calcPct(canc,total):0}%</div></div>
+  </div>
+  <div class="g3">
+    ${portStats.length ? portStats.map(p=>{ const cc = p.cumpl>=80?'ok':p.cumpl>=50?'warn':'bad';
+      return `<div class="card" style="border-left:4px solid ${p.color};margin-bottom:0;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;"><b style="font-family:'Space Grotesk',sans-serif;font-size:14px;">${p.name}</b><span class="pill neu">${p.mode}</span></div>
+      <div class="kv" style="font-size:24px;">${p.cumpl}<span class="u">% cumplim.</span></div>
+      <div class="kf">Confirmado <b class="mono">${fmt1(p.conf)}</b> · Proyectado <b class="mono">${fmt1(p.proy)}</b></div>
+      <div class="kf"><span class="pill ${cc}">${fmt1(p.total)} FCL total</span></div>
+    </div>`; }).join('') : '<div class="empty-state">Sin registros en PORTS_RAW</div>'}
+  </div>`;
+}
+
+function renderWeekly(){
+  const rows = WROWS || [];
+  const packings = [...new Set(rows.map(r=>r.packing).filter(Boolean))].sort();
+  const mO = ['Aéreo','Marítimo','Terrestre'];
+  const dates = [...new Set(rows.map(r=>r.date).filter(Boolean))].sort();
+  let html = '';
+  let grandTotal = 0;
+  packings.forEach(pk=>{
+    const pkRows = rows.filter(r=>r.packing===pk);
+    const modes = [...new Set(pkRows.map(r=>r.mode))].sort((a,b)=>mO.indexOf(a)-mO.indexOf(b));
+    let pkTotal = 0;
+    let body = '';
+    modes.forEach(mode=>{
+      const shippers = [...new Set(pkRows.filter(r=>r.mode===mode).map(r=>r.shipper))].sort();
+      shippers.forEach(sh=>{
+        const pods = [...new Set(pkRows.filter(r=>r.mode===mode&&r.shipper===sh).map(r=>r.pod))].sort();
+        pods.forEach(pod=>{
+          const rowFcl = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod).map(r=>r.fcl));
+          pkTotal += rowFcl;
+          body += `<tr><td class="mono">${mode}</td><td>${sh}</td><td>${pod}</td><td class="mono" style="text-align:right;font-weight:600;">${fmt1(rowFcl)}</td></tr>`;
+        });
+      });
+    });
+    grandTotal += pkTotal;
+    html += `<div style="margin:${html?'18px':'0'} 0 8px;display:flex;align-items:center;gap:8px;"><b style="font-family:'Space Grotesk',sans-serif;font-size:13.5px;">${pk}</b><span class="pill neu">${fmt1(pkTotal)} FCL</span></div>
+    <div class="tbl-wrap"><table class="std"><thead><tr><th>Modo</th><th>Shipper</th><th>POD</th><th style="text-align:right">FCL</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  });
+  return `
+  <div class="card">
+    <div class="ct">Programa semanal — todos los packings <span class="sub">${rows.length} filas reales · ${dates.length} fecha(s) · ${fmt1(grandTotal)} FCL</span></div>
+    ${html || '<div class="empty-state">Sin datos de WROWS todavía</div>'}
+  </div>`;
+}
+
+function pillCellStyle(v,max){ const a = (v/max*0.34+0.05).toFixed(2); return v? `background:rgba(240,179,87,${a});` : ''; }
+function renderWEP(){
+  const all = WROWS || [];
+  const weeks = [...new Set(all.map(r=>r.pack_plan))].sort((a,b)=>b-a);
+  const curWeek = weeks[0];
+  const rows = all.filter(r=>r.pack_plan===curWeek);
+  const days = [...new Set(rows.map(r=>r.date).filter(Boolean))].sort();
+  const dayLabel = ds => { const dt = new Date(ds); return isNaN(dt) ? ds : dt.toLocaleDateString('es-PE',{weekday:'short'}).toUpperCase().replace('.',''); };
+  const packings = [...new Set(rows.map(r=>r.packing).filter(Boolean))].sort();
+  const plantColors = ['var(--amber)','var(--teal)','var(--purple)','var(--blue)'];
+  const cellFor = (pk,mode,sh,pod,day) => sum(rows.filter(r=>r.packing===pk&&r.mode===mode&&r.shipper===sh&&r.pod===pod&&r.date===day).map(r=>r.fcl));
+  const totalFCL = sum(rows.map(r=>r.fcl));
+  const maxDay = Math.max(1, ...days.map(dy=>sum(rows.filter(r=>r.date===dy).map(r=>r.fcl))));
+  const weekdayTotals = days.map(dy=>sum(rows.filter(r=>r.date===dy).map(r=>r.fcl)));
+  const maxW = Math.max(...weekdayTotals, 1);
+  const peakIdx = weekdayTotals.indexOf(Math.max(...weekdayTotals));
+  const pods = [...new Set(rows.map(r=>r.pod))];
+  const topDest = pods.map(p=>({name:p, val:sum(rows.filter(r=>r.pod===p).map(r=>r.fcl))})).sort((a,b)=>b.val-a.val).slice(0,6);
+  const maxDest = Math.max(1, ...topDest.map(t=>t.val));
+  const modes = [...new Set(rows.map(r=>r.mode))];
+  const split = modes.map((m,i)=>({l:m, v:sum(rows.filter(r=>r.mode===m).map(r=>r.fcl)), c:['var(--teal)','var(--purple)','var(--ink-faint)'][i%3]}));
+
+  return `
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap;">
+    <div>
+      <div class="crumb" style="margin-bottom:6px;"><span>03b · Programa semanal</span><span class="sep">·</span><span>Exportación multimodal</span></div>
+      <h2 style="margin:0;font-size:24px;">Weekly Export Program</h2>
+      <div class="mono" style="font-size:12px;color:var(--ink-soft);margin-top:4px;">${curWeek?`S${curWeek}`:'—'} · datos reales de WROWS · FCL por fecha de carga</div>
+    </div>
+    <div class="pill ok" style="padding:7px 13px;font-size:11px;">${rows.length ? 'DATOS REALES' : 'SIN DATOS'}</div>
+  </div>
+  ${!rows.length ? '<div class="empty-state">Sin datos de WROWS para la semana más reciente</div>' : `
+  <div class="kg">
+    <div class="kc" style="--acc:var(--amber)"><div class="kl">Total FCL</div><div class="kv">${fmt1(totalFCL)}</div></div>
+    <div class="kc"><div class="kl">Pico del día</div><div class="kv">${fmt1(weekdayTotals[peakIdx]||0)}<span class="u">${days[peakIdx]?dayLabel(days[peakIdx]):''}</span></div></div>
+    <div class="kc"><div class="kl">Plantas</div><div class="kv">${packings.length}<span class="u">${packings.join(' · ')}</span></div></div>
+    <div class="kc"><div class="kl">Destinos (POD)</div><div class="kv">${pods.length}</div></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ct">Programa por planta / modo / POD</div>
+      <div style="display:grid;grid-template-columns:180px repeat(${days.length||1},minmax(0,1fr)) 60px;gap:6px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-faint);text-transform:uppercase;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:8px;">
+        <span>Destino</span>${days.map(dy=>`<span style="text-align:center">${dayLabel(dy)}</span>`).join('')}<span style="text-align:right">FCL</span>
+      </div>
+      ${packings.map(pk=>{
+        const pkRows = rows.filter(r=>r.packing===pk);
+        const modesPk = [...new Set(pkRows.map(r=>r.mode))].sort((a,b)=>['Marítimo','Aéreo','Terrestre'].indexOf(a)-['Marítimo','Aéreo','Terrestre'].indexOf(b));
+        return `<div style="display:flex;align-items:center;gap:8px;margin:12px 0 6px;"><span style="width:8px;height:8px;border-radius:2px;background:${plantColors[packings.indexOf(pk)%plantColors.length]};"></span><b style="font-family:'Space Grotesk',sans-serif;font-size:12.5px;">${pk}</b></div>
+        ${modesPk.map(mode=>{
+          const shippers = [...new Set(pkRows.filter(r=>r.mode===mode).map(r=>r.shipper))];
+          return shippers.map(sh=>{
+            const podsForSh = [...new Set(pkRows.filter(r=>r.mode===mode&&r.shipper===sh).map(r=>r.pod))];
+            return `<div style="font-size:11px;color:var(--ink-soft);margin:4px 0 4px 16px;">${mode} · ${sh}</div>
+            ${podsForSh.map(pod=>{
+              const fclRow = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod).map(r=>r.fcl));
+              return `<div style="display:grid;grid-template-columns:180px repeat(${days.length||1},minmax(0,1fr)) 60px;gap:6px 10px;align-items:center;padding:3px 0;">
+                <span style="padding-left:16px;font-size:12px;">${pod}</span>
+                ${days.map(dy=>{ const v = cellFor(pk,mode,sh,pod,dy); return `<span class="mono" style="text-align:center;padding:3px 0;border-radius:4px;${pillCellStyle(v,maxDay)}color:${v?'#fff':'var(--ink-faint)'}">${v?fmt1(v):'·'}</span>`; }).join('')}
+                <span class="mono" style="text-align:right;font-weight:600;">${fmt1(fclRow)}</span>
+              </div>`;
+            }).join('')}`;
+          }).join('');
+        }).join('')}`;
+      }).join('')}
+    </div>
+    <div>
+      <div class="card">
+        <div class="ct">FCL por día</div>
+        <div style="display:grid;grid-template-columns:repeat(${days.length||1},1fr);gap:8px;align-items:end;height:120px;">
+          ${weekdayTotals.map(v=>`<div style="display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;"><span class="mono" style="font-size:10.5px;color:${v===maxW?'var(--amber)':'var(--ink-soft)'};font-weight:${v===maxW?700:400}">${fmt1(v)}</span><div style="width:100%;height:${Math.max(6,calcPct(v,maxW))}%;border-radius:4px 4px 2px 2px;background:${v===maxW?'linear-gradient(180deg,var(--amber),#a97430)':'linear-gradient(180deg,var(--navy2),var(--navy))'};"></div></div>`).join('')}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(${days.length||1},1fr);gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);">
+          ${days.map(dy=>`<span class="mono" style="text-align:center;font-size:9.5px;color:var(--ink-faint);">${dayLabel(dy)}</span>`).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <div class="ct">Top destinos</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">${topDest.map(t=>`<div><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px;"><span>${t.name}</span><span class="mono" style="color:var(--amber);">${fmt1(t.val)}</span></div><div class="bt"><div class="bf" style="width:${calcPct(t.val,maxDest)}%;background:var(--amber);"></div></div></div>`).join('')}</div>
+      </div>
+      <div class="card" style="margin-bottom:0;">
+        <div class="ct">Split por modo</div>
+        <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px;margin-bottom:12px;">${split.map(s=>`<div style="width:${calcPct(s.v,totalFCL)}%;background:${s.c};"></div>`).join('')}</div>
+        ${split.map(s=>`<div style="display:flex;align-items:center;gap:9px;margin-top:8px;"><span style="width:8px;height:8px;border-radius:2px;background:${s.c};"></span><span style="flex:1;font-size:12.5px;">${s.l}</span><span class="mono" style="font-size:12px;">${fmt1(s.v)}</span></div>`).join('')}
+      </div>
+    </div>
+  </div>`}`;
+}
+
+function renderPMI(){
+  const embarques = EMBARQUES || [];
+  const modes = ['Marítimo','Aéreo','Terrestre'];
+  const modeAgg = modes.map(m=>({mode:m, val: sum(embarques.filter(e=>e.mode===m).map(e=>e.pallets||0))})).filter(m=>m.val>0);
+  const maxMode = Math.max(1, ...modeAgg.map(m=>m.val));
+  const bascOk = embarques.filter(e=>e.basc==='OK').length;
+  const damOk = embarques.filter(e=>e.dam==='OK').length;
+  return `
+  <div class="g2">
+    <div class="card">
+      <div class="ct">Pallets por modo</div>
+      <div class="bars">${modeAgg.length ? modeAgg.map(m=>`<div class="br"><span class="bl">${m.mode}</span><div class="bt"><div class="bf" style="width:${calcPct(m.val,maxMode)}%"></div></div><span class="bv">${m.val}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="kc" style="--acc:var(--teal)"><div class="kl">Cobertura BASC</div><div class="kv">${embarques.length?calcPct(bascOk,embarques.length):0}<span class="u">%</span></div></div>
+      <div class="kc" style="--acc:var(--purple)"><div class="kl">Cobertura DAM</div><div class="kv">${embarques.length?calcPct(damOk,embarques.length):0}<span class="u">%</span></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">Embarques <span class="sub">vista simplificada — próxima iteración añade filtros SENASA/T.R. completos</span></div>
+    <div class="tbl-wrap"><table class="std"><thead><tr><th>Shipper</th><th>Destino</th><th>Packing</th><th>Modo</th><th style="text-align:right">Pallets</th><th>BASC</th><th>DAM</th></tr></thead>
+    <tbody>${embarques.length ? embarques.map(e=>`<tr><td>${e.shipper||'—'}</td><td>${e.dest||'—'}</td><td>${e.packing||'—'}</td><td>${e.mode||'—'}</td><td class="mono" style="text-align:right">${e.pallets||0}</td><td><span class="pill ${e.basc==='OK'?'ok':'warn'}">${e.basc||'—'}</span></td><td><span class="pill ${e.dam==='OK'?'ok':'warn'}">${e.dam||'—'}</span></td></tr>`).join('') : '<tr><td colspan="7" class="empty-state">Sin datos de EMBARQUES</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderAir(){
+  const rows = AIR || [];
+  const totPal = sum(rows.map(r=>r.pallets||0));
+  const fin = rows.filter(r=>r.basc==='FINALIZADO').length;
+  const poCount = new Set(rows.filter(r=>r.po).map(r=>r.po)).size;
+  return `
+  <div class="kg">
+    <div class="kc" style="--acc:var(--purple)"><div class="kl">Despachos</div><div class="kv">${rows.length}</div></div>
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">Pallets</div><div class="kv">${totPal}</div></div>
+    <div class="kc" style="--acc:var(--amber)"><div class="kl">PO asignada</div><div class="kv">${poCount}</div><div class="kf">${rows.length?calcPct(poCount,rows.length):0}%</div></div>
+    <div class="kc" style="--acc:var(--ok)"><div class="kl">BASC finalizado</div><div class="kv">${rows.length?calcPct(fin,rows.length):0}<span class="u">%</span></div></div>
+  </div>
+  <div class="card">
+    <div class="ct">Air Program <span class="sub">datos reales de AIR</span></div>
+    <div class="tbl-scroll"><table class="std"><thead><tr><th>Shipper</th><th>Instruction</th><th>Destino</th><th>Dispatch</th><th style="text-align:right">Pallets</th><th>AWB</th><th>File</th><th>Line</th><th>Transp. Op.</th><th>BASC</th><th>DAM</th></tr></thead>
+    <tbody>${rows.length ? rows.map(r=>`<tr><td>${r.shipper||'—'}</td><td class="mono">${r.instruction||'—'}</td><td>${r.dest||'—'}</td><td>${r.dispatch||'—'}</td><td class="mono" style="text-align:right">${r.pallets||0}</td><td class="mono">${r.awb||'—'}</td><td class="mono">${r.file||'—'}</td><td>${r.line||'—'}</td><td>${r.transp_op||'—'}</td><td><span class="pill ${r.basc==='FINALIZADO'?'ok':'warn'}">${r.basc||'—'}</span></td><td class="mono">${r.dam||'—'}</td></tr>`).join('') : '<tr><td colspan="11" class="empty-state">Sin datos de AIR todavía</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderExecute(){
+  const rows = EXECUTE_RAW || [];
+  const ex = EX || {dam_by_mode:[]};
+  const dest = DEST || [];
+  const lineas = LINEAS || [];
+  const mxM = Math.max(1, ...ex.dam_by_mode.map(m=>m.dam_with));
+  const mxD = Math.max(1, ...dest.map(d=>d.fcl));
+  const mxL = Math.max(1, ...lineas.map(l=>l.fcl));
+  const coldTreatments = rows.filter(r=>r.has_tr_time).length;
+  const senasaCount = rows.filter(r=>r.senasa_att==='SENASA').length;
+  const totalBooking = new Set(rows.filter(r=>r.booking).map(r=>r.booking)).size;
+  return `
+  <div class="kg">
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">Cold treatments</div><div class="kv">${coldTreatments}</div></div>
+    <div class="kc" style="--acc:var(--amber)"><div class="kl">SENASA Attention</div><div class="kv" style="font-size:20px;">${senasaCount} / ${totalBooking}</div></div>
+    <div class="kc" style="--acc:var(--navy2)"><div class="kl">Booking confirmado</div><div class="kv">${totalBooking}</div></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">DAMs únicas por modo</div><div class="bars">${ex.dam_by_mode.length ? ex.dam_by_mode.map(m=>`<div class="br"><span class="bl">${m.mode}</span><div class="bt"><div class="bf" style="width:${calcPct(m.dam_with,mxM)}%"></div></div><span class="bv">${m.dam_with}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+    <div class="card"><div class="ct">Cobertura DAM</div><div class="tbl-wrap"><table class="std"><thead><tr><th>Modo</th><th style="text-align:right">DAMs</th><th style="text-align:right">Sin DAM</th><th style="text-align:right">% Cob.</th></tr></thead><tbody>${ex.dam_by_mode.map(m=>`<tr><td>${m.mode}</td><td class="mono" style="text-align:right">${m.dam_with}</td><td class="mono" style="text-align:right">${m.dam_without}</td><td><span class="pill ${badge(m.pct)}">${m.pct}%</span></td></tr>`).join('')}</tbody></table></div></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">Top destinos</div><div class="bars">${dest.length ? dest.map(d=>`<div class="br"><span class="bl">${d.port}</span><div class="bt"><div class="bf" style="width:${calcPct(d.fcl,mxD)}%;background:var(--amber);"></div></div><span class="bv">${fmt1(d.fcl)}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+    <div class="card"><div class="ct">FCL por línea naviera</div><div class="bars">${lineas.length ? lineas.map(l=>`<div class="br"><span class="bl">${l.line}</span><div class="bt"><div class="bf" style="width:${calcPct(l.fcl,mxL)}%"></div></div><span class="bv">${fmt1(l.fcl)}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+  </div>`;
+}
+
+function renderUpload(){
+  return `
+  <div class="g2">
+    <div class="card">
+      <div class="ct">Actualizar Datos — AXIS (Export)</div>
+      <input type="file" id="upl-file" accept=".xlsm,.xlsx" style="margin-bottom:10px;font-size:11.5px;" />
+      <button class="theme-toggle" id="upl-btn" onclick="doUpload()" style="width:100%;justify-content:center;">⬆ Procesar y Publicar</button>
+      <div id="upl-status" style="margin-top:10px;font-size:11px;"></div>
+      <div class="mono" style="font-size:9.5px;color:var(--ink-faint);margin-top:10px;">POST ${UPLOAD_API} — recuerda reemplazar UPLOAD_API_KEY antes de desplegar (ver comentario de seguridad arriba en el código).</div>
+    </div>
+    <div class="card">
+      <div class="ct">Actualizar Datos — Transporte</div>
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
+        <b class="mono">TABLEAU_CONSOLIDADO_DE_TRANSPORTE_2627.xlsx</b><br>
+        <span class="mono" style="font-size:10px;color:var(--warn);">POST /publish-transportes → pendiente de confirmar despliegue en Render + ejecutar schema_transportes.sql (ver handoff, sección 6). Mientras tanto esta vista usa el snapshot real calculado localmente.</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+function doUpload(){
+  const inp = document.getElementById('upl-file');
+  const statusEl = document.getElementById('upl-status');
+  const btn = document.getElementById('upl-btn');
+  if(!inp.files.length){ statusEl.innerHTML = '<span style="color:var(--bad);">Selecciona un archivo primero.</span>'; return; }
+  const file = inp.files[0];
+  btn.disabled = true; btn.textContent = '⏳ Procesando… (puede tardar ~1 min)';
+  statusEl.innerHTML = '<span style="color:var(--ink-soft);">Subiendo y procesando el Excel, por favor espera…</span>';
+  const fd = new FormData(); fd.append('file', file);
+  fetch(UPLOAD_API, {method:'POST', headers:{'X-API-Key':UPLOAD_API_KEY}, body:fd})
+    .then(r=>r.json().then(data=>({ok:r.ok,data})))
+    .then(({ok,data})=>{
+      btn.disabled = false; btn.textContent = '⬆ Procesar y Publicar';
+      if(!ok){ statusEl.innerHTML = `<span style="color:var(--bad);">❌ Error: ${data.error||'algo salió mal'}</span>`; return; }
+      statusEl.innerHTML = `<span style="color:var(--ok);">✅ Publicado correctamente (commit ${(data.commit_sha||'').slice(0,7)}). Refresca para ver los datos nuevos.</span>`;
+    })
+    .catch(err=>{
+      btn.disabled = false; btn.textContent = '⬆ Procesar y Publicar';
+      statusEl.innerHTML = `<span style="color:var(--bad);">❌ Error de conexión: ${err.message}</span>`;
+    });
+}
+/* ============================================================
+   # 10 RENDER — TRANSPORTE: Pickup / Packing / Receiving
+   Mantiene Chart.js (misma librería que control_tower_transporte),
+   confinado a este módulo para no mezclar motores de gráficos.
+   ============================================================ */
+let chartRegistry = []; // {id, build(ctx)} — permite reconstruir al cambiar de tema
+
+function chartColor(varName){ return getComputedStyle(document.documentElement).getPropertyValue(varName).trim(); }
+function baseChartOptions(extra){
+  return Object.assign({
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ labels:{ color:chartColor('--ink-soft'), font:{family:'Instrument Sans', size:11} } } },
+    scales:{
+      x:{ ticks:{color:chartColor('--ink-faint'), font:{family:'JetBrains Mono', size:9.5}}, grid:{color:chartColor('--line')} },
+      y:{ ticks:{color:chartColor('--ink-faint'), font:{family:'JetBrains Mono', size:9.5}}, grid:{color:chartColor('--line')} }
+    }
+  }, extra||{});
+}
+function stackedBarConfig(labels, series /* [{label,data,color}] */){
+  return { type:'bar', data:{ labels, datasets:series.map(s=>({label:s.label, data:s.data, backgroundColor:s.color})) },
+    options: baseChartOptions({ scales:{ x:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{display:false}}, y:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{color:chartColor('--line')}} } }) };
+}
+function lineConfig(labels, data, color){
+  return { type:'line', data:{ labels, datasets:[{ data, borderColor:color, backgroundColor:color+'33', fill:true, tension:.35, pointRadius:3 }] },
+    options: baseChartOptions({ plugins:{legend:{display:false}} }) };
+}
+function donutConfig(labels, data, colors){
+  return { type:'doughnut', data:{ labels, datasets:[{data, backgroundColor:colors, borderWidth:0}] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'68%', plugins:{legend:{position:'bottom', labels:{color:chartColor('--ink-soft'), font:{family:'Instrument Sans', size:11}, boxWidth:10}}} } };
+}
+function barSimpleConfig(labels, data, colors){
+  return { type:'bar', data:{ labels, datasets:[{data, backgroundColor:colors}] },
+    options: baseChartOptions({ plugins:{legend:{display:false}} }) };
+}
+
+function mountChart(canvasId, config){
+  const el = document.getElementById(canvasId);
+  if(!el) return;
+  if(el._chart) el._chart.destroy();
+  el._chart = new Chart(el.getContext('2d'), config);
+  chartRegistry.push(canvasId);
+}
+function stageBadge(v, invert){
+  const good = invert ? v<=10 : v>=90;
+  const mid  = invert ? v<=30 : v>=75;
+  return good ? 'ok' : mid ? 'warn' : 'bad';
+}
+
+function stackedFromGroup(groupObj){
+  const labels = Object.keys(groupObj);
+  return { labels, onTime: labels.map(l=>groupObj[l].on), late: labels.map(l=>groupObj[l].late) };
+}
+function weeklyFromMap(weeklyObj){
+  const labels = Object.keys(weeklyObj);
+  return { labels, data: labels.map(l=>weeklyObj[l]) };
+}
+
+function renderRetiro(){
+  const d = REAL_TRANSPORT.retiro;
+  const alm = stackedFromGroup(d.almacen);
+  const wk = weeklyFromMap(d.weekly);
+  window.build_chRetiroAlmacen = () => mountChart('chRetiroAlmacen', stackedBarConfig(alm.labels, [
+    {label:'On time', data:alm.onTime, color:chartColor('--ok')},
+    {label:'Late', data:alm.late, color:chartColor('--bad')},
+  ]));
+  window.build_chRetiroWeekly = () => mountChart('chRetiroWeekly', lineConfig(wk.labels, wk.data, chartColor('--teal')));
+  return `
+  <span class="mock-tag">◆ Datos reales — snapshot de TABLEAU_CONSOLIDADO_DE_TRANSPORTE_2627.xlsx (${REAL_TRANSPORT.total_rows} registros, pp no nulo)</span>
+  <div class="kg">
+    <div class="kc" style="--acc:var(--bad)"><div class="kl">Appointment compliance</div><div class="kv">${d.compliance_pct}<span class="u">%</span></div><div class="kf"><span class="pill ${stageBadge(d.compliance_pct,true)}">Stage 01 · Gate Out</span></div></div>
+    <div class="kc"><div class="kl">Citas registradas</div><div class="kv">${d.citas}</div></div>
+    <div class="kc" style="--acc:var(--bad)"><div class="kl">Late</div><div class="kv">${d.criticas}</div></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">On time vs Late por almacén</div><div style="height:220px;"><canvas id="chRetiroAlmacen"></canvas></div></div>
+    <div class="card"><div class="ct">Volumen por Pack Plan</div><div style="height:220px;"><canvas id="chRetiroWeekly"></canvas></div></div>
+  </div>`;
+}
+
+function renderPacking(){
+  const d = REAL_TRANSPORT.packing;
+  const nav = stackedFromGroup(d.naviera);
+  const wk = weeklyFromMap(d.weekly);
+  const dispatchLabels = Object.keys(d.dispatch_cat);
+  const dispatchData = dispatchLabels.map(l=>d.dispatch_cat[l]);
+  window.build_chPackingDonut = () => mountChart('chPackingDonut', donutConfig(['On Track','Off Track'], [d.preload_pct, +(100-d.preload_pct).toFixed(1)], [chartColor('--ok'), chartColor('--bad')]));
+  window.build_chPackingDispatch = () => mountChart('chPackingDispatch', barSimpleConfig(dispatchLabels, dispatchData, dispatchLabels.map(l=>l==='ON TIME'?chartColor('--ok'):l==='LATE'?chartColor('--warn'):chartColor('--bad'))));
+  window.build_chPackingWeekly = () => mountChart('chPackingWeekly', lineConfig(wk.labels, wk.data, chartColor('--amber')));
+  window.build_chPackingNaviera = () => mountChart('chPackingNaviera', stackedBarConfig(nav.labels, [
+    {label:'On time', data:nav.onTime, color:chartColor('--ok')},
+    {label:'Late', data:nav.late, color:chartColor('--bad')},
+  ]));
+  return `
+  <span class="mock-tag">◆ Datos reales — snapshot de TABLEAU_CONSOLIDADO_DE_TRANSPORTE_2627.xlsx (${REAL_TRANSPORT.total_rows} registros, pp no nulo)</span>
+  <div class="kg">
+    <div class="kc" style="--acc:${d.critical_pct>=30?'var(--bad)':'var(--ok)'}"><div class="kl">Critical appointment</div><div class="kv">${d.critical_pct}<span class="u">%</span></div><div class="kf"><span class="pill ${d.critical_pct>=30?'bad':'ok'}">Stage 02 · Plant</span></div></div>
+    <div class="kc" style="--acc:var(--ok)"><div class="kl">Packing on time</div><div class="kv">${d.compliance_pct}<span class="u">%</span></div></div>
+    <div class="kc"><div class="kl">Pre-loading on track</div><div class="kv">${d.preload_pct}<span class="u">%</span></div></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">Pre-Loading Wait Time</div><div style="height:200px;"><canvas id="chPackingDonut"></canvas></div></div>
+    <div class="card"><div class="ct">Packing Appointment Compliance</div><div style="height:200px;"><canvas id="chPackingDispatch"></canvas></div></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">Volumen por Pack Plan</div><div style="height:200px;"><canvas id="chPackingWeekly"></canvas></div></div>
+    <div class="card"><div class="ct">On time vs Late por naviera</div><div style="height:200px;"><canvas id="chPackingNaviera"></canvas></div></div>
+  </div>`;
+}
+
+function renderIngreso(){
+  const d = REAL_TRANSPORT.ingreso;
+  const alm = stackedFromGroup(d.almacen);
+  const car = stackedFromGroup(d.carrier);
+  const wk = weeklyFromMap(d.weekly);
+  window.build_chIngresoAlmacen = () => mountChart('chIngresoAlmacen', stackedBarConfig(alm.labels, [
+    {label:'On time', data:alm.onTime, color:chartColor('--ok')},
+    {label:'Late', data:alm.late, color:chartColor('--bad')},
+  ]));
+  window.build_chIngresoCarrier = () => mountChart('chIngresoCarrier', stackedBarConfig(car.labels, [
+    {label:'On time', data:car.onTime, color:chartColor('--ok')},
+    {label:'Late', data:car.late, color:chartColor('--bad')},
+  ]));
+  window.build_chIngresoWeekly = () => mountChart('chIngresoWeekly', lineConfig(wk.labels, wk.data, chartColor('--teal')));
+  return `
+  <span class="mock-tag">◆ Datos reales — snapshot de TABLEAU_CONSOLIDADO_DE_TRANSPORTE_2627.xlsx (${REAL_TRANSPORT.total_rows} registros, pp no nulo)</span>
+  <div class="kg">
+    <div class="kc" style="--acc:${d.compliance_pct>=50?'var(--ok)':'var(--bad)'}"><div class="kl">On time</div><div class="kv">${d.compliance_pct}<span class="u">%</span></div><div class="kf"><span class="pill ${stageBadge(d.compliance_pct)}">Stage 03 · Gate In</span></div></div>
+    <div class="kc"><div class="kl">Recibidos</div><div class="kv">${d.recibidos}</div></div>
+    <div class="kc" style="--acc:var(--bad)"><div class="kl">Rechazados</div><div class="kv">${d.rechazados}</div></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">On time vs Late por almacén</div><div style="height:220px;"><canvas id="chIngresoAlmacen"></canvas></div></div>
+    <div class="card"><div class="ct">On time vs Late por carrier</div><div style="height:220px;"><canvas id="chIngresoCarrier"></canvas></div></div>
+  </div>
+  <div class="card"><div class="ct">Volumen por Pack Plan</div><div style="height:200px;"><canvas id="chIngresoWeekly"></canvas></div></div>`;
+}
+
+const PANEL_RENDERERS = {
+  forecast: renderForecast, ports: renderPorts, weekly: renderWeekly, wep: renderWEP,
+  pmi: renderPMI, air: renderAir, execute: renderExecute,
+  retiro: renderRetiro, packing: renderPacking, ingreso: renderIngreso,
+  upload: renderUpload,
+};
+const CHART_VIEWS = { retiro:['chRetiroAlmacen','chRetiroWeekly'], packing:['chPackingDonut','chPackingDispatch','chPackingWeekly','chPackingNaviera'], ingreso:['chIngresoAlmacen','chIngresoCarrier','chIngresoWeekly'] };
+
+function buildPanels(){
+  const main = document.getElementById('main');
+  main.innerHTML = Object.keys(PANEL_RENDERERS).map(id => `<div class="panel" id="p-${id}"></div>`).join('');
+  Object.keys(PANEL_RENDERERS).forEach(id => {
+    document.getElementById('p-'+id).innerHTML = PANEL_RENDERERS[id]();
+  });
+  // instanciar Chart.js solo para las vistas de Transporte
+  Object.keys(CHART_VIEWS).forEach(view => {
+    CHART_VIEWS[view].forEach(chId => { const b = window['build_'+chId]; if(b) b(); });
+  });
+}
+
+// Reconstruir gráficos (colores) cuando cambia el tema
+function redrawChartTheme(){
+  Object.keys(CHART_VIEWS).forEach(view => {
+    CHART_VIEWS[view].forEach(chId => { const b = window['build_'+chId]; if(b) b(); });
+  });
+}
+
+// El arranque real ocurre en loadDataAndInit(), disparado por tryLogin()
+// tras autenticar contra Supabase (ver bloque #05a más arriba).
+</script>
+</body>
+</html>

@@ -324,8 +324,8 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
       <p>Inicia sesión para continuar</p>
     </div>
     <div class="gate-body">
-      <input type="email" id="gateEmail" placeholder="correo" autocomplete="username" />
-      <input type="password" id="gatePass" placeholder="contraseña" autocomplete="current-password" />
+      <input type="email" id="gateEmail" placeholder="correo" autocomplete="username" onkeydown="if(event.key==='Enter'){ event.preventDefault(); tryLogin(); }" />
+      <input type="password" id="gatePass" placeholder="contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter'){ event.preventDefault(); tryLogin(); }" />
       <div class="gate-err" id="gateErr"></div>
       <button id="gateBtn" onclick="tryLogin()">Ingresar</button>
     </div>

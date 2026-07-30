@@ -290,6 +290,23 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
 .wep-top-dest-row{margin-bottom:12px;}
 .wep-top-dest-row .hd{display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:4px;}
 
+/* ---- MSD: dropdown-checklist reutilizable para todos los filtros ---- */
+.msd{position:relative; display:inline-block;}
+.msd-btn{display:flex; align-items:center; gap:8px; background:var(--navy); color:#fff; border:1px solid var(--navy2); border-radius:999px; padding:8px 14px; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:11.5px; cursor:pointer; white-space:nowrap;}
+.msd-btn:hover{border-color:var(--blue);}
+.msd.open .msd-btn{border-color:var(--blue); box-shadow:0 0 0 3px rgba(46,143,176,.18);}
+.msd-btn svg{width:10px;height:10px;flex-shrink:0;transition:transform .15s;}
+.msd.open .msd-btn svg{transform:rotate(180deg);}
+.msd-panel{display:none; position:absolute; top:calc(100% + 6px); left:0; z-index:80; min-width:200px; max-height:280px; overflow-y:auto; background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,.18); padding:6px;}
+.msd.open .msd-panel{display:block;}
+.msd-item{display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:6px; font-size:12px; cursor:pointer; white-space:nowrap; color:var(--ink);}
+.msd-item:hover{background:var(--surface-soft);}
+.msd-item input{cursor:pointer; accent-color:var(--blue);}
+.msd-item.checked{background:rgba(46,143,176,.12); color:var(--blue); font-weight:600;}
+.msd-item-all{color:var(--ink-soft); font-weight:600; font-size:10.5px; text-transform:uppercase; letter-spacing:.03em;}
+.msd-sep{height:1px; background:var(--line); margin:4px 2px;}
+.msd-filterbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+
 @media(max-width:900px){
   .shell{grid-template-columns:64px 1fr;}
   .sb-brand h1,.sb-brand p,.sb-group-label,.sb-label,.sb-metric{display:none;}
@@ -478,6 +495,71 @@ document.getElementById('sbToggle').onclick = () => {
 };
 
 renderSidebar();
+
+/* ============================================================
+   # 05b MSD — Multi-Select Dropdown (checklist), componente
+   reutilizable para todos los filtros de la app (reemplaza los
+   chips inline sueltos por un dropdown "All X ▾" con checklist,
+   igual al patrón de control_tower_transporte__4_.html).
+   ============================================================ */
+function msdField(id, allLabel, opts, refreshFnName, labelFn){
+  const cbClass = id + '-cb';
+  const items = opts.map(o => {
+    const val = String(o).replace(/"/g,'&quot;');
+    const lbl = labelFn ? labelFn(o) : o;
+    return `<label class="msd-item"><input type="checkbox" class="${cbClass}" value="${val}" checked onchange="msdOnItemChange('${id}','${allLabel.replace(/'/g,"\\'")}');${refreshFnName}();">${lbl}</label>`;
+  }).join('');
+  return `
+  <div class="msd" id="${id}">
+    <button type="button" class="msd-btn" onclick="msdToggle('${id}')">
+      <span id="${id}-label">${allLabel}</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div class="msd-panel" id="${id}-panel">
+      <label class="msd-item msd-item-all"><input type="checkbox" checked onchange="msdToggleAll('${id}', this.checked, '${allLabel.replace(/'/g,"\\'")}');${refreshFnName}();">${allLabel}</label>
+      <div class="msd-sep"></div>
+      ${items || '<div class="empty-state" style="padding:14px;">Sin opciones</div>'}
+    </div>
+  </div>`;
+}
+function msdToggle(id){
+  const el = document.getElementById(id);
+  const wasOpen = el.classList.contains('open');
+  document.querySelectorAll('.msd.open').forEach(m=>m.classList.remove('open'));
+  if (!wasOpen) el.classList.add('open');
+}
+document.addEventListener('click', (e)=>{
+  if (!e.target.closest('.msd')) document.querySelectorAll('.msd.open').forEach(m=>m.classList.remove('open'));
+});
+function msdChecked(id){ return [...document.querySelectorAll('#'+id+' .'+id+'-cb:checked')].map(cb=>cb.value); }
+function msdAllValues(id){ return [...document.querySelectorAll('#'+id+' .'+id+'-cb')].map(cb=>cb.value); }
+function msdToggleAll(id, state){
+  document.querySelectorAll('#'+id+' .'+id+'-cb').forEach(cb=>{ cb.checked = state; cb.closest('.msd-item').classList.toggle('checked', state); });
+  msdUpdateLabel(id);
+}
+function msdOnItemChange(id, allLabel){
+  const all = msdAllValues(id), sel = msdChecked(id);
+  const allCb = document.querySelector('#'+id+' .msd-item-all input');
+  if (allCb) allCb.checked = sel.length === all.length;
+  document.querySelectorAll('#'+id+' .'+id+'-cb').forEach(cb=>cb.closest('.msd-item').classList.toggle('checked', cb.checked));
+  msdUpdateLabel(id, allLabel);
+}
+function msdUpdateLabel(id, allLabel){
+  const labelEl = document.getElementById(id+'-label');
+  if (!labelEl) return;
+  allLabel = allLabel || labelEl.dataset.allLabel || labelEl.textContent;
+  labelEl.dataset.allLabel = allLabel;
+  const all = msdAllValues(id), sel = msdChecked(id);
+  if (sel.length === 0 || sel.length === all.length) labelEl.textContent = allLabel;
+  else if (sel.length === 1) labelEl.textContent = sel[0];
+  else labelEl.textContent = sel.length + ' sel.';
+}
+// Devuelve la selección real para filtrar: array vacío o "todos" => sin filtro (undefined)
+function msdFilterValues(id){
+  const all = msdAllValues(id), sel = msdChecked(id);
+  if (sel.length === 0 || sel.length === all.length) return null; // sin filtro
+  return sel;
+}
 
 /* ============================================================
    # 05a CONEXIÓN REAL — Supabase Auth + dashboard_data
@@ -718,22 +800,12 @@ function renderForecast(){
         </div>
       </div>
       <div>
-        <div class="fc-label">Shipper</div>
-        <div class="fc-chip-group">${shippers.length ? shippers.map(s=>`<label class="fc-chip"><input type="checkbox" class="fc-cb-shipper" value="${s.replace(/"/g,'&quot;')}" checked onchange="refreshForecast()">${s}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>'}</div>
-      </div>
-      <div>
-        <div class="fc-label">Modo</div>
-        <div class="fc-chip-group">${modes.length ? modes.map(m=>`<label class="fc-chip"><input type="checkbox" class="fc-cb-mode" value="${m}" checked onchange="refreshForecast()">${m==='Aéreo'?'✈':m==='Marítimo'?'⚓':'🚚'} ${m}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>'}</div>
-      </div>
-      <div style="flex:1;min-width:280px;">
-        <div class="fc-label" style="display:flex;justify-content:space-between;align-items:center;">
-          <span>Pack Plan</span>
-          <span style="display:flex;gap:10px;">
-            <a class="fc-mini-link" onclick="fcSetAllWeeks(true)">Todos</a>
-            <a class="fc-mini-link" onclick="fcSetAllWeeks(false)">Ninguno</a>
-          </span>
+        <div class="fc-label">&nbsp;</div>
+        <div class="msd-filterbar">
+          ${msdField('msd-fc-shipper', 'All Shippers', shippers, 'refreshForecast')}
+          ${msdField('msd-fc-mode', 'All Modes', modes, 'refreshForecast', m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
+          ${msdField('msd-fc-week', 'All Pack Plans', weeks, 'refreshForecast', w=>'S'+w)}
         </div>
-        <div class="fc-chip-group">${weeks.length ? weeks.map(w=>`<label class="fc-chip mono"><input type="checkbox" class="fc-cb-week" value="${w}" checked onchange="refreshForecast()">S${w}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>'}</div>
       </div>
     </div>
   </div>
@@ -760,9 +832,10 @@ function renderForecast(){
 function refreshForecast(){
   const rows = FORECAST_RAW || [];
   if(!document.getElementById('fc-kg')) return; // panel de Forecast no está en el DOM todavía
-  const selShippers = fcChecked('fc-cb-shipper');
-  const selModes = fcChecked('fc-cb-mode');
-  const selWeeks = fcChecked('fc-cb-week').map(Number);
+  const selShippers = msdFilterValues('msd-fc-shipper') || [];
+  const selModes = msdFilterValues('msd-fc-mode') || [];
+  const selWeeksRaw = msdFilterValues('msd-fc-week');
+  const selWeeks = selWeeksRaw ? selWeeksRaw.map(Number) : [];
 
   let ft = rows;
   if(selShippers.length) ft = ft.filter(r=>selShippers.includes(r.shipper));
@@ -919,18 +992,11 @@ function renderPorts(){
         </div>
       </div>
       <div>
-        <div class="fc-label">Status</div>
-        <div class="fc-chip-group">${statuses.length ? statuses.map(s=>`<label class="fc-chip"><input type="checkbox" class="ports-cb-status" value="${s}" checked onchange="refreshPorts()">${s}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>'}</div>
-      </div>
-      <div style="flex:1;min-width:280px;">
-        <div class="fc-label" style="display:flex;justify-content:space-between;align-items:center;">
-          <span>Pack Plan</span>
-          <span style="display:flex;gap:10px;">
-            <a class="fc-mini-link" onclick="document.querySelectorAll('.ports-cb-week').forEach(cb=>cb.checked=true);refreshPorts();">Todos</a>
-            <a class="fc-mini-link" onclick="document.querySelectorAll('.ports-cb-week').forEach(cb=>cb.checked=false);refreshPorts();">Ninguno</a>
-          </span>
+        <div class="fc-label">&nbsp;</div>
+        <div class="msd-filterbar">
+          ${msdField('msd-ports-status', 'All Status', statuses, 'refreshPorts')}
+          ${msdField('msd-ports-week', 'All Pack Plans', weeks, 'refreshPorts', w=>'S'+w)}
         </div>
-        <div class="fc-chip-group">${weeks.length ? weeks.map(w=>`<label class="fc-chip mono"><input type="checkbox" class="ports-cb-week" value="${w}" checked onchange="refreshPorts()">S${w}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>'}</div>
       </div>
     </div>
   </div>
@@ -951,8 +1017,9 @@ function renderPorts(){
 function refreshPorts(){
   const rows = PORTS_RAW || [];
   if(!document.getElementById('ports-kg')) return;
-  const selStatus = [...document.querySelectorAll('.ports-cb-status:checked')].map(cb=>cb.value);
-  const selWeeks = [...document.querySelectorAll('.ports-cb-week:checked')].map(cb=>Number(cb.value));
+  const selStatus = msdFilterValues('msd-ports-status') || [];
+  const selWeeksRaw = msdFilterValues('msd-ports-week');
+  const selWeeks = selWeeksRaw ? selWeeksRaw.map(Number) : [];
 
   let ft = rows;
   if (selStatus.length) ft = ft.filter(r=>selStatus.includes(r.status));
@@ -1097,27 +1164,15 @@ function renderWeekly(){
   const modes = [...new Set(rows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
   const dates = [...new Set(rows.map(r=>r.date).filter(Boolean))].sort();
 
-  const filterBlock = (label, cls, opts, labelFn) => `
-    <div>
-      <div class="fc-label" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <span>${label}</span>
-        <span style="display:flex;gap:8px;">
-          <a class="fc-mini-link" onclick="wkSetAll('${cls}',true)">Todos</a>
-          <a class="fc-mini-link" onclick="wkSetAll('${cls}',false)">Ninguno</a>
-        </span>
-      </div>
-      <div class="fc-chip-group" style="max-height:96px;overflow-y:auto;">${wkChipGroup(cls, opts, labelFn)}</div>
-    </div>`;
-
   return `
   <div class="card" style="margin-bottom:14px;">
     <div class="ct">Tabla dinámica unificada <span class="sub" id="wk-stat"></span></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px;">
-      ${filterBlock('Pack Plan', 'wk-cb-pp', weeks, w=>'S'+w)}
-      ${filterBlock('Packing', 'wk-cb-pk', packings)}
-      ${filterBlock('Shipper', 'wk-cb-sh', shippers)}
-      ${filterBlock('Modo', 'wk-cb-mo', modes, m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
-      ${filterBlock('Loading Date', 'wk-cb-dt', dates)}
+    <div class="msd-filterbar">
+      ${msdField('msd-wk-pp', 'All Pack Plans', weeks, 'refreshWeekly', w=>'S'+w)}
+      ${msdField('msd-wk-pk', 'All Packing', packings, 'refreshWeekly')}
+      ${msdField('msd-wk-sh', 'All Shippers', shippers, 'refreshWeekly')}
+      ${msdField('msd-wk-mo', 'All Modes', modes, 'refreshWeekly', m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
+      ${msdField('msd-wk-dt', 'All Loading Dates', dates, 'refreshWeekly')}
     </div>
   </div>
   <div class="card">
@@ -1129,11 +1184,12 @@ function renderWeekly(){
 function refreshWeekly(){
   const rows = WROWS || [];
   if(!document.getElementById('wk-body')) return;
-  const selPP = wkChecked('wk-cb-pp').map(Number);
-  const selPK = wkChecked('wk-cb-pk');
-  const selSH = wkChecked('wk-cb-sh');
-  const selMO = wkChecked('wk-cb-mo');
-  const selDT = wkChecked('wk-cb-dt');
+  const selPPraw = msdFilterValues('msd-wk-pp');
+  const selPP = selPPraw ? selPPraw.map(Number) : [];
+  const selPK = msdFilterValues('msd-wk-pk') || [];
+  const selSH = msdFilterValues('msd-wk-sh') || [];
+  const selMO = msdFilterValues('msd-wk-mo') || [];
+  const selDT = msdFilterValues('msd-wk-dt') || [];
 
   let ft = rows;
   if (selPP.length) ft = ft.filter(r=>selPP.includes(r.pack_plan));
@@ -1416,31 +1472,14 @@ function renderPMI(){
   const modeOrder = ['Marítimo','Aéreo','Terrestre'];
   const modes = [...new Set(em.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
 
-  const filterBlock = (label, cls, opts, labelFn) => `
-    <div>
-      <div class="fc-label" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <span>${label}</span>
-        <span style="display:flex;gap:8px;">
-          <a class="fc-mini-link" onclick="pmiSetAll('${cls}',true)">Todos</a>
-          <a class="fc-mini-link" onclick="pmiSetAll('${cls}',false)">Ninguno</a>
-        </span>
-      </div>
-      <div class="fc-chip-group" style="max-height:96px;overflow-y:auto;">${pmiChipGroup(cls, opts, labelFn)}</div>
-    </div>`;
-
   return `
   <div class="card" style="margin-bottom:14px;">
     <div class="ct">Filtro global <span class="sub" id="pmi-stat"></span></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:18px;margin-bottom:14px;">
-      <div>
-        <div class="fc-label">Packing</div>
-        <select id="pmi-pk-select" onchange="refreshPMIAll()" style="width:100%;padding:8px;border-radius:7px;border:1px solid var(--line);background:var(--surface-soft);color:var(--ink);font-family:inherit;font-size:12px;">
-          <option value="ALL">Todos</option>${packings.map(pk=>`<option value="${pk}">${pk}</option>`).join('')}
-        </select>
-      </div>
-      ${filterBlock('Pack Plan', 'pmi-cb-pp', weeks, w=>'S'+w)}
-      ${filterBlock('Dispatch Date', 'pmi-cb-dd', dispatchDates)}
-      ${filterBlock('Modo', 'pmi-cb-mo', modes, m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
+    <div class="msd-filterbar" style="margin-bottom:14px;">
+      ${msdField('msd-pmi-pk', 'All Packing', packings, 'refreshPMIAll')}
+      ${msdField('msd-pmi-pp', 'All Pack Plans', weeks, 'refreshPMIAll', w=>'S'+w)}
+      ${msdField('msd-pmi-dd', 'All Dispatch Dates', dispatchDates, 'refreshPMIAll')}
+      ${msdField('msd-pmi-mo', 'All Modes', modes, 'refreshPMIAll', m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
     </div>
     <div id="pmi-kpis"></div>
   </div>
@@ -1471,15 +1510,9 @@ function renderPMI(){
   <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">T.R. PROGRAM</div>
   <div class="card">
     <div class="ct">Programa de Técnicos Reefer <span class="sub" id="tr-stat"></span></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:12px;">
-      <div>
-        <div class="fc-label">Line</div>
-        <select id="tr-ln-select" onchange="refreshPMIAll()" style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface-soft);color:var(--ink);font-family:inherit;font-size:12px;"><option value="ALL">Todos</option></select>
-      </div>
-      <div>
-        <div class="fc-label" style="display:flex;justify-content:space-between;"><span>T.R. Time</span><span style="display:flex;gap:8px;"><a class="fc-mini-link" onclick="pmiSetAll('tr-cb-tt',true)">Todos</a><a class="fc-mini-link" onclick="pmiSetAll('tr-cb-tt',false)">Ninguno</a></span></div>
-        <div class="fc-chip-group" id="tr-tt-chips" style="max-height:70px;overflow-y:auto;"></div>
-      </div>
+    <div class="msd-filterbar" style="margin-bottom:12px;">
+      <div id="tr-ln-wrap"></div>
+      <div id="tr-tt-wrap"></div>
     </div>
     <div class="pivot-scroll"><table class="pivot"><thead><tr>
       <th>Packing</th><th>Logistics Operator</th><th>SENASA Attention</th><th>Line</th><th>Dispatch Date</th>
@@ -1491,12 +1524,13 @@ function renderPMI(){
 let LAST_EMBARQUES_FILTERED = [];
 
 function pmiGlobalFiltered(dataset){
-  const selPK = document.getElementById('pmi-pk-select') ? document.getElementById('pmi-pk-select').value : 'ALL';
-  const selPP = pmiChecked('pmi-cb-pp').map(Number);
-  const selDD = pmiChecked('pmi-cb-dd');
-  const selMO = pmiChecked('pmi-cb-mo');
+  const selPK = msdFilterValues('msd-pmi-pk') || [];
+  const selPPraw = msdFilterValues('msd-pmi-pp');
+  const selPP = selPPraw ? selPPraw.map(Number) : [];
+  const selDD = msdFilterValues('msd-pmi-dd') || [];
+  const selMO = msdFilterValues('msd-pmi-mo') || [];
   let ft = dataset || [];
-  if (selPK !== 'ALL') ft = ft.filter(r=>r.packing===selPK);
+  if (selPK.length) ft = ft.filter(r=>selPK.includes(r.packing));
   if (selPP.length) ft = ft.filter(r=>selPP.includes(r.pack_plan));
   if (selDD.length) ft = ft.filter(r=>selDD.includes(r.dispatch_date||''));
   if (selMO.length) ft = ft.filter(r=>selMO.includes(r.mode));
@@ -1505,11 +1539,11 @@ function pmiGlobalFiltered(dataset){
 
 function refreshPMIAll(){
   if (!document.getElementById('pmi-kpis')) return;
-  const selPK = document.getElementById('pmi-pk-select').value;
-  const selPP = pmiChecked('pmi-cb-pp');
-  const selDD = pmiChecked('pmi-cb-dd');
-  const selMO = pmiChecked('pmi-cb-mo');
-  document.getElementById('pmi-stat').textContent = `Packing: ${selPK==='ALL'?'Todos':selPK} · Pack Plan: ${selPP.length} sel. · Dispatch: ${selDD.length} sel. · Modo: ${selMO.length} sel.`;
+  const selPK = msdFilterValues('msd-pmi-pk');
+  const selPP = msdFilterValues('msd-pmi-pp');
+  const selDD = msdFilterValues('msd-pmi-dd');
+  const selMO = msdFilterValues('msd-pmi-mo');
+  document.getElementById('pmi-stat').textContent = `Packing: ${selPK?selPK.length+' sel.':'Todos'} · Pack Plan: ${selPP?selPP.length+' sel.':'Todos'} · Dispatch: ${selDD?selDD.length+' sel.':'Todos'} · Modo: ${selMO?selMO.length+' sel.':'Todos'}`;
   renderPMIKPIs();
   renderSenasa();
   renderEmbarques();
@@ -1680,22 +1714,22 @@ function downloadEmbarquesExcel(){
 
 function renderTR(){
   const all = TR_PROGRAM || [];
-  const lnSelect = document.getElementById('tr-ln-select');
-  const ttChips = document.getElementById('tr-tt-chips');
-  if (lnSelect.dataset.built !== '1'){
+  const lnWrap = document.getElementById('tr-ln-wrap');
+  const ttWrap = document.getElementById('tr-tt-wrap');
+  if (lnWrap.dataset.built !== '1'){
     const lines = [...new Set(all.map(r=>r.line).filter(Boolean))].sort();
-    lnSelect.innerHTML = '<option value="ALL">Todos</option>' + lines.map(l=>`<option value="${l}">${l}</option>`).join('');
+    lnWrap.innerHTML = msdField('msd-tr-ln', 'All Lines', lines, 'refreshPMIAll');
     const ttRaw = [...new Set(all.map(r=>r.tr_time))];
     const tts = ttRaw.filter(Boolean).sort();
     const hasBlank = ttRaw.some(t=>!t);
-    ttChips.innerHTML = pmiChipGroup('tr-cb-tt', tts) + (hasBlank ? `<label class="fc-chip mono"><input type="checkbox" class="tr-cb-tt" value="" checked onchange="refreshPMIAll()">(vacío)</label>` : '');
-    lnSelect.dataset.built = '1';
+    ttWrap.innerHTML = msdField('msd-tr-tt', 'All T.R. Times', hasBlank ? [...tts, '(vacío)'] : tts, 'refreshPMIAll');
+    lnWrap.dataset.built = '1';
   }
   let ft = pmiGlobalFiltered(all);
-  const selLN = lnSelect.value;
-  if (selLN !== 'ALL') ft = ft.filter(r=>r.line===selLN);
-  const selTT = pmiChecked('tr-cb-tt');
-  if (selTT.length) ft = ft.filter(r=>selTT.includes(r.tr_time||''));
+  const selLN = msdFilterValues('msd-tr-ln');
+  if (selLN) ft = ft.filter(r=>selLN.includes(r.line));
+  const selTT = msdFilterValues('msd-tr-tt');
+  if (selTT) ft = ft.filter(r=>selTT.includes(r.tr_time || '(vacío)'));
 
   const pkGroups = {};
   ft.forEach(r=>{ const pk=r.packing||'(en blanco)'; if(!pkGroups[pk]) pkGroups[pk]={}; const ln=r.line||'(en blanco)'; if(!pkGroups[pk][ln]) pkGroups[pk][ln]=[]; pkGroups[pk][ln].push(r); });
@@ -1761,21 +1795,10 @@ function renderAir(){
       <span class="pill neu">Status: Confirmado</span>
       <span class="pill neu">Mode: Aéreo</span>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;">
-      <div>
-        <div class="fc-label" style="display:flex;justify-content:space-between;"><span>Pack Plan</span><span style="display:flex;gap:8px;"><a class="fc-mini-link" onclick="airSetAll('air-cb-pp',true)">Todos</a><a class="fc-mini-link" onclick="airSetAll('air-cb-pp',false)">Ninguno</a></span></div>
-        <div class="fc-chip-group" style="max-height:90px;overflow-y:auto;">${airChipGroup('air-cb-pp', weeks, w=>'S'+w)}</div>
-      </div>
-      <div>
-        <div class="fc-label" style="display:flex;justify-content:space-between;"><span>Dispatch Date</span><span style="display:flex;gap:8px;"><a class="fc-mini-link" onclick="airSetAll('air-cb-dd',true)">Todos</a><a class="fc-mini-link" onclick="airSetAll('air-cb-dd',false)">Ninguno</a></span></div>
-        <div class="fc-chip-group" style="max-height:90px;overflow-y:auto;">${airChipGroup('air-cb-dd', dispatches)}</div>
-      </div>
-      <div>
-        <div class="fc-label">Logistics Operator</div>
-        <select id="air-lo-select" onchange="refreshAir()" style="width:100%;padding:8px;border-radius:7px;border:1px solid var(--line);background:var(--surface-soft);color:var(--ink);font-family:inherit;font-size:12px;">
-          <option value="ALL">Todos</option>${logOps.map(l=>`<option value="${l}">${l}</option>`).join('')}
-        </select>
-      </div>
+    <div class="msd-filterbar">
+      ${msdField('msd-air-pp', 'All Pack Plans', weeks, 'refreshAir', w=>'S'+w)}
+      ${msdField('msd-air-dd', 'All Dispatch Dates', dispatches, 'refreshAir')}
+      ${msdField('msd-air-lo', 'All Logistics Operators', logOps, 'refreshAir')}
     </div>
   </div>
   <div id="air-kg"></div>
@@ -1795,14 +1818,15 @@ function renderAir(){
 function refreshAir(){
   const rows = AIR || [];
   if (!document.getElementById('air-kg')) return;
-  const selPP = airChecked('air-cb-pp').map(Number);
-  const selDD = airChecked('air-cb-dd');
-  const selLO = document.getElementById('air-lo-select').value;
+  const selPPraw = msdFilterValues('msd-air-pp');
+  const selPP = selPPraw ? selPPraw.map(Number) : [];
+  const selDD = msdFilterValues('msd-air-dd') || [];
+  const selLOraw = msdFilterValues('msd-air-lo');
 
   let ft = rows;
   if (selPP.length) ft = ft.filter(r=>selPP.includes(r.pack_plan));
   if (selDD.length) ft = ft.filter(r=>selDD.includes(r.dispatch));
-  if (selLO !== 'ALL') ft = ft.filter(r=>r.log_op===selLO);
+  if (selLOraw) ft = ft.filter(r=>selLOraw.includes(r.log_op));
 
   document.getElementById('air-stat').textContent = `${ft.length} de ${rows.length} registros`;
 
@@ -1884,15 +1908,9 @@ function renderExecute(){
   <div class="card" style="margin-bottom:14px;">
     <div class="ct">Filtro global <span class="sub" id="exec-stat"></span></div>
     <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;"><span class="pill neu">Status: Confirmado</span></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;">
-      <div>
-        <div class="fc-label" style="display:flex;justify-content:space-between;"><span>Shipper</span><span style="display:flex;gap:8px;"><a class="fc-mini-link" onclick="execSetAll('exec-cb-sh',true)">Todos</a><a class="fc-mini-link" onclick="execSetAll('exec-cb-sh',false)">Ninguno</a></span></div>
-        <div class="fc-chip-group" style="max-height:90px;overflow-y:auto;">${execChipGroup('exec-cb-sh', shippers)}</div>
-      </div>
-      <div>
-        <div class="fc-label" style="display:flex;justify-content:space-between;"><span>Dispatch Date</span><span style="display:flex;gap:8px;"><a class="fc-mini-link" onclick="execSetAll('exec-cb-dt',true)">Todos</a><a class="fc-mini-link" onclick="execSetAll('exec-cb-dt',false)">Ninguno</a></span></div>
-        <div class="fc-chip-group" style="max-height:90px;overflow-y:auto;">${execChipGroup('exec-cb-dt', dispatchDates)}</div>
-      </div>
+    <div class="msd-filterbar">
+      ${msdField('msd-exec-sh', 'All Shippers', shippers, 'refreshExecute')}
+      ${msdField('msd-exec-dt', 'All Dispatch Dates', dispatchDates, 'refreshExecute')}
     </div>
   </div>
   <div id="exec-kg"></div>
@@ -1913,8 +1931,8 @@ function renderExecute(){
 function refreshExecute(){
   const rows = EXECUTE_RAW || [];
   if (!document.getElementById('exec-kg')) return;
-  const selSH = execChecked('exec-cb-sh');
-  const selDT = execChecked('exec-cb-dt');
+  const selSH = msdFilterValues('msd-exec-sh') || [];
+  const selDT = msdFilterValues('msd-exec-dt') || [];
   let ft = rows;
   if (selSH.length) ft = ft.filter(r=>selSH.includes(r.shipper));
   if (selDT.length) ft = ft.filter(r=>selDT.includes(r.dispatch_date||''));
@@ -2206,6 +2224,32 @@ function trDataQualityBadge(excludedTotal, containerId){
 
 function renderRetiro(){
   const rows = currentRows();
+  const weeks = [...new Set(rows.map(r=>r.pp))].sort((a,b)=>a-b);
+  const sedes = [...new Set(rows.map(r=>r.sede).filter(Boolean))].sort();
+  const carriers = [...new Set(rows.map(r=>r.transportista).filter(Boolean))].sort();
+  return `
+  <div class="card" style="margin-bottom:14px;">
+    <div class="msd-filterbar">
+      ${msdField('msd-retiro-pp', 'All Pack Plans', weeks, 'refreshRetiro', w=>'PP'+w)}
+      ${msdField('msd-retiro-sede', 'All Sites', sedes, 'refreshRetiro')}
+      ${msdField('msd-retiro-car', 'All Carriers', carriers, 'refreshRetiro')}
+    </div>
+  </div>
+  <div id="retiro-content"></div>`;
+}
+
+function refreshRetiro(){
+  if (!document.getElementById('retiro-content')) return;
+  const all = currentRows();
+  const selPPraw = msdFilterValues('msd-retiro-pp');
+  const selPP = selPPraw ? selPPraw.map(Number) : null;
+  const selSede = msdFilterValues('msd-retiro-sede');
+  const selCar = msdFilterValues('msd-retiro-car');
+  let rows = all;
+  if (selPP) rows = rows.filter(r=>selPP.includes(r.pp));
+  if (selSede) rows = rows.filter(r=>selSede.includes(r.sede));
+  if (selCar) rows = rows.filter(r=>selCar.includes(r.transportista));
+
   const gateOut = countBy(rows, 'gateOutCompliance');
   const gateOutTotal = (gateOut['ON TIME']||0) + (gateOut['LATE']||0);
   const compliancePct = pct(gateOut['ON TIME']||0, gateOutTotal);
@@ -2228,6 +2272,10 @@ function renderRetiro(){
     return totB-totA;
   });
 
+  const portStats = trComplianceCritByGroup(rows, 'puertoRetiro', 'gateOutCompliance', 'detentionGateOut').map(p=>({...p, avgDet: (()=>{ const dr=rows.filter(r=>r.puertoRetiro===p.name && r.detGateOutH!=null && r.detGateOutH>=0 && r.detGateOutH<=72).map(r=>r.detGateOutH); return dr.length ? sum(dr)/dr.length : null; })() }));
+  const lineStats = trComplianceCritByGroup(rows, 'naviera', 'gateOutCompliance', 'detentionGateOut');
+  const wk = weeklyCount(rows);
+
   window.build_chRetiroAlmacen = () => mountChart('chRetiroAlmacen', {
     type:'bar',
     data:{ labels: almLabels, datasets:[
@@ -2237,15 +2285,10 @@ function renderRetiro(){
     ]},
     options: baseChartOptions({ indexAxis:'y', scales:{ x:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{color:chartColor('--line')}}, y:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{display:false}} } }),
   });
-
-  const portStats = trComplianceCritByGroup(rows, 'puertoRetiro', 'gateOutCompliance', 'detentionGateOut').map(p=>({...p, avgDet: (()=>{ const dr=rows.filter(r=>r.puertoRetiro===p.name && r.detGateOutH!=null && r.detGateOutH>=0 && r.detGateOutH<=72).map(r=>r.detGateOutH); return dr.length ? sum(dr)/dr.length : null; })() }));
-  const lineStats = trComplianceCritByGroup(rows, 'naviera', 'gateOutCompliance', 'detentionGateOut');
-  const wk = weeklyCount(rows);
-
   window.build_chRetiroWeekly = () => mountChart('chRetiroWeekly', lineConfig(wk.labels, wk.data, chartColor('--teal')));
 
-  return `
-  <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local)'} · ${rows.length} registros</span>
+  document.getElementById('retiro-content').innerHTML = `
+  <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local)'} · ${rows.length} de ${all.length} registros</span>
   ${trDataQualityBadge(excludedTotal, 'retiro-dq-details')}
   <div class="dq-details" id="retiro-dq-details">
     Se excluyeron ${emptyStats.excluded.length} valor(es) de "Avg. Empty Outbound Time" y ${routeStats.excluded.length} de "Route Start Delay" por estar fuera de rango razonable (negativos o &gt;72h) — probablemente errores de captura en el Excel origen.
@@ -2287,7 +2330,12 @@ function renderRetiro(){
     </div>
   </div>
   <div class="card"><div class="ct">Containers Picked Up by Week <span class="sub">Trend · Pack Plan</span></div><div style="height:220px;"><canvas id="chRetiroWeekly"></canvas></div></div>`;
+
+  window.build_chRetiroAlmacen();
+  window.build_chRetiroWeekly();
 }
+
+window.postRender_retiro = refreshRetiro;
 
 /* ============================================================
    # 10b PACKING — versión completa (KPIs, donut Pre-Loading, bar de
@@ -2331,6 +2379,32 @@ function trStackedCompliance3(rows, groupField, complianceField){
 
 function renderPacking(){
   const rows = currentRows();
+  const weeks = [...new Set(rows.map(r=>r.pp))].sort((a,b)=>a-b);
+  const sedes = [...new Set(rows.map(r=>r.sede).filter(Boolean))].sort();
+  const carriers = [...new Set(rows.map(r=>r.transportista).filter(Boolean))].sort();
+  return `
+  <div class="card" style="margin-bottom:14px;">
+    <div class="msd-filterbar">
+      ${msdField('msd-packing-pp', 'All Pack Plans', weeks, 'refreshPacking', w=>'PP'+w)}
+      ${msdField('msd-packing-sede', 'All Sites', sedes, 'refreshPacking')}
+      ${msdField('msd-packing-car', 'All Carriers', carriers, 'refreshPacking')}
+    </div>
+  </div>
+  <div id="packing-content"></div>`;
+}
+
+function refreshPacking(){
+  if (!document.getElementById('packing-content')) return;
+  const all = currentRows();
+  const selPPraw = msdFilterValues('msd-packing-pp');
+  const selPP = selPPraw ? selPPraw.map(Number) : null;
+  const selSede = msdFilterValues('msd-packing-sede');
+  const selCar = msdFilterValues('msd-packing-car');
+  let rows = all;
+  if (selPP) rows = rows.filter(r=>selPP.includes(r.pp));
+  if (selSede) rows = rows.filter(r=>selSede.includes(r.sede));
+  if (selCar) rows = rows.filter(r=>selCar.includes(r.transportista));
+
   const comp = countBy(rows, 'packingCompliance');
   const compTotal = Object.values(comp).reduce((a,b)=>a+b,0);
   const onTimePct = pct(comp['ON TIME']||0, compTotal);
@@ -2386,8 +2460,8 @@ function renderPacking(){
   const detPackingOutliers = rows.filter(r=>r.detPackingH!=null && (r.detPackingH<0 || r.detPackingH>72)).length;
   const excludedTotal = checkInAvg.excluded.length + entryAvg.excluded.length + detPackingOutliers;
 
-  return `
-  <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local)'} · ${rows.length} registros</span>
+  document.getElementById('packing-content').innerHTML = `
+  <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local)'} · ${rows.length} de ${all.length} registros</span>
   ${trDataQualityBadge(excludedTotal, 'packing-dq-details')}
   <div class="dq-details" id="packing-dq-details">
     Se excluyeron ${detPackingOutliers} valor(es) de "Detention at Packing" (horas fuera de rango razonable) y ${checkInAvg.excluded.length + entryAvg.excluded.length} de los delays promedio (Check-In/Entry) — probablemente errores de captura en el Excel origen.
@@ -2450,7 +2524,14 @@ function renderPacking(){
       <div style="font-size:10.5px;color:var(--ink-faint);margin-top:10px;">Fuente: campo <b>Cita - Hora de Posicionamiento</b>, del Excel de Transporte. Alimenta el cálculo de Packing Appointment Compliance.</div>
     </div>
   </div>`;
+
+  window.build_chPackingDonut();
+  window.build_chPackingDispatch();
+  window.build_chPackingWeekly();
+  window.build_chPackingNaviera();
 }
+
+window.postRender_packing = refreshPacking;
 
 /* ============================================================
    # 10c RECEIVING — versión completa (KPIs, detención por almacén,
@@ -2460,6 +2541,32 @@ function renderPacking(){
    ============================================================ */
 function renderIngreso(){
   const rows = currentRows();
+  const weeks = [...new Set(rows.map(r=>r.pp))].sort((a,b)=>a-b);
+  const sedes = [...new Set(rows.map(r=>r.sede).filter(Boolean))].sort();
+  const carriers = [...new Set(rows.map(r=>r.transportista).filter(Boolean))].sort();
+  return `
+  <div class="card" style="margin-bottom:14px;">
+    <div class="msd-filterbar">
+      ${msdField('msd-ingreso-pp', 'All Pack Plans', weeks, 'refreshIngreso', w=>'PP'+w)}
+      ${msdField('msd-ingreso-sede', 'All Sites', sedes, 'refreshIngreso')}
+      ${msdField('msd-ingreso-car', 'All Carriers', carriers, 'refreshIngreso')}
+    </div>
+  </div>
+  <div id="ingreso-content"></div>`;
+}
+
+function refreshIngreso(){
+  if (!document.getElementById('ingreso-content')) return;
+  const all = currentRows();
+  const selPPraw = msdFilterValues('msd-ingreso-pp');
+  const selPP = selPPraw ? selPPraw.map(Number) : null;
+  const selSede = msdFilterValues('msd-ingreso-sede');
+  const selCar = msdFilterValues('msd-ingreso-car');
+  let rows = all;
+  if (selPP) rows = rows.filter(r=>selPP.includes(r.pp));
+  if (selSede) rows = rows.filter(r=>selSede.includes(r.sede));
+  if (selCar) rows = rows.filter(r=>selCar.includes(r.transportista));
+
   const gateIn = countBy(rows, 'gateInCompliance');
   const gateInTotal = (gateIn['ON TIME']||0) + (gateIn['LATE']||0);
   const onTimePct = pct(gateIn['ON TIME']||0, gateInTotal);
@@ -2524,8 +2631,8 @@ function renderIngreso(){
   });
   window.build_chIngresoWeekly = () => mountChart('chIngresoWeekly', lineConfig(wk.labels, wk.data, chartColor('--teal')));
 
-  return `
-  <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local)'} · ${rows.length} registros</span>
+  document.getElementById('ingreso-content').innerHTML = `
+  <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local)'} · ${rows.length} de ${all.length} registros</span>
   ${trDataQualityBadge(excludedTotal, 'ingreso-dq-details')}
   <div class="dq-details" id="ingreso-dq-details">
     Se excluyeron ${excludedTotal} valor(es) de "Full Inbound Time" por estar fuera de rango razonable (negativos o &gt;72h).
@@ -2569,7 +2676,13 @@ function renderIngreso(){
     <tbody>${lineStats.length ? lineStats.map(l=>`<tr><td>${l.name}</td><td class="mono" style="text-align:right">${l.total}</td><td class="mono" style="text-align:right;color:${l.onTimePct>=50?'var(--ok)':'var(--warn)'};">${l.onTimePct}%</td><td class="mono" style="text-align:right">${l.critPct}%</td></tr>`).join('') : '<tr><td colspan="4" class="empty-state">Sin datos</td></tr>'}</tbody></table></div>
   </div>
   <div class="card"><div class="ct">Containers Received by Week <span class="sub">Trend · Pack Plan</span></div><div style="height:220px;"><canvas id="chIngresoWeekly"></canvas></div></div>`;
+
+  window.build_chIngresoAlmacen();
+  window.build_chIngresoCarrier();
+  window.build_chIngresoWeekly();
 }
+
+window.postRender_ingreso = refreshIngreso;
 
 const PANEL_RENDERERS = {
   forecast: renderForecast, ports: renderPorts, weekly: renderWeekly, wep: renderWEP,

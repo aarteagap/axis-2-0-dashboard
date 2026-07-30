@@ -315,6 +315,13 @@ function goTo(id){
   document.getElementById('crumbModule').textContent = MODULE_OF[id].toUpperCase();
   document.getElementById('crumbView').textContent = item.label;
   document.getElementById('crumbTitle').textContent = item.label;
+  // Los canvas de Chart.js quedan con tamaño 0x0 si se instancian mientras
+  // su panel tiene display:none (buildPanels() los crea todos de una vez).
+  // Al navegar a una vista de Transporte, se reconstruyen ya con el panel
+  // visible para que tomen el tamaño real.
+  if (typeof CHART_VIEWS !== 'undefined' && CHART_VIEWS[id]) {
+    CHART_VIEWS[id].forEach(chId => { const b = window['build_'+chId]; if (b) b(); });
+  }
   if (window['onShow_'+id]) window['onShow_'+id]();
 }
 
@@ -355,7 +362,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['weekly', 'wep', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;

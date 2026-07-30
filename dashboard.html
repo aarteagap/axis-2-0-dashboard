@@ -243,6 +243,18 @@ table.pivot tr.date-total td, table.pivot tr.pk-total td{background:var(--surfac
 table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:700;}
 .pivot-scroll{max-height:520px; overflow:auto; border-radius:8px; border:1px solid var(--line);}
 
+/* ---- Air Program: modal de detalle, donut, tabla dinámica ---- */
+.detail-overlay{position:fixed; inset:0; background:rgba(10,18,26,.55); z-index:150; display:none; align-items:center; justify-content:center; padding:20px;}
+.detail-overlay.open{display:flex;}
+.detail-box{background:var(--surface); border-radius:14px; width:380px; max-width:100%; box-shadow:0 20px 60px rgba(0,0,0,.35); overflow:hidden;}
+.detail-head{background:var(--navy); color:#fff; padding:14px 18px; display:flex; align-items:center; justify-content:space-between;}
+.detail-head button{background:none; border:none; color:#fff; font-size:16px; cursor:pointer;}
+.detail-body{padding:16px 18px; display:flex; flex-direction:column; gap:10px;}
+.detail-row{display:flex; justify-content:space-between; gap:12px; font-size:12px; border-bottom:1px solid var(--line); padding-bottom:8px;}
+.detail-row b{text-align:right;}
+.air-btn-driver{background:var(--navy); color:#fff; border:none; border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer;}
+.air-btn-driver:hover{background:var(--navy2);}
+
 @media(max-width:900px){
   .shell{grid-template-columns:64px 1fr;}
   .sb-brand h1,.sb-brand p,.sb-group-label,.sb-label,.sb-metric{display:none;}
@@ -283,6 +295,13 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
       <button id="gateBtn" onclick="tryLogin()">Ingresar</button>
     </div>
     <div class="gate-foot">Conectado a Supabase · dashboard_data</div>
+  </div>
+</div>
+
+<div class="detail-overlay" id="airDetailOverlay">
+  <div class="detail-box">
+    <div class="detail-head"><span>Detalle del despacho</span><button onclick="closeAirDetail()">✕</button></div>
+    <div class="detail-body" id="airDetailBody"></div>
   </div>
 </div>
 
@@ -1573,52 +1592,277 @@ function renderTR(){
 
 window.postRender_pmi = refreshPMIAll;
 
+/* ============================================================
+   # 09e AIR PROGRAM — versión completa (filtros + KPIs + PO por
+   aerolínea + donut + tabla de despachos + tabla dinámica Packing/
+   Instruction), portada de bAir/renderAirAll/renderAirTable/
+   renderAirTransport en AXIS_1_0_.html. Dataset real: AIR.
+   ============================================================ */
+const AIR_PALETTE = ['#E8A33D','#2E8FB0','#163B54','#7A6FD0','#C0392B','#2E8B57','#C77D1E','#9CA3AF','#6B7280','#1C2940'];
+
+function airChipGroup(cls, opts, labelFn){
+  return opts.length ? opts.map(o=>`<label class="fc-chip mono"><input type="checkbox" class="${cls}" value="${String(o).replace(/"/g,'&quot;')}" checked onchange="refreshAir()">${labelFn?labelFn(o):o}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>';
+}
+function airSetAll(cls, state){ document.querySelectorAll('.'+cls).forEach(cb=>cb.checked=state); refreshAir(); }
+function airChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked')].map(cb=>cb.value); }
+
+function openAirDetail(idx){
+  const r = (AIR||[])[idx];
+  if(!r) return;
+  const fields = [
+    ['Shipper', r.shipper], ['Instruction', r.instruction], ['Packing', r.packing], ['Pack Plan', r.pack_plan?'S'+r.pack_plan:'—'],
+    ['Logistics Operator', r.log_op], ['Transport Operator', r.transp_op], ['Destino', r.dest], ['Dispatch', r.dispatch],
+    ['Pallets', r.pallets], ['FCL', r.fcl], ['AWB', r.awb], ['File', r.file], ['Line', r.line], ['PO', r.po],
+    ['BASC', r.basc], ['DAM', r.dam], ['Positioning Time', r.postime], ['Gate-In Storage', r.gatein],
+  ];
+  document.getElementById('airDetailBody').innerHTML = fields.map(([k,v])=>`<div class="detail-row"><span>${k}</span><b class="mono">${v||v===0?v:'—'}</b></div>`).join('');
+  document.getElementById('airDetailOverlay').classList.add('open');
+}
+function closeAirDetail(){ document.getElementById('airDetailOverlay').classList.remove('open'); }
+
 function renderAir(){
   const rows = AIR || [];
-  const totPal = sum(rows.map(r=>r.pallets||0));
-  const fin = rows.filter(r=>r.basc==='FINALIZADO').length;
-  const poCount = new Set(rows.filter(r=>r.po).map(r=>r.po)).size;
+  const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
+  const dispatches = [...new Set(rows.map(r=>r.dispatch).filter(Boolean))].sort();
+  const logOps = [...new Set(rows.map(r=>r.log_op).filter(Boolean))].sort();
   return `
-  <div class="kg">
-    <div class="kc" style="--acc:var(--purple)"><div class="kl">Despachos</div><div class="kv">${rows.length}</div></div>
-    <div class="kc" style="--acc:var(--blue)"><div class="kl">Pallets</div><div class="kv">${totPal}</div></div>
-    <div class="kc" style="--acc:var(--amber)"><div class="kl">PO asignada</div><div class="kv">${poCount}</div><div class="kf">${rows.length?calcPct(poCount,rows.length):0}%</div></div>
-    <div class="kc" style="--acc:var(--ok)"><div class="kl">BASC finalizado</div><div class="kv">${rows.length?calcPct(fin,rows.length):0}<span class="u">%</span></div></div>
+  <div class="mock-tag" style="background:var(--surface-soft);color:var(--ink-soft);border-color:var(--line);">${rows.length} despachos aéreos confirmados · 🚛 clic en el ícono de la tabla para ver el detalle</div>
+  <div class="card" style="margin-bottom:14px;">
+    <div class="ct">Filtro global <span class="sub" id="air-stat"></span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+      <span class="pill neu">Status: Confirmado</span>
+      <span class="pill neu">Mode: Aéreo</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;">
+      <div>
+        <div class="fc-label" style="display:flex;justify-content:space-between;"><span>Pack Plan</span><span style="display:flex;gap:8px;"><a class="fc-mini-link" onclick="airSetAll('air-cb-pp',true)">Todos</a><a class="fc-mini-link" onclick="airSetAll('air-cb-pp',false)">Ninguno</a></span></div>
+        <div class="fc-chip-group" style="max-height:90px;overflow-y:auto;">${airChipGroup('air-cb-pp', weeks, w=>'S'+w)}</div>
+      </div>
+      <div>
+        <div class="fc-label" style="display:flex;justify-content:space-between;"><span>Dispatch Date</span><span style="display:flex;gap:8px;"><a class="fc-mini-link" onclick="airSetAll('air-cb-dd',true)">Todos</a><a class="fc-mini-link" onclick="airSetAll('air-cb-dd',false)">Ninguno</a></span></div>
+        <div class="fc-chip-group" style="max-height:90px;overflow-y:auto;">${airChipGroup('air-cb-dd', dispatches)}</div>
+      </div>
+      <div>
+        <div class="fc-label">Logistics Operator</div>
+        <select id="air-lo-select" onchange="refreshAir()" style="width:100%;padding:8px;border-radius:7px;border:1px solid var(--line);background:var(--surface-soft);color:var(--ink);font-family:inherit;font-size:12px;">
+          <option value="ALL">Todos</option>${logOps.map(l=>`<option value="${l}">${l}</option>`).join('')}
+        </select>
+      </div>
+    </div>
   </div>
+  <div id="air-kg"></div>
+  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">✈ Participación por Aerolínea – PO</div>
+  <div class="g2" id="air-airlines"></div>
   <div class="card">
-    <div class="ct">Air Program <span class="sub">datos reales de AIR</span></div>
-    <div class="tbl-scroll"><table class="std"><thead><tr><th>Shipper</th><th>Instruction</th><th>Destino</th><th>Dispatch</th><th style="text-align:right">Pallets</th><th>AWB</th><th>File</th><th>Line</th><th>Transp. Op.</th><th>BASC</th><th>DAM</th></tr></thead>
-    <tbody>${rows.length ? rows.map(r=>`<tr><td>${r.shipper||'—'}</td><td class="mono">${r.instruction||'—'}</td><td>${r.dest||'—'}</td><td>${r.dispatch||'—'}</td><td class="mono" style="text-align:right">${r.pallets||0}</td><td class="mono">${r.awb||'—'}</td><td class="mono">${r.file||'—'}</td><td>${r.line||'—'}</td><td>${r.transp_op||'—'}</td><td><span class="pill ${r.basc==='FINALIZADO'?'ok':'warn'}">${r.basc||'—'}</span></td><td class="mono">${r.dam||'—'}</td></tr>`).join('') : '<tr><td colspan="11" class="empty-state">Sin datos de AIR todavía</td></tr>'}</tbody>
-    </table></div>
+    <div class="ct">Despachos aéreos <span class="sub" id="air-tbl-stat"></span></div>
+    <div class="tbl-scroll"><table class="std"><thead><tr><th>Shipper</th><th>Instruction</th><th>Log. Op.</th><th>Destino</th><th>Dispatch Day</th><th style="text-align:right">Pallets</th><th>AWB</th><th>File</th><th>Line</th><th>Transp. Op.</th><th>BASC</th><th>DAM</th><th></th></tr></thead><tbody id="air-body"></tbody></table></div>
+  </div>
+  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">🛫 Air Transport — Tabla dinámica</div>
+  <div class="card">
+    <div class="ct">Packing / Instruction <span class="sub" id="at-stat"></span></div>
+    <div class="pivot-scroll"><table class="pivot"><thead><tr><th>Packing</th><th>Instruction</th><th>Dispatch Date</th><th>Shipper</th><th>Logistics</th><th>Positioning Time</th><th>Gate-In Storage</th><th style="text-align:right">Suma de Pallets</th><th style="text-align:right">Suma de FCL</th></tr></thead><tbody id="at-body"></tbody></table></div>
   </div>`;
 }
 
+function refreshAir(){
+  const rows = AIR || [];
+  if (!document.getElementById('air-kg')) return;
+  const selPP = airChecked('air-cb-pp').map(Number);
+  const selDD = airChecked('air-cb-dd');
+  const selLO = document.getElementById('air-lo-select').value;
+
+  let ft = rows;
+  if (selPP.length) ft = ft.filter(r=>selPP.includes(r.pack_plan));
+  if (selDD.length) ft = ft.filter(r=>selDD.includes(r.dispatch));
+  if (selLO !== 'ALL') ft = ft.filter(r=>r.log_op===selLO);
+
+  document.getElementById('air-stat').textContent = `${ft.length} de ${rows.length} registros`;
+
+  const totPal = sum(ft.map(r=>r.pallets||0));
+  const poCount = new Set(ft.filter(r=>r.po).map(r=>r.po)).size;
+  const fin = ft.filter(r=>r.basc==='FINALIZADO').length;
+  document.getElementById('air-kg').innerHTML = `<div class="kg">
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">Despachos (registro total)</div><div class="kv">${ft.length}</div></div>
+    <div class="kc" style="--acc:var(--amber)"><div class="kl">PO asignada</div><div class="kv">${poCount}</div><div class="kf">${ft.length?pct(poCount,ft.length):0}%</div></div>
+    <div class="kc" style="--acc:var(--purple)"><div class="kl">Pallets</div><div class="kv">${totPal}</div></div>
+    <div class="kc" style="--acc:var(--ok)"><div class="kl">BASC Final.</div><div class="kv">${fin}</div><div class="kf">${ft.length?pct(fin,ft.length):0}%</div></div>
+  </div>`;
+
+  const byLine = {};
+  ft.forEach(r=>{ if(!r.po) return; const ln = r.line||'(sin línea)'; if(!byLine[ln]) byLine[ln]=new Set(); byLine[ln].add(r.po); });
+  const airlinesF = Object.entries(byLine).map(([name,s])=>({name,count:s.size})).sort((a,b)=>b.count-a.count).map((a,i)=>({...a,color:AIR_PALETTE[i%AIR_PALETTE.length]}));
+  const totalPO = sum(airlinesF.map(a=>a.count)) || 1;
+  const mxPO = Math.max(...airlinesF.map(a=>a.count), 1);
+  const airBars = airlinesF.map(a=>`<div style="display:grid;grid-template-columns:110px 1fr 70px;align-items:center;gap:8px;margin-bottom:8px;"><div style="text-align:right;font-size:11px;display:flex;align-items:center;gap:5px;justify-content:flex-end;"><span style="width:8px;height:8px;border-radius:2px;background:${a.color};"></span>${a.name}</div><div style="background:var(--surface-soft);border-radius:5px;height:14px;overflow:hidden;border:1px solid var(--line);"><div style="width:${(a.count/mxPO*100).toFixed(1)}%;background:${a.color};height:100%;"></div></div><div class="mono" style="font-weight:600;font-size:11px;">${a.count} <span style="color:var(--ink-faint);font-weight:400;font-size:9.5px;">${pct(a.count,totalPO)}%</span></div></div>`).join('');
+  let cum = 0;
+  const conic = airlinesF.map(a=>{ const st=cum, en=cum+(a.count/totalPO*360); cum=en; return `${a.color} ${st.toFixed(1)}deg ${en.toFixed(1)}deg`; }).join(',') || 'var(--line) 0deg 360deg';
+  const legend = airlinesF.map(a=>`<div class="dli"><span class="dls" style="background:${a.color};"></span><span>${a.name}</span><span class="dlv">${a.count}·${pct(a.count,totalPO)}%</span></div>`).join('');
+  document.getElementById('air-airlines').innerHTML = `
+    <div class="card"><div class="ct">PO por aerolínea</div>${airBars || '<div class="empty-state">Sin datos</div>'}</div>
+    <div class="card"><div class="ct">Distribución</div><div class="donut-wrap"><div class="donut-ring" style="background:conic-gradient(${conic});"><div class="donut-center"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;">${totalPO}</div><div style="font-size:8px;color:var(--ink-faint);">PO</div></div></div><div class="donut-legend">${legend}</div></div></div>`;
+
+  document.getElementById('air-body').innerHTML = ft.map((r,i)=>{
+    const idx = rows.indexOf(r);
+    const cl = r.basc==='FINALIZADO'?'ok':(r.basc&&(r.basc.includes('PACKING')||r.basc.includes('RUTA')))?'warn':r.basc?'bad':'neu';
+    return `<tr><td>${r.shipper||'—'}</td><td class="mono">${r.instruction||'—'}</td><td>${r.log_op||'—'}</td><td>${r.dest||'—'}</td><td class="mono">${r.dispatch||'—'}</td><td class="mono" style="text-align:right">${r.pallets||0}</td><td class="mono">${r.awb||'—'}</td><td class="mono">${r.file||'—'}</td><td>${r.line||'—'}</td><td>${r.transp_op||'—'}</td><td><span class="pill ${cl}" style="font-size:9px;">${r.basc||'—'}</span></td><td class="mono">${r.dam||'—'}</td><td><button class="air-btn-driver" onclick="openAirDetail(${idx})">🚛</button></td></tr>`;
+  }).join('') || `<tr><td colspan="13" class="empty-state">Sin datos para este filtro</td></tr>`;
+  document.getElementById('air-tbl-stat').textContent = `${ft.length} filas`;
+
+  // Tabla dinámica Packing / Instruction
+  const pkGroups = {};
+  ft.forEach(r=>{ const pk=r.packing||'(en blanco)'; if(!pkGroups[pk]) pkGroups[pk]={}; const ins=r.instruction||'(en blanco)'; if(!pkGroups[pk][ins]) pkGroups[pk][ins]=[]; pkGroups[pk][ins].push(r); });
+  let atHtml = '', gtPal=0, gtFcl=0, atRows=0;
+  Object.keys(pkGroups).sort().forEach(pk=>{
+    const insMap = pkGroups[pk];
+    let pkPal=0, pkFcl=0, pkFirst=true;
+    Object.keys(insMap).sort().forEach(ins=>{
+      const recs = insMap[ins];
+      let insPal=0, insFcl=0;
+      recs.forEach((r,i)=>{
+        insPal += (r.pallets||0); insFcl += (r.fcl||0); atRows++;
+        atHtml += `<tr>${(pkFirst&&i===0)?`<td rowspan="${Object.values(insMap).reduce((a,rs)=>a+rs.length,0)}" style="background:var(--surface-soft);font-weight:700;border-right:2px solid var(--blue);vertical-align:top;">${pk}</td>`:''}${i===0?`<td rowspan="${recs.length}" style="vertical-align:top;font-weight:500;">${ins}</td>`:''}<td class="mono">${r.dispatch||'—'}</td><td>${r.shipper||'—'}</td><td>${r.log_op||'(en blanco)'}</td><td class="mono">${r.postime||'(en blanco)'}</td><td>${r.gatein||'(en blanco)'}</td><td class="tv">${r.pallets||0}</td><td class="tv">${fmt1(r.fcl||0)}</td></tr>`;
+      });
+      atHtml += `<tr class="pk-total"><td colspan="2">Total ${ins}</td><td colspan="4"></td><td class="tot-v">${insPal}</td><td class="tot-v">${fmt1(insFcl)}</td></tr>`;
+      pkPal += insPal; pkFcl += insFcl; pkFirst = false;
+    });
+    atHtml += `<tr class="pk-total"><td colspan="2">Total ${pk}</td><td colspan="4"></td><td class="tot-v">${pkPal}</td><td class="tot-v">${fmt1(pkFcl)}</td></tr>`;
+    gtPal += pkPal; gtFcl += pkFcl;
+  });
+  atHtml += `<tr class="grand-total"><td colspan="6">Total general</td><td class="tot-v">${gtPal}</td><td class="tot-v">${fmt1(gtFcl)}</td></tr>`;
+  document.getElementById('at-body').innerHTML = atHtml || `<tr><td colspan="9" class="empty-state">Sin datos para este filtro</td></tr>`;
+  document.getElementById('at-stat').textContent = `${atRows} filas · ${fmt1(gtFcl)} FCL`;
+}
+
+window.postRender_air = refreshAir;
+
+/* ============================================================
+   # 09f EXECUTE — versión completa (filtro real + 6 KPIs + curva
+   de booking diferenciado por Pack Plan y Modo), portada de
+   bExec/renderExecute en AXIS_1_0_.html. Dataset real: EXECUTE_RAW,
+   EX, DEST, LINEAS.
+   ============================================================ */
+function execChipGroup(cls, opts, labelFn){
+  return opts.length ? opts.map(o=>`<label class="fc-chip mono"><input type="checkbox" class="${cls}" value="${String(o).replace(/"/g,'&quot;')}" checked onchange="refreshExecute()">${labelFn?labelFn(o):o}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>';
+}
+function execSetAll(cls, state){ document.querySelectorAll('.'+cls).forEach(cb=>cb.checked=state); refreshExecute(); }
+function execChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked')].map(cb=>cb.value); }
+
 function renderExecute(){
   const rows = EXECUTE_RAW || [];
-  const ex = EX || {dam_by_mode:[]};
-  const dest = DEST || [];
-  const lineas = LINEAS || [];
-  const mxM = Math.max(1, ...ex.dam_by_mode.map(m=>m.dam_with));
-  const mxD = Math.max(1, ...dest.map(d=>d.fcl));
-  const mxL = Math.max(1, ...lineas.map(l=>l.fcl));
-  const coldTreatments = rows.filter(r=>r.has_tr_time).length;
-  const senasaCount = rows.filter(r=>r.senasa_att==='SENASA').length;
-  const totalBooking = new Set(rows.filter(r=>r.booking).map(r=>r.booking)).size;
+  const shippers = [...new Set(rows.map(r=>r.shipper).filter(Boolean))].sort();
+  const dispatchDates = [...new Set(rows.map(r=>r.dispatch_date).filter(Boolean))].sort();
   return `
-  <div class="kg">
-    <div class="kc" style="--acc:var(--blue)"><div class="kl">Cold treatments</div><div class="kv">${coldTreatments}</div></div>
-    <div class="kc" style="--acc:var(--amber)"><div class="kl">SENASA Attention</div><div class="kv" style="font-size:20px;">${senasaCount} / ${totalBooking}</div></div>
-    <div class="kc" style="--acc:var(--navy2)"><div class="kl">Booking confirmado</div><div class="kv">${totalBooking}</div></div>
+  <div id="execTooltip" class="fc-tooltip"></div>
+  <div class="card" style="margin-bottom:14px;">
+    <div class="ct">Filtro global <span class="sub" id="exec-stat"></span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;"><span class="pill neu">Status: Confirmado</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;">
+      <div>
+        <div class="fc-label" style="display:flex;justify-content:space-between;"><span>Shipper</span><span style="display:flex;gap:8px;"><a class="fc-mini-link" onclick="execSetAll('exec-cb-sh',true)">Todos</a><a class="fc-mini-link" onclick="execSetAll('exec-cb-sh',false)">Ninguno</a></span></div>
+        <div class="fc-chip-group" style="max-height:90px;overflow-y:auto;">${execChipGroup('exec-cb-sh', shippers)}</div>
+      </div>
+      <div>
+        <div class="fc-label" style="display:flex;justify-content:space-between;"><span>Dispatch Date</span><span style="display:flex;gap:8px;"><a class="fc-mini-link" onclick="execSetAll('exec-cb-dt',true)">Todos</a><a class="fc-mini-link" onclick="execSetAll('exec-cb-dt',false)">Ninguno</a></span></div>
+        <div class="fc-chip-group" style="max-height:90px;overflow-y:auto;">${execChipGroup('exec-cb-dt', dispatchDates)}</div>
+      </div>
+    </div>
   </div>
-  <div class="g2">
-    <div class="card"><div class="ct">DAMs únicas por modo</div><div class="bars">${ex.dam_by_mode.length ? ex.dam_by_mode.map(m=>`<div class="br"><span class="bl">${m.mode}</span><div class="bt"><div class="bf" style="width:${calcPct(m.dam_with,mxM)}%"></div></div><span class="bv">${m.dam_with}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
-    <div class="card"><div class="ct">Cobertura DAM</div><div class="tbl-wrap"><table class="std"><thead><tr><th>Modo</th><th style="text-align:right">DAMs</th><th style="text-align:right">Sin DAM</th><th style="text-align:right">% Cob.</th></tr></thead><tbody>${ex.dam_by_mode.map(m=>`<tr><td>${m.mode}</td><td class="mono" style="text-align:right">${m.dam_with}</td><td class="mono" style="text-align:right">${m.dam_without}</td><td><span class="pill ${badge(m.pct)}">${m.pct}%</span></td></tr>`).join('')}</tbody></table></div></div>
+  <div id="exec-kg"></div>
+  <div class="g2" id="exec-dam"></div>
+  <div class="card">
+    <div class="ct">Booking|AWB|CRT diferenciados por Pack Plan y Modo <span class="sub" id="exec-line-stat"></span></div>
+    <div id="exec-line-wrap" style="position:relative;"></div>
+    <div style="display:flex;gap:16px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-soft);">
+      <div style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--blue);"></span>Aéreo</div>
+      <div style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--navy2);"></span>Marítimo</div>
+      <div style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--purple);"></span>Terrestre</div>
+    </div>
   </div>
-  <div class="g2">
-    <div class="card"><div class="ct">Top destinos</div><div class="bars">${dest.length ? dest.map(d=>`<div class="br"><span class="bl">${d.port}</span><div class="bt"><div class="bf" style="width:${calcPct(d.fcl,mxD)}%;background:var(--amber);"></div></div><span class="bv">${fmt1(d.fcl)}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
-    <div class="card"><div class="ct">FCL por línea naviera</div><div class="bars">${lineas.length ? lineas.map(l=>`<div class="br"><span class="bl">${l.line}</span><div class="bt"><div class="bf" style="width:${calcPct(l.fcl,mxL)}%"></div></div><span class="bv">${fmt1(l.fcl)}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
-  </div>`;
+  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">🌍 Destinos &amp; Rutas</div>
+  <div class="g2" id="exec-routes"></div>`;
 }
+
+function refreshExecute(){
+  const rows = EXECUTE_RAW || [];
+  if (!document.getElementById('exec-kg')) return;
+  const selSH = execChecked('exec-cb-sh');
+  const selDT = execChecked('exec-cb-dt');
+  let ft = rows;
+  if (selSH.length) ft = ft.filter(r=>selSH.includes(r.shipper));
+  if (selDT.length) ft = ft.filter(r=>selDT.includes(r.dispatch_date||''));
+  document.getElementById('exec-stat').textContent = `${ft.length} de ${rows.length} registros`;
+
+  const coldTreatments = ft.filter(r=>r.has_tr_time).length;
+  const senasaCount = ft.filter(r=>r.senasa_att==='SENASA').length;
+  const totalBooking = new Set(ft.filter(r=>r.booking).map(r=>r.booking)).size;
+  const bookByMode = m => new Set(ft.filter(r=>r.mode===m && r.booking).map(r=>r.booking)).size;
+  const bookAer = bookByMode('Aéreo'), bookMar = bookByMode('Marítimo'), bookTer = bookByMode('Terrestre');
+  const senasaPct = totalBooking ? pct(senasaCount,totalBooking) : 0;
+
+  document.getElementById('exec-kg').innerHTML = `<div class="kg">
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">Cold treatments</div><div class="kv">${coldTreatments}</div></div>
+    <div class="kc" style="--acc:var(--amber)"><div class="kl">Senasa Attention</div><div class="kv" style="font-size:20px;">${senasaCount} / ${totalBooking}</div><div class="kf">${senasaPct}%</div></div>
+    <div class="kc" style="--acc:var(--navy2)"><div class="kl">Booking confirmado</div><div class="kv">${totalBooking}</div></div>
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">Booking aéreo</div><div class="kv">${bookAer}</div><div class="kf">${totalBooking?pct(bookAer,totalBooking):0}%</div></div>
+    <div class="kc" style="--acc:var(--navy2)"><div class="kl">Booking marítimo</div><div class="kv">${bookMar}</div><div class="kf">${totalBooking?pct(bookMar,totalBooking):0}%</div></div>
+    <div class="kc" style="--acc:var(--purple)"><div class="kl">Booking terrestre</div><div class="kv">${bookTer}</div><div class="kf">${totalBooking?pct(bookTer,totalBooking):0}%</div></div>
+  </div>`;
+
+  const ex = EX || {dam_by_mode:[]};
+  const mxM = Math.max(1, ...ex.dam_by_mode.map(m=>m.dam_with));
+  document.getElementById('exec-dam').innerHTML = `
+    <div class="card"><div class="ct">DAMs únicas por modo</div><div class="bars">${ex.dam_by_mode.length ? ex.dam_by_mode.map(m=>`<div class="br"><span class="bl">${m.mode}</span><div class="bt"><div class="bf" style="width:${calcPct(m.dam_with,mxM)}%"></div></div><span class="bv">${m.dam_with}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+    <div class="card"><div class="ct">Cobertura DAM</div><div class="tbl-wrap"><table class="std"><thead><tr><th>Modo</th><th style="text-align:right">DAMs</th><th style="text-align:right">Sin DAM</th><th style="text-align:right">% Cob.</th></tr></thead><tbody>${ex.dam_by_mode.map(m=>`<tr><td>${m.mode}</td><td class="mono" style="text-align:right">${m.dam_with}</td><td class="mono" style="text-align:right">${m.dam_without}</td><td><span class="pill ${badge(m.pct)}">${m.pct}%</span></td></tr>`).join('')}</tbody></table></div></div>`;
+
+  const dest = DEST || [], lineas = LINEAS || [];
+  const mxD = Math.max(1, ...dest.map(d=>d.fcl)), mxL = Math.max(1, ...lineas.map(l=>l.fcl));
+  document.getElementById('exec-routes').innerHTML = `
+    <div class="card"><div class="ct">Top destinos</div><div class="bars">${dest.length ? dest.map(d=>`<div class="br"><span class="bl">${d.port}</span><div class="bt"><div class="bf" style="width:${calcPct(d.fcl,mxD)}%;background:var(--amber);"></div></div><span class="bv">${fmt1(d.fcl)}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+    <div class="card"><div class="ct">FCL por línea naviera</div><div class="bars">${lineas.length ? lineas.map(l=>`<div class="br"><span class="bl">${l.line}</span><div class="bt"><div class="bf" style="width:${calcPct(l.fcl,mxL)}%"></div></div><span class="bv">${fmt1(l.fcl)}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>`;
+
+  // Curva: PO/booking distintos por Pack Plan, una línea por modo
+  const weeks = [...new Set(ft.map(r=>r.pack_plan))].sort((a,b)=>a-b);
+  document.getElementById('exec-line-stat').textContent = `${weeks.length} semana(s)`;
+  const wrap = document.getElementById('exec-line-wrap');
+  if (weeks.length < 2){
+    wrap.innerHTML = '<div class="empty-state">Selecciona al menos 2 semanas para trazar la curva</div>';
+    return;
+  }
+  const modeColors = {'Aéreo':'var(--blue)','Marítimo':'var(--navy2)','Terrestre':'var(--purple)'};
+  const modeData = {};
+  Object.keys(modeColors).forEach(m=>{ modeData[m] = weeks.map(wk=>new Set(ft.filter(r=>r.pack_plan===wk && r.mode===m && r.booking).map(r=>r.booking)).size); });
+
+  const W=900, H=260, pL=34, pB=26, pT=12;
+  const mxV = Math.max(...Object.values(modeData).flat(), 1);
+  const xOf = i => pL + i*(W-pL-14)/(weeks.length-1);
+  const yOf = v => H-pB-(v/mxV)*(H-pT-pB);
+  const grid = [0,.25,.5,.75,1].map(f=>{ const y=pT+(1-f)*(H-pT-pB); return `<line x1="${pL}" y1="${y.toFixed(0)}" x2="${W-4}" y2="${y.toFixed(0)}" stroke="var(--line)" stroke-width="1"/><text x="${pL-6}" y="${(y+3).toFixed(0)}" text-anchor="end" font-size="9" fill="var(--ink-faint)" font-family="JetBrains Mono">${Math.round(mxV*f)}</text>`; }).join('');
+  const xlbls = weeks.map((wk,i)=>`<text x="${xOf(i).toFixed(0)}" y="${H-6}" text-anchor="middle" font-size="9" fill="var(--ink-soft)" font-family="JetBrains Mono">S${wk}</text>`).join('');
+  let svgLines = '';
+  Object.keys(modeColors).forEach(m=>{
+    const pts = weeks.map((wk,i)=>({x:xOf(i), y:yOf(modeData[m][i])}));
+    const path = pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
+    svgLines += `<path d="${path}" fill="none" stroke="${modeColors[m]}" stroke-width="2.2"/>`;
+    svgLines += pts.map((p,i)=>`<circle class="exec-dot" data-mode="${m}" data-i="${i}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.6" fill="${modeColors[m]}" stroke="var(--surface)" stroke-width="1.3" style="cursor:pointer;"/>`).join('');
+  });
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;" preserveAspectRatio="none">${grid}${svgLines}${xlbls}</svg>`;
+  wrap.querySelectorAll('circle.exec-dot').forEach(dot=>{
+    dot.addEventListener('mouseenter', ()=>{
+      const m = dot.dataset.mode, i = +dot.dataset.i, wk = weeks[i];
+      const tip = document.getElementById('execTooltip');
+      tip.innerHTML = `<b>S${wk} · ${m}</b><br>Booking diferenciados: <b class="mono">${modeData[m][i]}</b>`;
+      tip.style.opacity = '1';
+      const rect = wrap.getBoundingClientRect();
+      const scaleX = rect.width/W, scaleY = rect.height/H;
+      const cx = +dot.getAttribute('cx')*scaleX, cy = +dot.getAttribute('cy')*scaleY;
+      tip.style.left = (rect.left+cx+window.scrollX+12)+'px';
+      tip.style.top = (rect.top+cy+window.scrollY-10)+'px';
+    });
+    dot.addEventListener('mouseleave', ()=>{ document.getElementById('execTooltip').style.opacity='0'; });
+  });
+}
+
+window.postRender_execute = refreshExecute;
 
 function renderUpload(){
   return `

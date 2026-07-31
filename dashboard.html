@@ -68,7 +68,12 @@ button{font-family:inherit;}
    # 01 SHELL — grid sidebar + main
    ============================================================ */
 .shell{display:grid; grid-template-columns:224px 1fr; min-height:100vh; transition:grid-template-columns .2s ease;}
-.shell.collapsed{grid-template-columns:64px 1fr;}
+.shell.collapsed{grid-template-columns:0px 1fr;}
+.shell.collapsed .sidebar{padding-left:0; padding-right:0; overflow:hidden;}
+.sb-notch{display:none; position:fixed; left:0; top:26px; width:20px; height:58px; background:var(--navy); border:1px solid var(--navy2); border-left:none; border-radius:0 10px 10px 0; align-items:center; justify-content:center; cursor:pointer; z-index:90; color:#9db4c4; box-shadow:2px 0 8px rgba(0,0,0,.15);}
+.sb-notch:hover{background:var(--navy2); color:#fff;}
+.sb-notch svg{width:11px;height:11px;}
+.shell.collapsed .sb-notch{display:flex;}
 
 /* ---- sidebar ---- */
 .sidebar{
@@ -389,6 +394,10 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
     </div>
   </nav>
 
+  <div class="sb-notch" id="sbNotch" onclick="toggleSidebar()" title="Mostrar menú">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+  </div>
+
   <!-- ============================================================
        # 04 MAIN — topbar + panels
        ============================================================ -->
@@ -490,9 +499,8 @@ document.getElementById('themeToggle').onclick = () => {
 };
 // Por defecto: MODO CLARO (definido en el <html data-theme="light">)
 
-document.getElementById('sbToggle').onclick = () => {
-  document.getElementById('shell').classList.toggle('collapsed');
-};
+function toggleSidebar(){ document.getElementById('shell').classList.toggle('collapsed'); }
+document.getElementById('sbToggle').onclick = toggleSidebar;
 
 renderSidebar();
 
@@ -577,7 +585,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['weekly', 'wep', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
@@ -1167,6 +1175,10 @@ function renderWeekly(){
   return `
   <div class="card" style="margin-bottom:14px;">
     <div class="ct">Tabla dinámica unificada <span class="sub" id="wk-stat"></span></div>
+    <div style="display:flex; gap:6px; margin-bottom:12px;">
+      <button type="button" class="fc-metric-btn wk-metric-btn active" data-metric="fcl" onclick="wkSetMetric('fcl')">📦 FCL</button>
+      <button type="button" class="fc-metric-btn wk-metric-btn" data-metric="pallets" onclick="wkSetMetric('pallets')">🧱 Pallets</button>
+    </div>
     <div class="msd-filterbar">
       ${msdField('msd-wk-pp', 'All Pack Plans', weeks, 'refreshWeekly', w=>'S'+w)}
       ${msdField('msd-wk-pk', 'All Packing', packings, 'refreshWeekly')}
@@ -1179,6 +1191,13 @@ function renderWeekly(){
     <div class="ct">Export Summary — todos los modos <span class="sub" id="wk-cols-stat"></span></div>
     <div class="tbl-wrap"><div style="overflow-x:auto;"><table class="std" id="wk-table"><thead id="wk-head"></thead><tbody id="wk-body"></tbody></table></div></div>
   </div>`;
+}
+
+let wkMetric = 'fcl';
+function wkSetMetric(m){
+  wkMetric = m;
+  document.querySelectorAll('.wk-metric-btn').forEach(b=>b.classList.toggle('active', b.dataset.metric===m));
+  refreshWeekly();
 }
 
 function refreshWeekly(){
@@ -1203,7 +1222,9 @@ function refreshWeekly(){
   const cols = [...allDates, ...(hasSF?['']:[])];
   const dayLabel = d => { if(!d) return 'Sin fecha'; const dt=new Date(d); return isNaN(dt) ? d : dt.toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'short'}).toUpperCase(); };
 
-  document.getElementById('wk-head').innerHTML = `<tr><th>Packing</th><th>Modo</th><th>Shipper</th><th>POD</th>${cols.map(d=>`<th style="text-align:center">${dayLabel(d)}</th>`).join('')}<th style="text-align:right">Total</th></tr>`;
+  const unit = wkMetric==='fcl' ? 'FCL' : 'Pallets';
+  const fmtM = v => wkMetric==='fcl' ? fmt1(v) : Math.round(v).toLocaleString('es-PE');
+  document.getElementById('wk-head').innerHTML = `<tr><th>Packing</th><th>Modo</th><th>Shipper</th><th>POD</th>${cols.map(d=>`<th style="text-align:center">${dayLabel(d)}</th>`).join('')}<th style="text-align:right">${unit}</th></tr>`;
 
   const modeOrder = ['Marítimo','Aéreo','Terrestre'];
   const packings = [...new Set(ft.map(r=>r.packing).filter(Boolean))].sort();
@@ -1231,7 +1252,7 @@ function refreshWeekly(){
         const shFirstRowIdx = bodyRows.length;
         pods.forEach(pod=>{
           const cellsData = {};
-          cols.forEach(d=>{ cellsData[d] = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod&&(r.date||'')===d).map(r=>r.fcl)); });
+          cols.forEach(d=>{ cellsData[d] = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod&&(r.date||'')===d).map(r=>(r[wkMetric]||0))); });
           const rt = sum(Object.values(cellsData));
           cols.forEach(d=>{ pkT[d]+=cellsData[d]; gt[d]+=cellsData[d]; });
           pkT['__t']+=rt; gt['__t']+=rt;
@@ -1248,19 +1269,19 @@ function refreshWeekly(){
 
   let html = bodyRows.map(r=>{
     if (r.isPkTotal){
-      return `<tr style="background:var(--surface-soft);font-weight:600;"><td colspan="3">Total ${r.pk}</td>${cols.map(d=>r.pkT[d]>0?`<td class="mono" style="text-align:center;">${fmt1(r.pkT[d])}</td>`:`<td class="mono" style="text-align:center;color:var(--ink-faint);">·</td>`).join('')}<td class="mono" style="text-align:right;font-weight:700;">${fmt1(r.pkT['__t'])}</td></tr>`;
+      return `<tr style="background:var(--surface-soft);font-weight:600;"><td colspan="3">Total ${r.pk}</td>${cols.map(d=>r.pkT[d]>0?`<td class="mono" style="text-align:center;">${fmtM(r.pkT[d])}</td>`:`<td class="mono" style="text-align:center;color:var(--ink-faint);">·</td>`).join('')}<td class="mono" style="text-align:right;font-weight:700;">${fmtM(r.pkT['__t'])}</td></tr>`;
     }
     const pkTd = r.pkCell ? `<td rowspan="${r.pkCell.span}" style="background:var(--surface-soft);font-weight:700;border-right:2px solid var(--blue);vertical-align:top;">${r.pkCell.pk}</td>` : '';
     const modeTd = r.modeCell ? `<td rowspan="${r.modeCell.span}" style="vertical-align:top;"><span class="pill neu">${r.modeCell.icon} ${r.modeCell.mode}</span></td>` : '';
     const shTd = r.shCell ? `<td rowspan="${r.shCell.span}" style="vertical-align:top;font-weight:500;">${r.shCell.shipper}</td>` : '';
-    const cellsHtml = cols.map(d=>r.cellsData[d]>0 ? `<td class="mono" style="text-align:center;">${fmt1(r.cellsData[d])}</td>` : `<td class="mono" style="text-align:center;color:var(--ink-faint);">·</td>`).join('');
-    return `<tr>${pkTd}${modeTd}${shTd}<td>${r.pod}</td>${cellsHtml}<td class="mono" style="text-align:right;font-weight:600;">${fmt1(r.rt)}</td></tr>`;
+    const cellsHtml = cols.map(d=>r.cellsData[d]>0 ? `<td class="mono" style="text-align:center;">${fmtM(r.cellsData[d])}</td>` : `<td class="mono" style="text-align:center;color:var(--ink-faint);">·</td>`).join('');
+    return `<tr>${pkTd}${modeTd}${shTd}<td>${r.pod}</td>${cellsHtml}<td class="mono" style="text-align:right;font-weight:600;">${fmtM(r.rt)}</td></tr>`;
   }).join('');
 
-  html += `<tr style="background:var(--navy);color:#fff;font-weight:700;"><td colspan="4">Total general</td>${cols.map(d=>gt[d]>0?`<td class="mono" style="text-align:center;">${fmt1(gt[d])}</td>`:`<td class="mono" style="text-align:center;opacity:.5;">·</td>`).join('')}<td class="mono" style="text-align:right;">${fmt1(gt['__t'])}</td></tr>`;
+  html += `<tr style="background:var(--navy);color:#fff;font-weight:700;"><td colspan="4">Total general</td>${cols.map(d=>gt[d]>0?`<td class="mono" style="text-align:center;">${fmtM(gt[d])}</td>`:`<td class="mono" style="text-align:center;opacity:.5;">·</td>`).join('')}<td class="mono" style="text-align:right;">${fmtM(gt['__t'])}</td></tr>`;
 
   document.getElementById('wk-body').innerHTML = html || `<tr><td colspan="${4+cols.length+1}" class="empty-state">Sin datos para este filtro</td></tr>`;
-  document.getElementById('wk-stat').textContent = `${ft.length} filas · ${fmt1(gt['__t'])} FCL`;
+  document.getElementById('wk-stat').textContent = `${ft.length} filas · ${fmtM(gt['__t'])} ${unit}`;
   document.getElementById('wk-cols-stat').textContent = `${cols.length} fecha(s) de carga`;
 }
 
@@ -1336,6 +1357,7 @@ function renderWEP(){
     <div>
       <div class="card"><div class="ct">Carga por día · FCL</div><div id="wep-daybars" style="display:flex;gap:10px;align-items:flex-end;"></div><div class="wep-insight" id="wep-insight"></div></div>
       <div class="card" style="margin-bottom:0;"><div class="ct">Top destinos</div><div id="wep-topdest"></div></div>
+      <div class="card" style="margin-bottom:0;margin-top:14px;"><div class="ct">Split por modo</div><div id="wep-splitmode"></div></div>
     </div>
   </div>`;
 }
@@ -1448,6 +1470,15 @@ function refreshWEP(){
   // Top destinos
   document.getElementById('wep-topdest').innerHTML = podTotalsAll.slice(0,6).map(p=>`
     <div class="wep-top-dest-row"><div class="hd"><span>${p.name}</span><span class="mono" style="color:var(--amber);">${fmt1(p.val)}</span></div><div class="bt"><div class="bf" style="width:${calcPct(p.val,maxPodVal)}%;background:var(--amber);"></div></div></div>`).join('') || '<div class="empty-state">Sin datos</div>';
+
+  // Split por modo
+  const modeColorsWep = {'Marítimo':'var(--teal)','Aéreo':'var(--purple)','Terrestre':'var(--amber)'};
+  const splitData = modesUsed.map(m=>({mode:m, val:sum(rows.filter(r=>r.mode===m).map(r=>r.fcl||0)), color:modeColorsWep[m]||'var(--ink-faint)'})).sort((a,b)=>b.val-a.val);
+  const splitTrack = splitData.map(s=>`<div style="width:${totalFCL?(s.val/totalFCL*100).toFixed(1):0}%;background:${s.color};"></div>`).join('');
+  const splitLegend = splitData.map(s=>`<div style="display:flex;align-items:center;gap:9px;margin-top:10px;font-size:12.5px;"><span style="width:9px;height:9px;border-radius:2px;background:${s.color};flex-shrink:0;"></span><span style="flex:1;">${s.mode}</span><span class="mono" style="font-weight:600;">${fmt1(s.val)}</span></div>`).join('');
+  document.getElementById('wep-splitmode').innerHTML = splitData.length ? `
+    <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px;">${splitTrack}</div>
+    ${splitLegend}` : '<div class="empty-state">Sin datos</div>';
 }
 function modeOrderIdx(m){ return ['Marítimo','Aéreo','Terrestre'].indexOf(m); }
 
@@ -2221,6 +2252,15 @@ function trDataQualityBadge(excludedTotal, containerId){
     <span>Ver detalle ▾</span>
   </div>`;
 }
+function trDataQualityDetails(groups){
+  // groups: [{label:'Avg. Empty Outbound Time', items:[{field,value,id}], unit:'h'}]
+  const rows = [];
+  groups.forEach(g => { g.items.forEach(it => rows.push({...it, metric:g.label, unit:g.unit||''})); });
+  if (!rows.length) return '<div style="padding:4px 2px;">No se excluyó ningún valor con los filtros actuales.</div>';
+  return `<div style="font-size:11px;color:var(--ink-soft);margin-bottom:8px;">Estos valores quedaron fuera de un rango razonable (negativos o extremos) y no se incluyeron en los promedios — probablemente errores de captura en el Excel origen. No afectan los conteos ni los % de cumplimiento.</div>
+  <div class="tbl-wrap"><table class="std" style="font-size:11px;"><thead><tr><th>Pack Plan</th><th>Métrica</th><th style="text-align:right">Valor descartado</th></tr></thead>
+  <tbody>${rows.map(r=>`<tr><td class="mono">${r.id!=null?'PP'+r.id:'—'}</td><td>${r.metric}</td><td class="mono" style="text-align:right;color:var(--bad);">${typeof r.value==='number'?r.value.toFixed(2):r.value}${r.unit}</td></tr>`).join('')}</tbody></table></div>`;
+}
 
 function renderRetiro(){
   const rows = currentRows();
@@ -2291,7 +2331,10 @@ function refreshRetiro(){
   <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local)'} · ${rows.length} de ${all.length} registros</span>
   ${trDataQualityBadge(excludedTotal, 'retiro-dq-details')}
   <div class="dq-details" id="retiro-dq-details">
-    Se excluyeron ${emptyStats.excluded.length} valor(es) de "Avg. Empty Outbound Time" y ${routeStats.excluded.length} de "Route Start Delay" por estar fuera de rango razonable (negativos o &gt;72h) — probablemente errores de captura en el Excel origen.
+    ${trDataQualityDetails([
+      {label:'Avg. Empty Outbound Time', unit:'h', items:emptyStats.excluded},
+      {label:'Route Start Delay', unit:'h', items:routeStats.excluded},
+    ])}
   </div>
   <div class="ph" style="margin-bottom:14px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
@@ -2457,14 +2500,18 @@ function refreshPacking(){
     options: baseChartOptions({ indexAxis:'y', scales:{ x:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{color:chartColor('--line')}}, y:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{display:false}} } }),
   });
 
-  const detPackingOutliers = rows.filter(r=>r.detPackingH!=null && (r.detPackingH<0 || r.detPackingH>72)).length;
-  const excludedTotal = checkInAvg.excluded.length + entryAvg.excluded.length + detPackingOutliers;
+  const detPackingOutlierItems = rows.filter(r=>r.detPackingH!=null && (r.detPackingH<0 || r.detPackingH>72)).map(r=>({field:'detPackingH', value:r.detPackingH, id:r.pp}));
+  const excludedTotal = checkInAvg.excluded.length + entryAvg.excluded.length + detPackingOutlierItems.length;
 
   document.getElementById('packing-content').innerHTML = `
   <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local)'} · ${rows.length} de ${all.length} registros</span>
   ${trDataQualityBadge(excludedTotal, 'packing-dq-details')}
   <div class="dq-details" id="packing-dq-details">
-    Se excluyeron ${detPackingOutliers} valor(es) de "Detention at Packing" (horas fuera de rango razonable) y ${checkInAvg.excluded.length + entryAvg.excluded.length} de los delays promedio (Check-In/Entry) — probablemente errores de captura en el Excel origen.
+    ${trDataQualityDetails([
+      {label:'Detention at Packing', unit:'h', items:detPackingOutlierItems},
+      {label:'Check-In Delay', unit:'h', items:checkInAvg.excluded},
+      {label:'Entry Delay', unit:'h', items:entryAvg.excluded},
+    ])}
   </div>
   <div class="ph" style="margin-bottom:14px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
@@ -2635,7 +2682,9 @@ function refreshIngreso(){
   <span class="mock-tag">◆ ${TRANSPORT_RAW ? "Datos en vivo — sb.from('transport_data')" : 'Datos reales (fallback local)'} · ${rows.length} de ${all.length} registros</span>
   ${trDataQualityBadge(excludedTotal, 'ingreso-dq-details')}
   <div class="dq-details" id="ingreso-dq-details">
-    Se excluyeron ${excludedTotal} valor(es) de "Full Inbound Time" por estar fuera de rango razonable (negativos o &gt;72h).
+    ${trDataQualityDetails([
+      {label:'Full Inbound Time', unit:'h', items:fullInboundStats.excluded},
+    ])}
   </div>
   <div class="ph" style="margin-bottom:14px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">

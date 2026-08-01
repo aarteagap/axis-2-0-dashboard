@@ -585,7 +585,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['weekly', 'wep', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
@@ -765,7 +765,7 @@ function fcAggregate(rows, weeks){
   rows.forEach(r=>{
     const b = byWeek[r.pack_plan]; if(!b) return;
     const fcl = r.fcl||0, pal = r.pallets||0;
-    const isProj = r.is_pre || r.status==='Confirmado' || r.status==='Cancelado';
+    const isProj = r.is_pre;
     if(r.status==='Confirmado'){ b.fcl_conf+=fcl; b.pal_conf+=pal; }
     if(isProj){ b.fcl_proj+=fcl; b.pal_proj+=pal; }
     if(r.is_add){ b.fcl_add+=fcl; b.pal_add+=pal; }
@@ -828,7 +828,7 @@ function renderForecast(){
   </div>
   <div class="card">
     <div class="ct">Desviación Confirmado vs Proyección</div>
-    <div class="tbl-wrap"><table class="std"><thead><tr><th>Semana</th><th style="text-align:right">Proyección</th><th style="text-align:right">ADD</th><th style="text-align:right">EXPO</th><th style="text-align:right">EXADD</th><th style="text-align:right">Total c/ADD+EXADD</th><th style="text-align:right">Confirmado</th><th style="text-align:right">Desviación</th><th>% Ejecución</th></tr></thead><tbody id="fc-dev-body"></tbody></table></div>
+    <div class="tbl-wrap"><table class="std"><thead><tr><th>Semana</th><th style="text-align:right">Proyección</th><th style="text-align:right">Adicionales</th><th style="text-align:right">Ejecutado (Confirmado)</th><th style="text-align:right">Desviación</th><th>% Ejecución</th><th style="text-align:right">% Back up Transporte</th></tr></thead><tbody id="fc-dev-body"></tbody></table></div>
   </div>
   <div class="g2">
     <div class="card"><div class="ct">✈ Aéreo</div><div id="fc-wrap-air" style="position:relative;"></div></div>
@@ -871,19 +871,20 @@ function refreshForecast(){
     <div class="kc" style="--acc:var(--amber)"><div class="kl">AIRADD</div><div class="kv">${fmtM(totAirAdd)}<span class="u">${unit}</span></div><div class="kf">adicionales</div></div>
     <div class="kc" style="--acc:var(--ok)"><div class="kl">ADD</div><div class="kv">${fmtM(totAdd)}<span class="u">${unit}</span></div><div class="kf">adicionales</div></div>
     <div class="kc" style="--acc:var(--purple)"><div class="kl">EXPO</div><div class="kv">${fmtM(totExpo)}<span class="u">${unit}</span></div><div class="kf">adicionales</div></div>
-    <div class="kc" style="--acc:var(--warn)"><div class="kl">EXADD</div><div class="kv">${fmtM(totExadd)}<span class="u">${unit}</span></div><div class="kf">adicionales</div></div>
-    <div class="kc" style="--acc:var(--navy2)"><div class="kl">Total proyectado</div><div class="kv">${fmtM(totP+totA)}<span class="u">${unit}</span></div></div>
+    <div class="kc" style="--acc:var(--warn)"><div class="kl">EXPOADD</div><div class="kv">${fmtM(totExadd)}<span class="u">${unit}</span></div><div class="kf">adicionales</div></div>
+    <div class="kc" style="--acc:var(--navy2)"><div class="kl">Total proyectado</div><div class="kv">${fmtM(totP)}<span class="u">${unit}</span></div></div>
   </div>`;
 
   const rowsHtml = wks.map(w=>{
     const hasC = w[kC] > 0;
     const ej = w[kP] ? pct(w[kC], w[kP]) : 0;
     const cls = hasC ? (ej>=90?'ok':ej>=70?'warn':'bad') : 'neu';
-    const up = (w[kP]+w[kA]) >= w[kC];
     const dev = hasC ? (w[kC]-w[kP]>=0?'+':'')+fmtM(w[kC]-w[kP]) : '—';
-    return `<tr><td class="mono">${w.label}</td><td class="mono" style="text-align:right">${fmtM(w[kP])}</td><td class="mono" style="text-align:right">${w[kAdd]?fmtM(w[kAdd]):'—'}</td><td class="mono" style="text-align:right">${w[kExpo]?fmtM(w[kExpo]):'—'}</td><td class="mono" style="text-align:right">${w[kExadd]?fmtM(w[kExadd]):'—'}</td><td class="mono" style="text-align:right">${fmtM(w[kP]+w[kA])}${w[kA]?`<span class="pill ${up?'ok':'bad'}" style="margin-left:6px;font-size:9px;">${up?'▲':'▼'}${fmtM(w[kA])}</span>`:''}</td><td class="mono" style="text-align:right;color:var(--blue);font-weight:600;">${hasC?fmtM(w[kC]):'—'}</td><td class="mono" style="text-align:right;color:${hasC && w[kC]<w[kP] ? 'var(--bad)':'var(--ok)'};font-weight:600;">${dev}</td><td><span class="pill ${cls}">${hasC?ej+'%':'Sin ejec.'}</span></td></tr>`;
+    const backupDenom = w[kExpo] + w[kExadd];
+    const backupPct = backupDenom > 0 ? pct(w[kExadd], backupDenom) : null;
+    return `<tr><td class="mono">${w.label}</td><td class="mono" style="text-align:right;color:var(--amber);font-weight:600;">${fmtM(w[kP])}</td><td class="mono" style="text-align:right">${w[kA]>0?fmtM(w[kA]):'—'}</td><td class="mono" style="text-align:right;color:var(--blue);font-weight:600;">${hasC?fmtM(w[kC]):'—'}</td><td class="mono" style="text-align:right;color:${hasC && w[kC]<w[kP] ? 'var(--bad)':'var(--ok)'};font-weight:600;">${dev}</td><td><span class="pill ${cls}">${hasC?ej+'%':'Sin ejec.'}</span></td><td class="mono" style="text-align:right">${backupPct!==null?backupPct+'%':'—'}</td></tr>`;
   }).join('');
-  document.getElementById('fc-dev-body').innerHTML = rowsHtml || `<tr><td colspan="9" class="empty-state">Selecciona al menos un Pack Plan</td></tr>`;
+  document.getElementById('fc-dev-body').innerHTML = rowsHtml || `<tr><td colspan="7" class="empty-state">Selecciona al menos un Pack Plan</td></tr>`;
   document.getElementById('fc-stat').textContent = `${wks.length} de ${allWeeks.length} semanas · métrica: ${unit}`;
 
   if (wks.length > 1) {
@@ -907,7 +908,7 @@ function renderForecastCurve(wrapId, weeksData, metric){
   }
   const kC = metric==='fcl'?'fcl_conf':'pal_conf', kP = metric==='fcl'?'fcl_proj':'pal_proj', kA = metric==='fcl'?'fcl_addon':'pal_addon';
   const fmtM = v => metric==='fcl' ? fmt1(v) : Math.round(v).toLocaleString('es-PE');
-  const W=900, H=240, pL=38, pB=26, pT=12;
+  const W=900, H=300, pL=38, pB=26, pT=12;
   const mx = Math.max(...weeksData.map(w=>Math.max(w[kC], w[kP]+w[kA])), 1);
   const xOf = i => pL + i*(W-pL-14)/(weeksData.length-1);
   const yOf = v => H-pB-(v/mx)*(H-pT-pB);
@@ -927,7 +928,7 @@ function renderForecastCurve(wrapId, weeksData, metric){
   }).join('');
 
   el.innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;" preserveAspectRatio="none">
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;height:${H}px;display:block;margin:0 auto;" preserveAspectRatio="xMidYMid meet">
       ${grid}
       <path d="${areaOf(projPts)}" fill="var(--amber)" opacity="0.12"/>
       <path d="${pathOf(projPts)}" fill="none" stroke="var(--amber)" stroke-width="2" stroke-dasharray="5 3"/>
@@ -1010,7 +1011,7 @@ function renderPorts(){
   </div>
   <div id="ports-kg"></div>
   <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">⚓ Puertos (POL)</div>
-  <div class="g3" id="ports-cards" style="margin-bottom:14px;"></div>
+  <div class="g3" id="ports-cards" style="margin-bottom:14px;grid-template-columns:repeat(4,1fr);"></div>
   <div class="g2">
     <div class="card"><div class="ct">Estado global</div><div id="ports-donut"></div></div>
     <div class="card"><div class="ct">Registros por puerto</div><div id="ports-bars"></div></div>
@@ -1332,11 +1333,10 @@ function renderWEP(){
   const modes = [...new Set(baseRows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
 
   return `
-  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap;">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;background:var(--surface);margin:-22px -26px 18px;padding:20px 26px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;">
     <div>
       <div class="crumb" style="margin-bottom:6px;"><span>03 · Programa semanal</span><span class="sep">·</span><span>Exportación multimodal</span></div>
-      <h2 style="margin:0;font-size:24px;">Weekly Export Program</h2>
-      <div class="mono" style="font-size:12px;color:var(--ink-soft);margin-top:4px;" id="wep-week-label"></div>
+      <div class="mono" style="font-size:12px;color:var(--ink-soft);" id="wep-week-label"></div>
     </div>
     <div style="text-align:right;">
       <div class="pill ok" style="padding:7px 13px;font-size:11px;">● CONFIRMADO</div>
@@ -2009,7 +2009,7 @@ function refreshExecute(){
   const modeData = {};
   Object.keys(modeColors).forEach(m=>{ modeData[m] = weeks.map(wk=>new Set(ft.filter(r=>r.pack_plan===wk && r.mode===m && r.booking).map(r=>r.booking)).size); });
 
-  const W=900, H=260, pL=34, pB=26, pT=12;
+  const W=900, H=300, pL=34, pB=26, pT=12;
   const mxV = Math.max(...Object.values(modeData).flat(), 1);
   const xOf = i => pL + i*(W-pL-14)/(weeks.length-1);
   const yOf = v => H-pB-(v/mxV)*(H-pT-pB);
@@ -2022,7 +2022,7 @@ function refreshExecute(){
     svgLines += `<path d="${path}" fill="none" stroke="${modeColors[m]}" stroke-width="2.2"/>`;
     svgLines += pts.map((p,i)=>`<circle class="exec-dot" data-mode="${m}" data-i="${i}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.6" fill="${modeColors[m]}" stroke="var(--surface)" stroke-width="1.3" style="cursor:pointer;"/>`).join('');
   });
-  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;" preserveAspectRatio="none">${grid}${svgLines}${xlbls}</svg>`;
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;height:${H}px;display:block;margin:0 auto;" preserveAspectRatio="xMidYMid meet">${grid}${svgLines}${xlbls}</svg>`;
   wrap.querySelectorAll('circle.exec-dot').forEach(dot=>{
     dot.addEventListener('mouseenter', ()=>{
       const m = dot.dataset.mode, i = +dot.dataset.i, wk = weeks[i];
@@ -2372,7 +2372,7 @@ function refreshRetiro(){
       </div>
     </div>
   </div>
-  <div class="card"><div class="ct">Containers Picked Up by Week <span class="sub">Trend · Pack Plan</span></div><div style="height:220px;"><canvas id="chRetiroWeekly"></canvas></div></div>`;
+  <div class="card"><div class="ct">Containers Picked Up by Week <span class="sub">Trend · Pack Plan</span></div><div style="height:280px;max-width:900px;margin:0 auto;"><canvas id="chRetiroWeekly"></canvas></div></div>`;
 
   window.build_chRetiroAlmacen();
   window.build_chRetiroWeekly();
@@ -2545,7 +2545,7 @@ function refreshPacking(){
     <div class="card"><div class="ct">Dispatch Delay <span class="sub">Shipment distribution</span></div><div style="height:230px;"><canvas id="chPackingDispatch"></canvas></div></div>
   </div>
   <div class="g2">
-    <div class="card"><div class="ct">Avg. Loading Time by Week <span class="sub">Start → end of loading, en horas</span></div><div style="height:220px;"><canvas id="chPackingWeekly"></canvas></div></div>
+    <div class="card"><div class="ct">Avg. Loading Time by Week <span class="sub">Start → end of loading, en horas</span></div><div style="height:280px;max-width:900px;margin:0 auto;"><canvas id="chPackingWeekly"></canvas></div></div>
     <div>
       <div class="card">
         <div class="ct">Detention at Packing <span class="sub">${detTotal} records</span></div>
@@ -2724,7 +2724,7 @@ function refreshIngreso(){
     <div class="tbl-wrap"><table class="std"><thead><tr><th>Shipping Line</th><th style="text-align:right">N°</th><th style="text-align:right">% On Time</th><th style="text-align:right">% Crit. Det.</th></tr></thead>
     <tbody>${lineStats.length ? lineStats.map(l=>`<tr><td>${l.name}</td><td class="mono" style="text-align:right">${l.total}</td><td class="mono" style="text-align:right;color:${l.onTimePct>=50?'var(--ok)':'var(--warn)'};">${l.onTimePct}%</td><td class="mono" style="text-align:right">${l.critPct}%</td></tr>`).join('') : '<tr><td colspan="4" class="empty-state">Sin datos</td></tr>'}</tbody></table></div>
   </div>
-  <div class="card"><div class="ct">Containers Received by Week <span class="sub">Trend · Pack Plan</span></div><div style="height:220px;"><canvas id="chIngresoWeekly"></canvas></div></div>`;
+  <div class="card"><div class="ct">Containers Received by Week <span class="sub">Trend · Pack Plan</span></div><div style="height:280px;max-width:900px;margin:0 auto;"><canvas id="chIngresoWeekly"></canvas></div></div>`;
 
   window.build_chIngresoAlmacen();
   window.build_chIngresoCarrier();

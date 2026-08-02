@@ -263,6 +263,13 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
 .detail-body{padding:16px 18px; display:flex; flex-direction:column; gap:10px;}
 .detail-row{display:flex; justify-content:space-between; gap:12px; font-size:12px; border-bottom:1px solid var(--line); padding-bottom:8px;}
 .detail-row b{text-align:right;}
+.detail-head-sub{font-size:10.5px; opacity:.75; margin-top:2px; font-family:'JetBrains Mono',monospace;}
+.detail-icon-row{display:flex; align-items:center; gap:12px; padding-bottom:12px; border-bottom:1px solid var(--line);}
+.detail-icon-row:last-child{border-bottom:none; padding-bottom:0;}
+.detail-icon{width:34px;height:34px;border-radius:9px;background:var(--surface-soft);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.detail-icon-txt{flex:1;min-width:0;}
+.detail-icon-lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);font-weight:600;}
+.detail-icon-val{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;margin-top:2px;word-break:break-word;}
 .air-btn-driver{background:var(--navy); color:#fff; border:none; border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer;}
 .air-btn-driver:hover{background:var(--navy2);}
 
@@ -363,7 +370,13 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
 
 <div class="detail-overlay" id="airDetailOverlay">
   <div class="detail-box">
-    <div class="detail-head"><span>Detalle del despacho</span><button onclick="closeAirDetail()">✕</button></div>
+    <div class="detail-head">
+      <div>
+        <div id="airDetailTitle">Información del conductor</div>
+        <div class="detail-head-sub" id="airDetailSub"></div>
+      </div>
+      <button onclick="closeAirDetail()">✕</button>
+    </div>
     <div class="detail-body" id="airDetailBody"></div>
   </div>
 </div>
@@ -591,7 +604,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['weekly', 'wep', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
@@ -1049,7 +1062,7 @@ function renderPorts(){
     <div class="card"><div class="ct">Registros por puerto</div><div id="ports-bars"></div></div>
   </div>
   <div class="card">
-    <div class="ct">Proyección por Puertos <span class="sub" id="ports-proj-stat"></span></div>
+    <div class="ct">Distribución por Puertos <span class="sub" id="ports-proj-stat"></span></div>
     <div class="sc-chart" id="ports-proj-chart" style="height:230px;"></div>
     <div class="lrow" id="ports-proj-legend" style="display:flex;gap:14px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);flex-wrap:wrap;"></div>
   </div>`;
@@ -1171,9 +1184,9 @@ function refreshPorts(){
       const wk = +col.dataset.wk;
       const tot = PORTS_LIST.reduce((a,p)=>a+byWeekPort[wk][p.name],0);
       const tip = document.getElementById('portsTooltip');
-      tip.innerHTML = `<b>Pack Plan S${wk}</b><br>` +
-        PORTS_LIST.map(p=>`<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${p.color};margin-right:6px;"></span>${p.name}: <b class="mono">${portsFmt(byWeekPort[wk][p.name])} ${unitLbl}</b><br>`).join('') +
-        `<div style="border-top:1px solid rgba(255,255,255,.2);margin-top:6px;padding-top:5px;">Total: <b class="mono">${portsFmt(tot)} ${unitLbl}</b></div>`;
+      tip.innerHTML = `<div class="fc-tt-title">Pack Plan S${wk}</div>` +
+        PORTS_LIST.map(p=>`<div class="fc-tt-row"><span class="fc-tt-dot" style="background:${p.color};"></span><span class="fc-tt-lbl">${p.name}</span><span class="fc-tt-val">${portsFmt(byWeekPort[wk][p.name])} ${unitLbl}</span></div>`).join('') +
+        `<div class="fc-tt-sep"></div><div class="fc-tt-row"><span class="fc-tt-lbl">Total</span><span class="fc-tt-val">${portsFmt(tot)} ${unitLbl}</span></div>`;
       tip.style.opacity = '1';
       const rect = col.getBoundingClientRect();
       tip.style.left = (rect.left + rect.width/2 - 90) + 'px';
@@ -1834,13 +1847,15 @@ function airChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked
 function openAirDetail(idx){
   const r = (AIR||[])[idx];
   if(!r) return;
-  const fields = [
-    ['Shipper', r.shipper], ['Instruction', r.instruction], ['Packing', r.packing], ['Pack Plan', r.pack_plan?'S'+r.pack_plan:'—'],
-    ['Logistics Operator', r.log_op], ['Transport Operator', r.transp_op], ['Destino', r.dest], ['Dispatch', r.dispatch],
-    ['Pallets', r.pallets], ['FCL', r.fcl], ['AWB', r.awb], ['File', r.file], ['Line', r.line], ['PO', r.po],
-    ['BASC', r.basc], ['DAM', r.dam], ['Positioning Time', r.postime], ['Gate-In Storage', r.gatein],
+  document.getElementById('airDetailSub').textContent = [r.awb, r.pack_plan?'S'+r.pack_plan:null, r.dest].filter(Boolean).join(' · ');
+  const driverFields = [
+    ['👤','Conductor', r.conductor],
+    ['🪪','Licencia', r.licencia],
+    ['🚛','Tracto', r.tracto],
+    ['🚚','Remolque', r.remolque],
+    ['📱','Celular', r.celular],
   ];
-  document.getElementById('airDetailBody').innerHTML = fields.map(([k,v])=>`<div class="detail-row"><span>${k}</span><b class="mono">${v||v===0?v:'—'}</b></div>`).join('');
+  document.getElementById('airDetailBody').innerHTML = driverFields.map(([icon,k,v])=>`<div class="detail-icon-row"><div class="detail-icon">${icon}</div><div class="detail-icon-txt"><div class="detail-icon-lbl">${k}</div><div class="detail-icon-val">${v||'—'}</div></div></div>`).join('');
   document.getElementById('airDetailOverlay').classList.add('open');
 }
 function closeAirDetail(){ document.getElementById('airDetailOverlay').classList.remove('open'); }

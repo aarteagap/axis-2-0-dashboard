@@ -814,6 +814,9 @@ function renderForecast(){
   <div id="fcTooltip" class="fc-tooltip"></div>
   <div class="card" style="margin-bottom:14px;">
     <div class="ct">Filtro global <span class="sub" id="fc-stat"></span></div>
+    <div style="margin-bottom:14px;">
+      <span class="pill neu" style="font-family:'JetBrains Mono',monospace;">Status (fijo): Confirmado · Cancelado · Proyectado</span>
+    </div>
     <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start;">
       <div>
         <div class="fc-label">Métrica</div>
@@ -923,7 +926,7 @@ function renderForecastCurve(wrapId, weeksData, metric){
   }
   const kC = metric==='fcl'?'fcl_conf':'pal_conf', kP = metric==='fcl'?'fcl_proj':'pal_proj';
   const kCanc = metric==='fcl'?'fcl_cancelado':'pal_cancelado';
-  const kPreConf = metric==='fcl'?'fcl_pre_conf':'pal_pre_conf', kAddonConf = metric==='fcl'?'fcl_addon_conf':'pal_addon_conf';
+  const kA = metric==='fcl'?'fcl_addon':'pal_addon';
   const fmtM = v => metric==='fcl' ? fmt1(v) : Math.round(v).toLocaleString('es-PE');
   const W=900, H=300, pL=38, pB=26, pT=12;
   const mx = Math.max(...weeksData.map(w=>Math.max(w[kC], w[kP])), 1);
@@ -960,10 +963,10 @@ function renderForecastCurve(wrapId, weeksData, metric){
       const ej = w[kP] ? pct(w[kC], w[kP]) : 0;
       tip.innerHTML = `
         <div class="fc-tt-title">${w.label}</div>
-        <div class="fc-tt-row"><span class="fc-tt-dot" style="background:var(--amber);"></span><span class="fc-tt-lbl">PRE</span><span class="fc-tt-val">${fmtM(w[kPreConf])}</span></div>
+        <div class="fc-tt-row"><span class="fc-tt-dot" style="background:var(--amber);"></span><span class="fc-tt-lbl">PRE</span><span class="fc-tt-val">${fmtM(w[kP])}</span></div>
         <div class="fc-tt-row"><span class="fc-tt-dot" style="background:var(--blue);"></span><span class="fc-tt-lbl">Confirmado</span><span class="fc-tt-val">${fmtM(w[kC])}</span></div>
         <div class="fc-tt-row"><span class="fc-tt-dot" style="background:var(--bad);"></span><span class="fc-tt-lbl">Cancelados</span><span class="fc-tt-val">${fmtM(w[kCanc])}</span></div>
-        <div class="fc-tt-row"><span class="fc-tt-dot" style="background:var(--ok);"></span><span class="fc-tt-lbl">Total ADD+EXPOADD</span><span class="fc-tt-val">${fmtM(w[kAddonConf])}</span></div>
+        <div class="fc-tt-row"><span class="fc-tt-dot" style="background:var(--ok);"></span><span class="fc-tt-lbl">Total ADD+EXPOADD</span><span class="fc-tt-val">${fmtM(w[kA])}</span></div>
         <div class="fc-tt-sep"></div>
         <div class="fc-tt-row"><span class="fc-tt-lbl">% Ejec.</span><span class="fc-tt-val">${w[kP]?ej+'%':'—'}</span></div>`;
       tip.style.opacity = '1';

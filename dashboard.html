@@ -591,7 +591,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['weekly', 'wep', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
@@ -939,18 +939,28 @@ function renderForecastCurve(wrapId, weeksData, metric){
   const xlbls = weeksData.map((w,i)=>`<text x="${xOf(i).toFixed(0)}" y="${H-6}" text-anchor="middle" font-size="9" fill="var(--ink-soft)" font-family="JetBrains Mono">${w.label}</text>`).join('');
   // Proyección (línea naranja) = solo FCL/Pallets con clasificación PRE — ya no suma Adicionales.
   const projPts = weeksData.map((w,i)=>({x:xOf(i), y:yOf(w[kP])}));
-  const confPts = weeksData.map((w,i)=>({x:xOf(i), y:yOf(w[kC])}));
   const pathOf = pts => pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
   const areaOf = pts => `${pathOf(pts)} L${pts[pts.length-1].x.toFixed(1)},${(H-pB).toFixed(1)} L${pts[0].x.toFixed(1)},${(H-pB).toFixed(1)} Z`;
+
+  // Confirmado: no se dibuja (ni se aplana en 0) para semanas sin dato confirmado
+  // todavía (ej. semanas futuras) — la línea se corta en vez de tocar el eje.
+  const confSegments = [];
+  let curSeg = [];
+  weeksData.forEach((w,i)=>{
+    if (w[kC] > 0) { curSeg.push({x:xOf(i), y:yOf(w[kC]), i}); }
+    else { if (curSeg.length) confSegments.push(curSeg); curSeg = []; }
+  });
+  if (curSeg.length) confSegments.push(curSeg);
+  const confValidPts = confSegments.flat();
 
   el.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;height:${H}px;display:block;margin:0 auto;" preserveAspectRatio="xMidYMid meet">
       ${grid}
       <path d="${areaOf(projPts)}" fill="var(--amber)" opacity="0.12"/>
       <path d="${pathOf(projPts)}" fill="none" stroke="var(--amber)" stroke-width="2" stroke-dasharray="5 3"/>
-      <path d="${areaOf(confPts)}" fill="var(--blue)" opacity="0.10"/>
-      <path d="${pathOf(confPts)}" fill="none" stroke="var(--blue)" stroke-width="2.4"/>
-      ${confPts.map((p,i)=>`<circle class="fc-dot" data-i="${i}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.6" fill="var(--blue)" stroke="var(--surface)" stroke-width="1.3" style="cursor:pointer;"/>`).join('')}
+      ${confSegments.map(seg => seg.length>1 ? `<path d="${areaOf(seg)}" fill="var(--blue)" opacity="0.10"/>` : '').join('')}
+      ${confSegments.map(seg => `<path d="${pathOf(seg)}" fill="none" stroke="var(--blue)" stroke-width="2.4"/>`).join('')}
+      ${confValidPts.map(p=>`<circle class="fc-dot" data-i="${p.i}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.6" fill="var(--blue)" stroke="var(--surface)" stroke-width="1.3" style="cursor:pointer;"/>`).join('')}
       ${projPts.map((p,i)=>`<circle class="fc-dot" data-i="${i}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.2" fill="var(--amber)" stroke="var(--surface)" stroke-width="1.3" style="cursor:pointer;"/>`).join('')}
       ${xlbls}
     </svg>`;
@@ -973,8 +983,8 @@ function renderForecastCurve(wrapId, weeksData, metric){
       const rect = el.getBoundingClientRect();
       const scaleX = rect.width / W, scaleY = rect.height / H;
       const cx = +dot.getAttribute('cx') * scaleX, cy = +dot.getAttribute('cy') * scaleY;
-      tip.style.left = (rect.left + cx + window.scrollX + 12) + 'px';
-      tip.style.top = (rect.top + cy + window.scrollY - 10) + 'px';
+      tip.style.left = (rect.left + cx + 12) + 'px';
+      tip.style.top = (rect.top + cy - 10) + 'px';
     });
     dot.addEventListener('mouseleave', ()=>{ document.getElementById('fcTooltip').style.opacity='0'; });
   });
@@ -1166,8 +1176,8 @@ function refreshPorts(){
         `<div style="border-top:1px solid rgba(255,255,255,.2);margin-top:6px;padding-top:5px;">Total: <b class="mono">${portsFmt(tot)} ${unitLbl}</b></div>`;
       tip.style.opacity = '1';
       const rect = col.getBoundingClientRect();
-      tip.style.left = (rect.left + rect.width/2 + window.scrollX - 90) + 'px';
-      tip.style.top = (rect.top + window.scrollY - 8) + 'px';
+      tip.style.left = (rect.left + rect.width/2 - 90) + 'px';
+      tip.style.top = (rect.top - 8) + 'px';
     });
     col.addEventListener('mouseleave', ()=>{ document.getElementById('portsTooltip').style.opacity='0'; });
   });
@@ -2054,8 +2064,8 @@ function refreshExecute(){
       const rect = wrap.getBoundingClientRect();
       const scaleX = rect.width/W, scaleY = rect.height/H;
       const cx = +dot.getAttribute('cx')*scaleX, cy = +dot.getAttribute('cy')*scaleY;
-      tip.style.left = (rect.left+cx+window.scrollX+12)+'px';
-      tip.style.top = (rect.top+cy+window.scrollY-10)+'px';
+      tip.style.left = (rect.left+cx+12)+'px';
+      tip.style.top = (rect.top+cy-10)+'px';
     });
     dot.addEventListener('mouseleave', ()=>{ document.getElementById('execTooltip').style.opacity='0'; });
   });

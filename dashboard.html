@@ -775,6 +775,18 @@ const calcPct = (num, den) => den ? +(100*num/den).toFixed(1) : 0;
 const sum = arr => arr.reduce((a,b)=>a+b,0);
 const badge = v => v>=90 ? 'ok' : v>=75 ? 'warn' : 'bad';
 const fmt1 = v => (Math.round(v*10)/10).toLocaleString('es-PE',{minimumFractionDigits:1,maximumFractionDigits:1});
+// new Date("2026-07-30") se interpreta como medianoche UTC — en un huso horario
+// detrás de UTC (Perú, UTC-5) esto corre la fecha un día hacia atrás al
+// mostrarla en hora local. Este helper parsea "YYYY-MM-DD" como fecha LOCAL,
+// evitando el corrimiento. Úsalo en vez de `new Date(dateStr)` para cualquier
+// fecha de carga que venga como string plano de WROWS.
+function parseLocalDate(dateStr){
+  if (!dateStr) return null;
+  const m = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+  const dt = new Date(dateStr);
+  return isNaN(dt) ? null : dt;
+}
 
 /* ============================================================
    # 09 RENDER — EXPORT: Forecast / Ports / Weekly / WEP / PMI / Air / Execute
@@ -1288,7 +1300,7 @@ function refreshWeekly(){
   const allDates = [...new Set(ft.map(r=>r.date).filter(Boolean))].sort();
   const hasSF = ft.some(r=>!r.date);
   const cols = [...allDates, ...(hasSF?['']:[])];
-  const dayLabel = d => { if(!d) return 'Sin fecha'; const dt=new Date(d); return isNaN(dt) ? d : dt.toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'short'}).toUpperCase(); };
+  const dayLabel = d => { if(!d) return 'Sin fecha'; const dt=parseLocalDate(d); return !dt ? d : dt.toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'short'}).toUpperCase(); };
 
   const unit = wkMetric==='fcl' ? 'FCL' : 'Pallets';
   const fmtM = v => wkMetric==='fcl' ? fmt1(v) : Math.round(v).toLocaleString('es-PE');
@@ -1374,7 +1386,7 @@ function wepPickCurrentWeek(rows){
   let best = null, bestDist = Infinity, bestCount = -1;
   weeks.forEach(wk=>{
     const wkRows = rows.filter(r=>r.pack_plan===wk);
-    const dates = wkRows.map(r=>new Date(r.date)).filter(d=>!isNaN(d));
+    const dates = wkRows.map(r=>parseLocalDate(r.date)).filter(Boolean);
     if (!dates.length) return;
     const minD = Math.min(...dates), maxD = Math.max(...dates);
     let dist;
@@ -1459,8 +1471,8 @@ function refreshWEP(){
   if (selMO!=='ALL') rows = rows.filter(r=>r.mode===selMO);
 
   const days = [...new Set(rows.map(r=>r.date).filter(Boolean))].sort();
-  const dayLabel = ds => { const dt = new Date(ds); return isNaN(dt) ? ds : dt.toLocaleDateString('es-PE',{weekday:'short'}).toUpperCase().replace('.',''); };
-  const dayDateLabel = ds => { const dt = new Date(ds); return isNaN(dt) ? '' : dt.toLocaleDateString('es-PE',{day:'2-digit',month:'short'}).toUpperCase(); };
+  const dayLabel = ds => { const dt = parseLocalDate(ds); return !dt ? ds : dt.toLocaleDateString('es-PE',{weekday:'short'}).toUpperCase().replace('.',''); };
+  const dayDateLabel = ds => { const dt = parseLocalDate(ds); return !dt ? '' : dt.toLocaleDateString('es-PE',{day:'2-digit',month:'short'}).toUpperCase(); };
 
   const totalFCL = sum(rows.map(r=>r.fcl||0));
   const packings = [...new Set(rows.map(r=>r.packing).filter(Boolean))];
@@ -1576,7 +1588,7 @@ function pmiRing(pctVal, color){
   const r=22, c=2*Math.PI*r, off=c-(Math.min(pctVal,100)/100)*c;
   return `<svg width="52" height="52" viewBox="0 0 52 52" style="flex-shrink:0;"><circle cx="26" cy="26" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="26" cy="26" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 26 26)"/></svg>`;
 }
-function pmiFmtDate(d){ if(!d) return ''; const dt=new Date(d); return isNaN(dt)?d:dt.toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'short',year:'2-digit'}).toUpperCase(); }
+function pmiFmtDate(d){ if(!d) return ''; const dt=parseLocalDate(d); return !dt?d:dt.toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'short',year:'2-digit'}).toUpperCase(); }
 
 function renderPMI(){
   const em = EMBARQUES || [];

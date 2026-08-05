@@ -287,6 +287,18 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
 .wep-pill-select{display:flex; align-items:center; gap:7px; background:var(--surface-soft); border:1px solid var(--line); border-radius:999px; padding:6px 8px 6px 14px;}
 .wep-pill-select select{background:none; border:none; color:var(--ink); font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:11.5px; cursor:pointer; padding:2px 4px;}
 .wep-plant-header{display:flex; align-items:center; justify-content:space-between; background:var(--surface-soft); border-radius:8px; padding:10px 14px; margin:16px 0 4px; border-left:4px solid var(--pc,var(--amber));}
+.wep-grid{--wep-cols: minmax(200px,1.6fr) repeat(5, minmax(56px,1fr)) 150px; display:flex; flex-direction:column;}
+.wep-row{display:grid; grid-template-columns: var(--wep-cols); column-gap:8px; align-items:center; padding:6px 4px;}
+.wep-row.head{padding:8px 4px 10px; border-bottom:2px solid var(--line); position:sticky; top:0; background:var(--surface); z-index:2;}
+.wep-row.head .wep-day-hd{text-align:center; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); font-family:'JetBrains Mono',monospace; line-height:1.5;}
+.wep-row.head .wep-day-hd b{display:block; color:var(--ink-soft); font-size:10.5px;}
+.wep-row.pod:hover{background:var(--surface-soft); border-radius:6px;}
+.wep-day-cell{text-align:center;}
+.wep-fcl-cell{text-align:right; padding-right:4px;}
+.wep-fcl-num{font-family:'JetBrains Mono',monospace; font-weight:600; font-size:12px;}
+.wep-row.subtotal{background:var(--surface-soft); font-weight:600; border-top:1px solid var(--line); border-bottom:1px solid var(--line);}
+.wep-row.grandtotal{background:var(--navy); color:#fff; font-weight:700; border-radius:8px; margin-top:6px; padding:10px 4px;}
+.wep-row.grandtotal .wep-fcl-num{color:var(--amber); font-size:14px;}
 .wep-plant-header:first-child{margin-top:0;}
 .wep-plant-name{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px;}
 .wep-plant-sub{font-size:10.5px; color:var(--ink-faint); font-family:'JetBrains Mono',monospace; margin-left:8px;}
@@ -602,9 +614,13 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // la API key del endpoint /publish es un secreto real y NO debe vivir en texto
 // plano dentro de un repo (menos uno nuevo). Reemplázala al desplegar, o mejor
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
-const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
-const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+// Ya no se expone ninguna API key de Render en el navegador. El upload
+// pasa por un Edge Function de Supabase (ver edge_function_package/index.ts)
+// que agrega la key real del lado del servidor. Reemplaza <PROJECT_REF>
+// por el ID de tu proyecto Supabase (ej. mgtboeifqijqipeokwgs).
+const UPLOAD_PROXY_BASE = 'https://<PROJECT_REF>.supabase.co/functions/v1/upload-proxy';
+const UPLOAD_API = UPLOAD_PROXY_BASE + '?target=axis';
+const UPLOAD_API_TRANSPORTES = UPLOAD_PROXY_BASE + '?target=transportes';
 
 const SUPPLIER_TABS = ['weekly', 'wep', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
@@ -1404,7 +1420,7 @@ function renderWEP(){
     <span class="sub" id="wep-linecount" style="margin-left:auto;"></span>
   </div>
   <div class="g2">
-    <div class="card" style="margin-bottom:0;"><div class="tbl-wrap"><table class="std" id="wep-table"><thead id="wep-head"></thead></table><div id="wep-body"></div></div></div>
+    <div class="card" style="margin-bottom:0;"><div class="tbl-wrap"><div class="wep-grid" id="wep-grid"></div></div></div>
     <div>
       <div class="card"><div class="ct">Carga por día · FCL</div><div id="wep-daybars" style="display:flex;gap:10px;align-items:flex-end;"></div><div class="wep-insight" id="wep-insight"></div></div>
       <div class="card" style="margin-bottom:0;"><div class="ct">Top destinos</div><div id="wep-topdest"></div></div>
@@ -1465,41 +1481,57 @@ function refreshWEP(){
     <div class="kc"><div class="kl">Modos</div><div class="kv">${modesUsed.length}<span class="u">${modesUsed.map(m=>m.slice(0,3).toUpperCase()).join(' · ')||'—'}</span></div></div>
   </div>`;
 
-  document.getElementById('wep-head').innerHTML = `<thead><tr><th>Destino</th>${days.map(dy=>`<th style="text-align:center">${dayLabel(dy)}<br><span style="font-weight:400;">${dayDateLabel(dy)}</span></th>`).join('')}<th style="text-align:right">FCL</th></tr></thead>`;
+  const gridEl = document.getElementById('wep-grid');
+  gridEl.style.setProperty('--wep-cols', `minmax(200px,1.6fr) repeat(${Math.max(days.length,1)}, minmax(56px,1fr)) 150px`);
+
+  const headRow = `<div class="wep-row head"><div>Destino</div>${days.map(dy=>`<div class="wep-day-hd">${dayLabel(dy)}<b>${dayDateLabel(dy)}</b></div>`).join('')}<div class="wep-day-hd" style="text-align:right;padding-right:4px;">FCL</div></div>`;
 
   const podTotalsAll = pods.map(p=>({name:p, val:sum(rows.filter(r=>r.pod===p).map(r=>r.fcl||0))})).sort((a,b)=>b.val-a.val);
   const topPodName = podTotalsAll[0] ? podTotalsAll[0].name : null;
   const maxPodVal = Math.max(...podTotalsAll.map(p=>p.val), 1);
   const plantColors = ['var(--amber)','var(--teal)','var(--purple)','var(--blue)'];
   const mCls = m => m==='Marítimo'?'mM':m==='Aéreo'?'mA':'mT';
+  const emptyCols = () => days.map(()=>'<div class="wep-day-cell">·</div>').join('');
 
   let bodyHtml = '';
+  const grandTotalByDay = days.map(()=>0);
+  let grandTotal = 0;
+
   packings.forEach((pk,pkIdx)=>{
     const pkRows = rows.filter(r=>r.packing===pk);
     const pkPods = new Set(pkRows.map(r=>r.pod));
     const pkTotal = sum(pkRows.map(r=>r.fcl||0));
+    const pkTotalsByDay = days.map(dy=>sum(pkRows.filter(r=>r.date===dy).map(r=>r.fcl||0)));
+
     bodyHtml += `<div class="wep-plant-header" style="--pc:${plantColors[pkIdx%plantColors.length]};"><div class="wep-plant-name">${pk}<span class="wep-plant-sub">${pkRows.length} líneas · ${pkPods.size} POD</span></div><div class="mono" style="font-weight:700;color:${plantColors[pkIdx%plantColors.length]};">${fmt1(pkTotal)}</div></div>`;
+
     const modesInPk = [...new Set(pkRows.map(r=>r.mode))].sort((a,b)=>modeOrderIdx(a)-modeOrderIdx(b));
     modesInPk.forEach(mode=>{
       const shippersInMode = [...new Set(pkRows.filter(r=>r.mode===mode).map(r=>r.shipper))];
       shippersInMode.forEach(sh=>{
         bodyHtml += `<div class="wep-mode-row"><span class="wep-mode-badge ${mCls(mode)}">${mode}</span><b>${sh}</b></div>`;
         const podsForSh = [...new Set(pkRows.filter(r=>r.mode===mode&&r.shipper===sh).map(r=>r.pod))];
-        bodyHtml += `<table class="std" style="margin-bottom:6px;"><tbody>`;
         podsForSh.forEach(pod=>{
           const podTotal = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod).map(r=>r.fcl||0));
           const cells = days.map(dy=>{
             const v = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod&&r.date===dy).map(r=>r.fcl||0));
-            return `<td style="text-align:center;border:none;"><span class="wep-cell ${v?'has-val':'zero'}">${v?fmt1(v):'·'}</span></td>`;
+            return `<div class="wep-day-cell"><span class="wep-cell ${v?'has-val':'zero'}">${v?fmt1(v):'·'}</span></div>`;
           }).join('');
           const isTop = pod===topPodName;
-          bodyHtml += `<tr><td style="border:none;width:220px;">${pod}${isTop?'<span class="wep-top-tag">TOP</span>':''}</td>${cells}<td style="border:none;text-align:right;width:170px;"><div class="mono" style="font-weight:600;">${fmt1(podTotal)}</div><div class="wep-pod-bar-wrap"><div class="wep-pod-bar" style="width:${calcPct(podTotal,maxPodVal)}%;"></div></div></td></tr>`;
+          bodyHtml += `<div class="wep-row pod"><div>${pod}${isTop?'<span class="wep-top-tag">TOP</span>':''}</div>${cells}<div class="wep-fcl-cell"><div class="wep-fcl-num">${fmt1(podTotal)}</div><div class="wep-pod-bar-wrap"><div class="wep-pod-bar" style="width:${calcPct(podTotal,maxPodVal)}%;"></div></div></div></div>`;
         });
-        bodyHtml += `</tbody></table>`;
       });
     });
+
+    bodyHtml += `<div class="wep-row subtotal"><div>SUBTOTAL ${pk.toUpperCase()}</div>${pkTotalsByDay.map(v=>`<div class="wep-day-cell mono">${v?fmt1(v):'·'}</div>`).join('')}<div class="wep-fcl-cell wep-fcl-num" style="color:var(--amber);">${fmt1(pkTotal)}</div></div>`;
+
+    pkTotalsByDay.forEach((v,i)=>{ grandTotalByDay[i]+=v; });
+    grandTotal += pkTotal;
   });
-  document.getElementById('wep-body').innerHTML = bodyHtml || '<div class="empty-state">Sin datos de WROWS para esta semana</div>';
+
+  bodyHtml += `<div class="wep-row grandtotal"><div>TOTAL GENERAL</div>${grandTotalByDay.map(v=>`<div class="wep-day-cell mono">${v?fmt1(v):'·'}</div>`).join('')}<div class="wep-fcl-cell wep-fcl-num">${fmt1(grandTotal)}</div></div>`;
+
+  gridEl.innerHTML = headRow + (bodyHtml || '<div class="empty-state">Sin datos de WROWS para esta semana</div>');
 
   // Carga por día
   document.getElementById('wep-daybars').innerHTML = days.map((dy,i)=>{
@@ -2118,8 +2150,8 @@ function renderUpload(){
   <div class="card" style="margin-top:14px;">
     <div class="ct">⚠ Antes de usar esto en producción</div>
     <div style="font-size:12px;color:var(--ink-soft);line-height:1.6;">
-      Reemplaza <code class="mono">UPLOAD_API_KEY</code> (actualmente un placeholder) por tu API key real antes de desplegar — no la dejes en un repo público en texto plano.
-      Ambos botones usan la misma key, igual que hace AXIS 1.0 con <code class="mono">/publish</code>.
+      La subida ya no expone ninguna API key en el navegador — pasa por un Edge Function de Supabase que agrega la key real del lado del servidor.
+      Reemplaza <code class="mono">&lt;PROJECT_REF&gt;</code> en <code class="mono">UPLOAD_PROXY_BASE</code> por el ID de tu proyecto Supabase, y despliega <code class="mono">edge_function_package/index.ts</code> (ver instrucciones adjuntas).
     </div>
   </div>`;
 }
@@ -2129,7 +2161,7 @@ const UPLOAD_TARGETS = {
   transportes: { api: UPLOAD_API_TRANSPORTES, fileInput: 'upl-file-transportes', status: 'upl-status-transportes', btn: 'upl-btn-transportes' },
 };
 
-function doUpload(target){
+async function doUpload(target){
   const cfg = UPLOAD_TARGETS[target];
   const inp = document.getElementById(cfg.fileInput);
   const statusEl = document.getElementById(cfg.status);
@@ -2138,8 +2170,17 @@ function doUpload(target){
   const file = inp.files[0];
   btn.disabled = true; btn.textContent = '⏳ Procesando… (puede tardar ~1 min)';
   statusEl.innerHTML = '<span style="color:var(--ink-soft);">Subiendo y procesando el Excel, por favor espera…</span>';
+
+  const { data: sessionData } = await sb.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) {
+    btn.disabled = false; btn.textContent = '⬆ Procesar y Publicar';
+    statusEl.innerHTML = '<span style="color:var(--bad);">❌ Tu sesión expiró, vuelve a iniciar sesión.</span>';
+    return;
+  }
+
   const fd = new FormData(); fd.append('file', file);
-  fetch(cfg.api, {method:'POST', headers:{'X-API-Key':UPLOAD_API_KEY}, body:fd})
+  fetch(cfg.api, {method:'POST', headers:{'Authorization':'Bearer '+token}, body:fd})
     .then(r=>r.json().then(data=>({ok:r.ok,data})))
     .then(({ok,data})=>{
       btn.disabled = false; btn.textContent = '⬆ Procesar y Publicar';

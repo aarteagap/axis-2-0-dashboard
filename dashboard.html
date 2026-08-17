@@ -616,7 +616,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['weekly', 'wep', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
@@ -877,7 +877,7 @@ function renderForecast(){
             <a class="fc-mini-link" onclick="fcSetAllWeeks(false)">Ninguno</a>
           </span>
         </div>
-        <div class="fc-chip-group" style="max-width:300px;max-height:60px;overflow-y:auto;">
+        <div class="fc-chip-group" style="max-width:560px;max-height:104px;overflow-y:auto;">
           ${weeks.map(w=>`<label class="fc-chip mono"><input type="checkbox" class="fc-cb-week" value="${w}" checked onchange="refreshForecast()">S${w}</label>`).join('')}
         </div>
       </div>
@@ -1067,7 +1067,6 @@ function renderPorts(){
   const rows = (PORTS_RAW || []).filter(r=>['Confirmado','Cancelado','Proyectado'].includes(r.status));
   const statuses = [...new Set(rows.map(r=>r.status).filter(Boolean))].sort();
   const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
-  const lineas = [...new Set(rows.map(r=>r.linea).filter(Boolean))].sort();
   return `
   <div id="portsTooltip" class="fc-tooltip"></div>
   <div class="card" style="margin-bottom:14px;">
@@ -1088,7 +1087,6 @@ function renderPorts(){
         <div class="msd-filterbar">
           ${msdField('msd-ports-status', 'All Status', statuses, 'refreshPorts')}
           ${msdField('msd-ports-week', 'All Pack Plans', weeks, 'refreshPorts', w=>'S'+w)}
-          ${msdField('msd-ports-linea', 'All Líneas', lineas, 'refreshPorts')}
         </div>
       </div>
     </div>
@@ -1113,12 +1111,10 @@ function refreshPorts(){
   const selStatus = msdFilterValues('msd-ports-status') || [];
   const selWeeksRaw = msdFilterValues('msd-ports-week');
   const selWeeks = selWeeksRaw ? selWeeksRaw.map(Number) : [];
-  const selLinea = msdFilterValues('msd-ports-linea') || [];
 
   let ft = rows;
   if (selStatus.length) ft = ft.filter(r=>selStatus.includes(r.status));
   if (selWeeks.length) ft = ft.filter(r=>selWeeks.includes(r.pack_plan));
-  if (selLinea.length) ft = ft.filter(r=>selLinea.includes(r.linea));
 
   document.getElementById('ports-stat').textContent = `${ft.length} de ${rows.length} registros · métrica: ${portsMetric==='fcl'?'FCL':'PO'}`;
 

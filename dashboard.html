@@ -753,7 +753,7 @@ const SAMPLE_FALLBACK = {
     {shipper:'Agroindustrial Chao', dispatch_date:'03/08/2026', pack_plan:31, mode:'Aéreo', booking:'BK-002', has_tr_time:false, senasa_att:''},
   ],
   AIR: [
-    {pack_plan:31, dispatch:'04/08/2026', log_op:'Ransa', shipper:'Agroindustrial Chao', instruction:'INS-3402', dest:'Miami', pallets:6, awb:'074-5521', file:'F-2291', line:'DHL', transp_op:'Transvip', basc:'FINALIZADO', dam:'OK', po:'PO-010', packing:'OLMOS'},
+    {pack_plan:31, dispatch:'04/08/2026', log_op:'Ransa', shipper:'Agroindustrial Chao', instruction:'INS-3402', dest:'Miami', pallets:6, awb:'074-5521', file:'F-2291', line:'DHL', transp_op:'Transvip', basc:'FINALIZADO', dam:'OK', po:'PO-010', packing:'OLMOS', driver:'PEREZ LOPEZ JUAN CARLOS', license:'D-12345678', tractor:'ABC-123', trailer:'XYZ-789', phone:'987654321'},
   ],
   PMI_PORTS: [ {mode:'Marítimo', val:35.3}, {mode:'Aéreo', val:1.0}, {mode:'Terrestre', val:1.0} ],
   EMBARQUES: [
@@ -1908,11 +1908,11 @@ function openAirDetail(idx){
   if(!r) return;
   document.getElementById('airDetailSub').textContent = [r.awb, r.pack_plan?'S'+r.pack_plan:null, r.dest].filter(Boolean).join(' · ');
   const driverFields = [
-    ['👤','Conductor', r.conductor],
-    ['🪪','Licencia', r.licencia],
-    ['🚛','Tracto', r.tracto],
-    ['🚚','Remolque', r.remolque],
-    ['📱','Celular', r.celular],
+    ['👤','Conductor', r.driver],
+    ['🪪','Licencia', r.license],
+    ['🚛','Tracto', r.tractor],
+    ['🚚','Remolque', r.trailer],
+    ['📱','Celular', r.phone],
   ];
   document.getElementById('airDetailBody').innerHTML = driverFields.map(([icon,k,v])=>`<div class="detail-icon-row"><div class="detail-icon">${icon}</div><div class="detail-icon-txt"><div class="detail-icon-lbl">${k}</div><div class="detail-icon-val">${v||'—'}</div></div></div>`).join('');
   document.getElementById('airDetailOverlay').classList.add('open');

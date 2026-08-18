@@ -727,10 +727,10 @@ let TRANSPORT_RAW = null;
    ============================================================ */
 const SAMPLE_FALLBACK = {
   FORECAST_RAW: [
-    {pack_plan:28, mode:'Marítimo', shipper:'Olmos Export', status:'Confirmado', is_pre:false, is_add:false, is_expo:false, is_exadd:false, is_airadd:false, fcl:94.5, pallets:1620},
-    {pack_plan:28, mode:'Marítimo', shipper:'Agroindustrial Chao', status:'Confirmado', is_pre:true, is_add:true, is_expo:false, is_exadd:false, is_airadd:false, fcl:96.0, pallets:1650},
-    {pack_plan:29, mode:'Aéreo', shipper:'Olmos Export', status:'Confirmado', is_pre:true, is_add:false, is_expo:true, is_exadd:false, is_airadd:false, fcl:108.2, pallets:210},
-    {pack_plan:29, mode:'Aéreo', shipper:'Olmos Export', status:'Cancelado', is_pre:true, is_add:false, is_expo:false, is_exadd:false, is_airadd:false, fcl:110.0, pallets:220},
+    {pack_plan:28, mode:'Marítimo', shipper:'Olmos Export', pod:'Philadelphia', status:'Confirmado', is_pre:false, is_add:false, is_expo:false, is_exadd:false, is_airadd:false, fcl:94.5, pallets:1620},
+    {pack_plan:28, mode:'Marítimo', shipper:'Agroindustrial Chao', pod:'Shanghai', status:'Confirmado', is_pre:true, is_add:true, is_expo:false, is_exadd:false, is_airadd:false, fcl:96.0, pallets:1650},
+    {pack_plan:29, mode:'Aéreo', shipper:'Olmos Export', pod:'Miami', status:'Confirmado', is_pre:true, is_add:false, is_expo:true, is_exadd:false, is_airadd:false, fcl:108.2, pallets:210},
+    {pack_plan:29, mode:'Aéreo', shipper:'Olmos Export', pod:'Miami', status:'Cancelado', is_pre:true, is_add:false, is_expo:false, is_exadd:false, is_airadd:false, fcl:110.0, pallets:220},
   ],
   PORTS_RAW: [
     {status:'Confirmado', pack_plan:28, port:'Callao', mode:'Marítimo', fcl:96.2, po:'PO-001'},
@@ -847,6 +847,7 @@ function renderForecast(){
   const modeOrder = ['Marítimo','Aéreo','Terrestre'];
   const modes = [...new Set(rows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
   const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
+  const pods = [...new Set(rows.map(r=>r.pod).filter(Boolean))].sort();
   return `
   <div id="fcTooltip" class="fc-tooltip"></div>
   <div class="card" style="margin-bottom:14px;">
@@ -867,9 +868,10 @@ function renderForecast(){
         <div class="msd-filterbar">
           ${msdField('msd-fc-shipper', 'All Shippers', shippers, 'refreshForecast')}
           ${msdField('msd-fc-mode', 'All Modes', modes, 'refreshForecast', m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
+          ${msdField('msd-fc-pod', 'All Destinos', pods, 'refreshForecast')}
         </div>
       </div>
-      <div>
+      <div style="flex:1;min-width:320px;">
         <div class="fc-label" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
           <span>Pack Plan</span>
           <span style="display:flex;gap:8px;">
@@ -877,7 +879,7 @@ function renderForecast(){
             <a class="fc-mini-link" onclick="fcSetAllWeeks(false)">Ninguno</a>
           </span>
         </div>
-        <div class="fc-chip-group" style="max-width:560px;max-height:104px;overflow-y:auto;">
+        <div class="fc-chip-group" style="max-width:none;max-height:104px;overflow-y:auto;">
           ${weeks.map(w=>`<label class="fc-chip mono"><input type="checkbox" class="fc-cb-week" value="${w}" checked onchange="refreshForecast()">S${w}</label>`).join('')}
         </div>
       </div>
@@ -908,11 +910,13 @@ function refreshForecast(){
   if(!document.getElementById('fc-kg')) return; // panel de Forecast no está en el DOM todavía
   const selShippers = msdFilterValues('msd-fc-shipper') || [];
   const selModes = msdFilterValues('msd-fc-mode') || [];
+  const selPods = msdFilterValues('msd-fc-pod') || [];
   const selWeeks = fcChecked('fc-cb-week').map(Number);
 
   let ft = rows;
   if(selShippers.length) ft = ft.filter(r=>selShippers.includes(r.shipper));
   if(selModes.length) ft = ft.filter(r=>selModes.includes(r.mode));
+  if(selPods.length) ft = ft.filter(r=>selPods.includes(r.pod));
   if(selWeeks.length) ft = ft.filter(r=>selWeeks.includes(r.pack_plan));
 
   const allWeeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
@@ -1067,6 +1071,7 @@ function renderPorts(){
   const rows = (PORTS_RAW || []).filter(r=>['Confirmado','Cancelado','Proyectado'].includes(r.status));
   const statuses = [...new Set(rows.map(r=>r.status).filter(Boolean))].sort();
   const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
+  const lineas = [...new Set(rows.map(r=>r.line).filter(Boolean))].sort();
   return `
   <div id="portsTooltip" class="fc-tooltip"></div>
   <div class="card" style="margin-bottom:14px;">
@@ -1087,6 +1092,7 @@ function renderPorts(){
         <div class="msd-filterbar">
           ${msdField('msd-ports-status', 'All Status', statuses, 'refreshPorts')}
           ${msdField('msd-ports-week', 'All Pack Plans', weeks, 'refreshPorts', w=>'S'+w)}
+          ${msdField('msd-ports-line', 'All Líneas', lineas, 'refreshPorts')}
         </div>
       </div>
     </div>
@@ -1111,10 +1117,12 @@ function refreshPorts(){
   const selStatus = msdFilterValues('msd-ports-status') || [];
   const selWeeksRaw = msdFilterValues('msd-ports-week');
   const selWeeks = selWeeksRaw ? selWeeksRaw.map(Number) : [];
+  const selLine = msdFilterValues('msd-ports-line') || [];
 
   let ft = rows;
   if (selStatus.length) ft = ft.filter(r=>selStatus.includes(r.status));
   if (selWeeks.length) ft = ft.filter(r=>selWeeks.includes(r.pack_plan));
+  if (selLine.length) ft = ft.filter(r=>selLine.includes(r.line));
 
   document.getElementById('ports-stat').textContent = `${ft.length} de ${rows.length} registros · métrica: ${portsMetric==='fcl'?'FCL':'PO'}`;
 
@@ -1178,8 +1186,11 @@ function refreshPorts(){
     <div class="donut-legend">${slices.map(s=>`<div class="dli"><span class="dls" style="background:${s.c};"></span><span>${s.n}</span><span class="dlv">${portsFmt(s.v)}·${totalAll?pct(s.v,totalAll):0}%</span></div>`).join('')}</div>
   </div>`;
 
-  document.getElementById('ports-bars').innerHTML = portStats.length ? portStats.map(p=>`
-    <div style="display:grid;grid-template-columns:72px 1fr 64px;align-items:center;gap:8px;margin-bottom:9px;">
+  const grandTotalPorts = sum(portStats.map(p=>p.total));
+  document.getElementById('ports-bars').innerHTML = portStats.length ? `
+    <div id="ports-bars-rows">
+    ${portStats.map((p,i)=>`
+    <div class="ports-bar-row" data-i="${i}" style="display:grid;grid-template-columns:72px 1fr 64px;align-items:center;gap:8px;margin-bottom:9px;cursor:pointer;">
       <div style="text-align:right;font-size:11px;font-weight:500;">${p.name}</div>
       <div style="background:var(--surface-soft);border-radius:5px;height:14px;overflow:hidden;display:flex;border:1px solid var(--line);">
         <div style="width:${p.total?(p.conf/p.total*100).toFixed(1):0}%;background:var(--blue);height:100%;"></div>
@@ -1187,7 +1198,32 @@ function refreshPorts(){
         <div style="width:${p.total?(p.canc/p.total*100).toFixed(1):0}%;background:var(--bad);height:100%;"></div>
       </div>
       <div class="mono" style="font-weight:600;font-size:11px;">${portsFmt(p.total)}</div>
-    </div>`).join('') : '<div class="empty-state">Sin datos</div>';
+    </div>`).join('')}
+    </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-soft);display:flex;flex-wrap:wrap;gap:12px;">
+      <b style="color:var(--ink);">Participación total:</b>
+      ${portStats.map(p=>`<span>${p.name} <b class="mono" style="color:var(--ink);">${grandTotalPorts?pct(p.total,grandTotalPorts):0}%</b></span>`).join('<span style="color:var(--line);">·</span>')}
+    </div>` : '<div class="empty-state">Sin datos</div>';
+
+  document.querySelectorAll('.ports-bar-row').forEach(row=>{
+    const p = portStats[+row.dataset.i];
+    row.addEventListener('mouseenter', ()=>{
+      const tip = document.getElementById('portsTooltip');
+      const partPct = grandTotalPorts ? pct(p.total, grandTotalPorts) : 0;
+      tip.innerHTML = `<div class="fc-tt-title">${p.name}</div>
+        <div class="fc-tt-row"><span class="fc-tt-dot" style="background:var(--blue);"></span><span class="fc-tt-lbl">Confirmado</span><span class="fc-tt-val">${portsFmt(p.conf)} ${unitLbl}</span></div>
+        <div class="fc-tt-row"><span class="fc-tt-dot" style="background:var(--ink-faint);"></span><span class="fc-tt-lbl">Proyectado</span><span class="fc-tt-val">${portsFmt(p.proy)} ${unitLbl}</span></div>
+        <div class="fc-tt-row"><span class="fc-tt-dot" style="background:var(--bad);"></span><span class="fc-tt-lbl">Cancelado</span><span class="fc-tt-val">${portsFmt(p.canc)} ${unitLbl}</span></div>
+        <div class="fc-tt-sep"></div>
+        <div class="fc-tt-row"><span class="fc-tt-lbl">Total</span><span class="fc-tt-val">${portsFmt(p.total)} ${unitLbl}</span></div>
+        <div class="fc-tt-row"><span class="fc-tt-lbl">Participación</span><span class="fc-tt-val">${partPct}%</span></div>`;
+      tip.style.opacity = '1';
+      const rect = row.getBoundingClientRect();
+      tip.style.left = (rect.left + rect.width/2 - 90) + 'px';
+      tip.style.top = (rect.top - 8) + 'px';
+    });
+    row.addEventListener('mouseleave', ()=>{ document.getElementById('portsTooltip').style.opacity='0'; });
+  });
 
   // Proyección por Puertos — distribución apilada por Pack Plan
   const weeksAll = [...new Set(ft.map(r=>r.pack_plan))].sort((a,b)=>a-b);
@@ -1416,6 +1452,7 @@ function renderWEP(){
   const shippers = [...new Set(baseRows.map(r=>r.shipper).filter(Boolean))].sort();
   const modeOrder = ['Marítimo','Aéreo','Terrestre'];
   const modes = [...new Set(baseRows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
+  const pods = [...new Set(baseRows.map(r=>r.pod).filter(Boolean))].sort();
 
   return `
   <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;background:var(--surface);margin:-22px -26px 18px;padding:20px 26px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;">
@@ -1435,6 +1472,7 @@ function renderWEP(){
     <div class="wep-pill-select"><span class="wep-filter-lbl">Packing</span><select id="wep-pk-select" onchange="refreshWEP()"><option value="ALL" selected>Todos</option>${packings.map(p=>`<option value="${p}">${p}</option>`).join('')}</select></div>
     <div class="wep-pill-select"><span class="wep-filter-lbl">Shipper</span><select id="wep-sh-select" onchange="refreshWEP()"><option value="ALL" selected>Todos</option>${shippers.map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>
     <div class="wep-pill-select"><span class="wep-filter-lbl">Modo</span><select id="wep-mo-select" onchange="refreshWEP()"><option value="ALL" selected>Todos</option>${modes.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+    <div class="wep-pill-select"><span class="wep-filter-lbl">Destino</span><select id="wep-pod-select" onchange="refreshWEP()"><option value="ALL" selected>Todos</option>${pods.map(p=>`<option value="${p.replace(/"/g,'&quot;')}">${p}</option>`).join('')}</select></div>
     <span class="sub" id="wep-linecount" style="margin-left:auto;"></span>
   </div>
   <div class="g2">
@@ -1455,10 +1493,12 @@ function wepOnPlanChange(){
   const shippers = [...new Set(weekRows.map(r=>r.shipper).filter(Boolean))].sort();
   const modeOrder = ['Marítimo','Aéreo','Terrestre'];
   const modes = [...new Set(weekRows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
+  const pods = [...new Set(weekRows.map(r=>r.pod).filter(Boolean))].sort();
 
   document.getElementById('wep-pk-select').innerHTML = '<option value="ALL" selected>Todos</option>' + packings.map(p=>`<option value="${p}">${p}</option>`).join('');
   document.getElementById('wep-sh-select').innerHTML = '<option value="ALL" selected>Todos</option>' + shippers.map(s=>`<option value="${s}">${s}</option>`).join('');
   document.getElementById('wep-mo-select').innerHTML = '<option value="ALL" selected>Todos</option>' + modes.map(m=>`<option value="${m}">${m}</option>`).join('');
+  document.getElementById('wep-pod-select').innerHTML = '<option value="ALL" selected>Todos</option>' + pods.map(p=>`<option value="${p.replace(/"/g,'&quot;')}">${p}</option>`).join('');
   refreshWEP();
 }
 
@@ -1472,9 +1512,11 @@ function refreshWEP(){
   const selPK = wepChecked_select('wep-pk-select');
   const selSH = wepChecked_select('wep-sh-select');
   const selMO = wepChecked_select('wep-mo-select');
+  const selPOD = wepChecked_select('wep-pod-select');
   if (selPK!=='ALL') rows = rows.filter(r=>r.packing===selPK);
   if (selSH!=='ALL') rows = rows.filter(r=>r.shipper===selSH);
   if (selMO!=='ALL') rows = rows.filter(r=>r.mode===selMO);
+  if (selPOD!=='ALL') rows = rows.filter(r=>r.pod===selPOD);
 
   const days = [...new Set(rows.map(r=>r.date).filter(Boolean))].sort();
   const dayLabel = ds => { const dt = parseLocalDate(ds); return !dt ? ds : dt.toLocaleDateString('es-PE',{weekday:'short'}).toUpperCase().replace('.',''); };

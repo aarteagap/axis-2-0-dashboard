@@ -576,6 +576,19 @@ function msdToggleAll(id, state){
   document.querySelectorAll('#'+id+' .'+id+'-cb').forEach(cb=>{ cb.checked = state; cb.closest('.msd-item').classList.toggle('checked', state); });
   msdUpdateLabel(id);
 }
+// Deja marcada SOLO la opción con este valor (si existe entre las opciones
+// disponibles); devuelve true si la encontró, false si no (para poder avisar
+// al usuario, ej. "hoy no tiene despachos registrados").
+function msdSelectOnly(id, value){
+  const cbs = [...document.querySelectorAll('#'+id+' .'+id+'-cb')];
+  const target = cbs.find(cb=>cb.value===value);
+  if (!target) return false;
+  cbs.forEach(cb=>{ cb.checked = (cb===target); cb.closest('.msd-item').classList.toggle('checked', cb===target); });
+  const allCb = document.querySelector('#'+id+' .msd-item-all input');
+  if (allCb) allCb.checked = false;
+  msdUpdateLabel(id);
+  return true;
+}
 function msdOnItemChange(id, allLabel){
   const all = msdAllValues(id), sel = msdChecked(id);
   const allCb = document.querySelector('#'+id+' .msd-item-all input');
@@ -616,9 +629,9 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
-const SUPPLIER_TABS = ['weekly', 'wep', 'pmi', 'air', 'upload'];
+const SUPPLIER_TABS = ['weekly', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
 let SENASA,WROWS,AIR,AIRLINES,FWKS,WKL,KPI,EX,DEST,LINEAS,PMI_PORTS,FWKS_MODE,EMBARQUES,TR_PROGRAM,PORTS_RAW,FORECAST_RAW,META,EXECUTE_RAW;
 
@@ -782,6 +795,18 @@ function parseLocalDate(dateStr){
   if (m) return new Date(+m[1], +m[2]-1, +m[3]);
   const dt = new Date(dateStr);
   return isNaN(dt) ? null : dt;
+}
+// Compara fechas en formato "DD/MM/YYYY" (dispatch_date/dispatch) cronológicamente
+// — un .sort() plano las ordena como texto (alfabético), no por fecha real.
+function cmpDDMMYYYY(a, b){
+  const [da,ma,ya] = String(a).split('/').map(Number);
+  const [db,mb,yb] = String(b).split('/').map(Number);
+  return (ya-yb) || (ma-mb) || (da-db);
+}
+// Hoy, en el mismo formato "DD/MM/YYYY" que usan dispatch_date/dispatch.
+function todayDDMMYYYY(){
+  const t = new Date();
+  return String(t.getDate()).padStart(2,'0')+'/'+String(t.getMonth()+1).padStart(2,'0')+'/'+t.getFullYear();
 }
 
 /* ============================================================
@@ -1631,6 +1656,11 @@ function pmiChipGroup(cls, opts, labelFn){
   return opts.length ? opts.map(o=>`<label class="fc-chip mono"><input type="checkbox" class="${cls}" value="${String(o).replace(/"/g,'&quot;')}" checked onchange="refreshPMIAll()">${labelFn?labelFn(o):o}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>';
 }
 function pmiSetAll(cls, state){ document.querySelectorAll('.'+cls).forEach(cb=>cb.checked=state); refreshPMIAll(); }
+function pmiSelectToday(){
+  const found = msdSelectOnly('msd-pmi-dd', todayDDMMYYYY());
+  if (!found) alert('No hay despachos registrados para la fecha de hoy (' + todayDDMMYYYY() + ').');
+  refreshPMIAll();
+}
 function pmiChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked')].map(cb=>cb.value); }
 function pmiRing(pctVal, color){
   const r=22, c=2*Math.PI*r, off=c-(Math.min(pctVal,100)/100)*c;
@@ -1642,7 +1672,7 @@ function renderPMI(){
   const em = EMBARQUES || [];
   const packings = [...new Set(em.map(r=>r.packing).filter(Boolean))].sort();
   const weeks = [...new Set(em.map(r=>r.pack_plan))].sort((a,b)=>a-b);
-  const dispatchDates = [...new Set(em.map(r=>r.dispatch_date).filter(Boolean))].sort();
+  const dispatchDates = [...new Set(em.map(r=>r.dispatch_date).filter(Boolean))].sort(cmpDDMMYYYY);
   const modeOrder = ['Marítimo','Aéreo','Terrestre'];
   const modes = [...new Set(em.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
 
@@ -1656,6 +1686,7 @@ function renderPMI(){
       ${msdField('msd-pmi-pk', 'All Packing', packings, 'refreshPMIAll')}
       ${msdField('msd-pmi-pp', 'All Pack Plans', weeks, 'refreshPMIAll', w=>'S'+w)}
       ${msdField('msd-pmi-dd', 'All Dispatch Dates', dispatchDates, 'refreshPMIAll')}
+      <button type="button" class="fc-metric-btn" style="align-self:center;" onclick="pmiSelectToday()" title="Filtrar solo por la fecha de hoy">📅 Hoy</button>
       ${msdField('msd-pmi-mo', 'All Modes', modes, 'refreshPMIAll', m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
     </div>
     <div id="pmi-kpis"></div>
@@ -1964,7 +1995,7 @@ function closeAirDetail(){ document.getElementById('airDetailOverlay').classList
 function renderAir(){
   const rows = AIR || [];
   const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
-  const dispatches = [...new Set(rows.map(r=>r.dispatch).filter(Boolean))].sort();
+  const dispatches = [...new Set(rows.map(r=>r.dispatch).filter(Boolean))].sort(cmpDDMMYYYY);
   const logOps = [...new Set(rows.map(r=>r.log_op).filter(Boolean))].sort();
   return `
   <div class="mock-tag" style="background:var(--surface-soft);color:var(--ink-soft);border-color:var(--line);">${rows.length} despachos aéreos confirmados · 🚛 clic en el ícono de la tabla para ver el detalle</div>
@@ -2081,7 +2112,7 @@ function execChecked(cls){ return [...document.querySelectorAll('.'+cls+':checke
 function renderExecute(){
   const rows = EXECUTE_RAW || [];
   const shippers = [...new Set(rows.map(r=>r.shipper).filter(Boolean))].sort();
-  const dispatchDates = [...new Set(rows.map(r=>r.dispatch_date).filter(Boolean))].sort();
+  const dispatchDates = [...new Set(rows.map(r=>r.dispatch_date).filter(Boolean))].sort(cmpDDMMYYYY);
   return `
   <div id="execTooltip" class="fc-tooltip"></div>
   <div class="card" style="margin-bottom:14px;">
@@ -2205,13 +2236,6 @@ function renderUpload(){
       <button class="theme-toggle" id="upl-btn-transportes" onclick="doUpload('transportes')" style="width:100%;justify-content:center;">⬆ Procesar y Publicar</button>
       <div id="upl-status-transportes" style="margin-top:10px;font-size:11px;"></div>
       <div class="mono" style="font-size:9.5px;color:var(--ink-faint);margin-top:10px;">POST ${UPLOAD_API_TRANSPORTES} — requiere haber ejecutado schema_transportes.sql y desplegado el endpoint (ver README).</div>
-    </div>
-  </div>
-  <div class="card" style="margin-top:14px;">
-    <div class="ct">⚠ Antes de usar esto en producción</div>
-    <div style="font-size:12px;color:var(--ink-soft);line-height:1.6;">
-      Reemplaza <code class="mono">UPLOAD_API_KEY</code> (actualmente un placeholder) por tu API key real antes de desplegar — no la dejes en un repo público en texto plano.
-      Ambos botones usan la misma key, igual que hace AXIS 1.0 con <code class="mono">/publish</code>.
     </div>
   </div>`;
 }

@@ -256,6 +256,15 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
 
 /* ---- Air Program: modal de detalle, donut, tabla dinámica ---- */
 .detail-overlay{position:fixed; inset:0; background:rgba(10,18,26,.55); z-index:150; display:none; align-items:center; justify-content:center; padding:20px;}
+.instr-tabs{display:flex; flex-wrap:wrap; gap:6px; padding:12px 18px 0; border-bottom:1px solid var(--line);}
+.instr-tab{font-size:11px; font-weight:600; padding:7px 12px; border-radius:8px 8px 0 0; background:var(--surface-soft); color:var(--ink-soft); cursor:pointer; border:1px solid var(--line); border-bottom:none; margin-bottom:-1px;}
+.instr-tab.active{background:var(--surface); color:var(--blue); border-color:var(--line); position:relative;}
+.instr-tab.active::after{content:''; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--surface);}
+.instr-section-h{font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); font-weight:700; margin:14px 0 6px;}
+.instr-section-h:first-child{margin-top:0;}
+.instr-list{margin:0; padding-left:18px; font-size:12.5px; line-height:1.7; color:var(--ink);}
+.instr-intro{font-size:12.5px; color:var(--ink-soft); line-height:1.6; margin-bottom:4px;}
+.air-instr-link{font-size:11.5px; font-weight:600; color:var(--blue); cursor:pointer; text-decoration:underline; text-underline-offset:2px;}
 .detail-overlay.open{display:flex;}
 .detail-box{background:var(--surface); border-radius:14px; width:380px; max-width:100%; box-shadow:0 20px 60px rgba(0,0,0,.35); overflow:hidden;}
 .detail-head{background:var(--navy); color:#fff; padding:14px 18px; display:flex; align-items:center; justify-content:space-between;}
@@ -390,6 +399,17 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
       <button onclick="closeAirDetail()">✕</button>
     </div>
     <div class="detail-body" id="airDetailBody"></div>
+  </div>
+</div>
+
+<div class="detail-overlay" id="instructivosOverlay">
+  <div class="detail-box" style="width:520px;">
+    <div class="detail-head">
+      <div>Instructivos por destino (POD)</div>
+      <button onclick="closeInstructivos()">✕</button>
+    </div>
+    <div class="instr-tabs" id="instrTabs"></div>
+    <div class="detail-body" id="instrBody" style="max-height:60vh;overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -629,7 +649,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['weekly', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
@@ -1992,6 +2012,58 @@ function openAirDetail(idx){
 }
 function closeAirDetail(){ document.getElementById('airDetailOverlay').classList.remove('open'); }
 
+/* ============================================================
+   # 09h AIR PROGRAM — Instructivos por destino (POD), contenido fijo
+   provisto por el equipo operativo. matchPods se usa solo para el
+   "match resaltado" visual si en el futuro se abre desde una fila
+   puntual — hoy el modal siempre muestra las 5 pestañas completas.
+   ============================================================ */
+const AIR_INSTRUCTIVOS = [
+  { id:'singapore', label:'Singapore', matchPods:['Singapore','Singapur'],
+    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
+    documentos:['Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)','Emitir CO'],
+    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Adjuntar solo Factura HF LIMITED, PL y PHYTO','Colocar en el AWB "KEEP ON REFRIGERATION"','Agregar 25 Gel-Packs por skid','Flete Prepaid'] },
+  { id:'usa', label:'USA (NY / Miami)', matchPods:['New York','Miami'],
+    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
+    documentos:['Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)','No requiere CO'],
+    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Adjuntar solo Factura HF LIMITED, PL y PHYTO','Colocar en el AWB "KEEP ON REFRIGERATION"','Flete Prepaid'] },
+  { id:'colbra', label:'Colombia / Brasil', matchPods:['Bogota','Bogotá','Guarulhos'],
+    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
+    documentos:['Certificado de Origen (debe tener la misma fecha de emisión de la factura o posterior)','Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)'],
+    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Colocar en el AWB "KEEP ON REFRIGERATION"','Flete Prepaid'] },
+  { id:'telaviv', label:'Tel Aviv', matchPods:['Tel Aviv'],
+    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
+    documentos:['Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)','Emitir CO'],
+    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Adjuntar solo Factura HF LIMITED, PL y PHYTO','Colocar en el AWB "KEEP ON REFRIGERATION"','Agregar 25 Gel-Packs por skid','Flete Prepaid'] },
+  { id:'india', label:'India (Bombay / Delhi)', matchPods:['Bombay','Delhi'],
+    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
+    documentos:['Certificado de Origen (debe tener la misma fecha de emisión de la factura o posterior)','Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)'],
+    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Colocar en el AWB "KEEP ON REFRIGERATION"','Flete Prepaid','Usar número de factura LIMITED para el CO'] },
+];
+let instrActiveTab = 'singapore';
+
+function renderInstructivoTab(id){
+  const g = AIR_INSTRUCTIVOS.find(x=>x.id===id);
+  if (!g) return '';
+  return `
+    <div class="instr-intro">${g.intro}</div>
+    <div class="instr-section-h">Documentos a gestionar</div>
+    <ul class="instr-list">${g.documentos.map(d=>`<li>${d}</li>`).join('')}</ul>
+    <div class="instr-section-h">Información a considerar</div>
+    <ul class="instr-list">${g.info.map(d=>`<li>${d}</li>`).join('')}</ul>`;
+}
+function switchInstructivoTab(id){
+  instrActiveTab = id;
+  document.querySelectorAll('.instr-tab').forEach(t=>t.classList.toggle('active', t.dataset.id===id));
+  document.getElementById('instrBody').innerHTML = renderInstructivoTab(id);
+}
+function openInstructivos(){
+  document.getElementById('instrTabs').innerHTML = AIR_INSTRUCTIVOS.map(g=>`<div class="instr-tab ${g.id===instrActiveTab?'active':''}" data-id="${g.id}" onclick="switchInstructivoTab('${g.id}')">${g.label}</div>`).join('');
+  document.getElementById('instrBody').innerHTML = renderInstructivoTab(instrActiveTab);
+  document.getElementById('instructivosOverlay').classList.add('open');
+}
+function closeInstructivos(){ document.getElementById('instructivosOverlay').classList.remove('open'); }
+
 function renderAir(){
   const rows = AIR || [];
   const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
@@ -2015,10 +2087,10 @@ function renderAir(){
   <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">✈ Participación por Aerolínea – PO</div>
   <div class="g2" id="air-airlines"></div>
   <div class="card">
-    <div class="ct">Despachos aéreos <span class="sub" id="air-tbl-stat"></span></div>
+    <div class="ct">Despachos aéreos <span class="sub" id="air-tbl-stat"></span><span class="air-instr-link" onclick="openInstructivos()" style="margin-left:10px;">ℹ️ Instructivos</span></div>
     <div class="tbl-scroll"><table class="std"><thead><tr><th>Shipper</th><th>Instruction</th><th>Log. Op.</th><th>Destino</th><th>Dispatch Day</th><th style="text-align:right">Pallets</th><th>AWB</th><th>File</th><th>Line</th><th>Transp. Op.</th><th>BASC</th><th>DAM</th><th></th></tr></thead><tbody id="air-body"></tbody></table></div>
   </div>
-  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">🛫 Air Transport — Tabla dinámica</div>
+  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">🛫 Air Transport</div>
   <div class="card">
     <div class="ct">Packing / Instruction <span class="sub" id="at-stat"></span></div>
     <div class="pivot-scroll"><table class="pivot"><thead><tr><th>Packing</th><th>Instruction</th><th>Dispatch Date</th><th>Shipper</th><th>Logistics</th><th>Positioning Time</th><th>Gate-In Storage</th><th style="text-align:right">Suma de Pallets</th><th style="text-align:right">Suma de FCL</th></tr></thead><tbody id="at-body"></tbody></table></div>
@@ -2084,13 +2156,13 @@ function refreshAir(){
         insPal += (r.pallets||0); insFcl += (r.fcl||0); atRows++;
         atHtml += `<tr>${(pkFirst&&i===0)?`<td rowspan="${Object.values(insMap).reduce((a,rs)=>a+rs.length,0)}" style="background:var(--surface-soft);font-weight:700;border-right:2px solid var(--blue);vertical-align:top;">${pk}</td>`:''}${i===0?`<td rowspan="${recs.length}" style="vertical-align:top;font-weight:500;">${ins}</td>`:''}<td class="mono">${r.dispatch||'—'}</td><td>${r.shipper||'—'}</td><td>${r.log_op||'(en blanco)'}</td><td class="mono">${r.postime||'(en blanco)'}</td><td>${r.gatein||'(en blanco)'}</td><td class="tv">${r.pallets||0}</td><td class="tv">${fmt1(r.fcl||0)}</td></tr>`;
       });
-      atHtml += `<tr class="pk-total"><td colspan="2">Total ${ins}</td><td colspan="4"></td><td class="tot-v">${insPal}</td><td class="tot-v">${fmt1(insFcl)}</td></tr>`;
+      atHtml += `<tr class="pk-total"><td colspan="2">Total ${ins}</td><td colspan="5"></td><td class="tot-v">${insPal}</td><td class="tot-v">${fmt1(insFcl)}</td></tr>`;
       pkPal += insPal; pkFcl += insFcl; pkFirst = false;
     });
-    atHtml += `<tr class="pk-total"><td colspan="2">Total ${pk}</td><td colspan="4"></td><td class="tot-v">${pkPal}</td><td class="tot-v">${fmt1(pkFcl)}</td></tr>`;
+    atHtml += `<tr class="pk-total"><td colspan="2">Total ${pk}</td><td colspan="5"></td><td class="tot-v">${pkPal}</td><td class="tot-v">${fmt1(pkFcl)}</td></tr>`;
     gtPal += pkPal; gtFcl += pkFcl;
   });
-  atHtml += `<tr class="grand-total"><td colspan="6">Total general</td><td class="tot-v">${gtPal}</td><td class="tot-v">${fmt1(gtFcl)}</td></tr>`;
+  atHtml += `<tr class="grand-total"><td colspan="7">Total general</td><td class="tot-v">${gtPal}</td><td class="tot-v">${fmt1(gtFcl)}</td></tr>`;
   document.getElementById('at-body').innerHTML = atHtml || `<tr><td colspan="9" class="empty-state">Sin datos para este filtro</td></tr>`;
   document.getElementById('at-stat').textContent = `${atRows} filas · ${fmt1(gtFcl)} FCL`;
 }

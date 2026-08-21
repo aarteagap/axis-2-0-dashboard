@@ -649,7 +649,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['weekly', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
@@ -2039,6 +2039,10 @@ const AIR_INSTRUCTIVOS = [
     intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
     documentos:['Certificado de Origen (debe tener la misma fecha de emisión de la factura o posterior)','Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)'],
     info:['La carga debe ubicarse en el área del almacén de menor temperatura','Colocar en el AWB "KEEP ON REFRIGERATION"','Flete Prepaid','Usar número de factura LIMITED para el CO'] },
+  { id:'london', label:'London', matchPods:['London','Londres'],
+    intro:'Revisar y descargar la documentación correspondiente a cada AWB según ZIP adjunto.',
+    documentos:['Certificado de Origen (debe tener la misma fecha de emisión de la factura o posterior)','Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)'],
+    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Colocar en el AWB "KEEP ON REFRIGERATION"','Flete Prepaid'] },
 ];
 let instrActiveTab = 'singapore';
 

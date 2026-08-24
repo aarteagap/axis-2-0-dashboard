@@ -258,6 +258,21 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
 /* ---- Air Program: modal de detalle, donut, tabla dinámica ---- */
 .detail-overlay{position:fixed; inset:0; background:rgba(10,18,26,.55); z-index:150; display:none; align-items:center; justify-content:center; padding:20px;}
 .instr-tabs{display:flex; flex-wrap:wrap; gap:6px; padding:12px 18px 0; border-bottom:1px solid var(--line);}
+
+/* ---- Incidencias: sub-pestañas internas, badges de criticidad ---- */
+.inc-subtabs{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; border-bottom:1px solid var(--line); padding-bottom:0;}
+.inc-subtab{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:12.5px; padding:10px 16px; border-radius:8px 8px 0 0; background:transparent; color:var(--ink-faint); cursor:pointer; border:none; border-bottom:2px solid transparent;}
+.inc-subtab:hover{color:var(--ink-soft);}
+.inc-subtab.active{color:var(--blue); border-bottom-color:var(--blue);}
+.inc-crit{display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:6px; font-size:10.5px; font-weight:700; font-family:'JetBrains Mono',monospace;}
+.inc-crit-1{background:var(--ok-bg); color:var(--ok);}
+.inc-crit-2{background:var(--warn-bg); color:var(--warn);}
+.inc-crit-3, .inc-crit-4{background:rgba(230,126,34,.14); color:#e67e22;}
+.inc-crit-5{background:var(--bad-bg); color:var(--bad);}
+.inc-crit-0, .inc-crit-null{background:var(--surface-soft); color:var(--ink-faint);}
+.inc-big-num{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:38px; line-height:1;}
+.inc-big-sub{font-size:11px; color:var(--ink-soft); margin-top:6px;}
+.inc-unmatched-note{font-size:10.5px; color:var(--ink-faint); margin-top:8px; font-style:italic;}
 .instr-tab{font-size:11px; font-weight:600; padding:7px 12px; border-radius:8px 8px 0 0; background:var(--surface-soft); color:var(--ink-soft); cursor:pointer; border:1px solid var(--line); border-bottom:none; margin-bottom:-1px;}
 .instr-tab.active{background:var(--surface); color:var(--blue); border-color:var(--line); position:relative;}
 .instr-tab.active::after{content:''; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--surface);}
@@ -491,6 +506,9 @@ const NAV = [
     {id:'packing',  ix:'08', label:'Packing'},
     {id:'ingreso',  ix:'09', label:'Receiving'},
   ]},
+  {group:'calidad', label:'Calidad', items:[
+    {id:'incidencias', ix:'11', label:'Incidencias', tag:'NEW'},
+  ]},
   {group:'sistema', label:'Sistema', items:[
     {id:'upload',   ix:'10', label:'Actualizar Datos'},
   ]},
@@ -650,11 +668,11 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['weekly', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
-let SENASA,WROWS,AIR,AIRLINES,FWKS,WKL,KPI,EX,DEST,LINEAS,PMI_PORTS,FWKS_MODE,EMBARQUES,TR_PROGRAM,PORTS_RAW,FORECAST_RAW,META,EXECUTE_RAW;
+let SENASA,WROWS,AIR,AIRLINES,FWKS,WKL,KPI,EX,DEST,LINEAS,PMI_PORTS,FWKS_MODE,EMBARQUES,TR_PROGRAM,PORTS_RAW,FORECAST_RAW,META,EXECUTE_RAW,INCIDENCIAS,UNIVERSO_COMPLIANCE;
 
 async function tryLogin(){
   const email = document.getElementById('gateEmail').value.trim();
@@ -695,7 +713,7 @@ async function loadDataAndInit(){
     if (error) throw error;
     const d = {};
     rows.forEach(r => { d[r.dataset_name] = r.payload; });
-    ({SENASA, WROWS, AIR, AIRLINES, FWKS, WKL, KPI, EX, DEST, LINEAS, PMI_PORTS, FWKS_MODE, EMBARQUES, TR_PROGRAM, PORTS_RAW, FORECAST_RAW, META, EXECUTE_RAW} = d);
+    ({SENASA, WROWS, AIR, AIRLINES, FWKS, WKL, KPI, EX, DEST, LINEAS, PMI_PORTS, FWKS_MODE, EMBARQUES, TR_PROGRAM, PORTS_RAW, FORECAST_RAW, META, EXECUTE_RAW, INCIDENCIAS, UNIVERSO_COMPLIANCE} = d);
     if (META && META.excel_modified_iso) {
       const dt = new Date(META.excel_modified_iso);
       document.getElementById('statusTxt').textContent = `Datos AXIS · act. ${dt.toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}`;
@@ -703,7 +721,7 @@ async function loadDataAndInit(){
   } catch(e){
     console.error('No se pudo conectar a Supabase, usando datos de muestra de respaldo:', e);
     document.getElementById('statusTxt').innerHTML = '<span style="color:var(--warn);">⚠ Sin conexión a Supabase — datos de muestra</span>';
-    ({SENASA, WROWS, AIR, AIRLINES, FWKS, WKL, KPI, EX, DEST, LINEAS, PMI_PORTS, FWKS_MODE, EMBARQUES, TR_PROGRAM, PORTS_RAW, FORECAST_RAW, META, EXECUTE_RAW} = SAMPLE_FALLBACK);
+    ({SENASA, WROWS, AIR, AIRLINES, FWKS, WKL, KPI, EX, DEST, LINEAS, PMI_PORTS, FWKS_MODE, EMBARQUES, TR_PROGRAM, PORTS_RAW, FORECAST_RAW, META, EXECUTE_RAW, INCIDENCIAS, UNIVERSO_COMPLIANCE} = SAMPLE_FALLBACK);
   }
 
   // Transporte: igual patrón que dashboard_data, pero en una tabla separada
@@ -786,6 +804,14 @@ const SAMPLE_FALLBACK = {
     {shipper:'Olmos Export', dispatch_date:'02/08/2026', pack_plan:31, mode:'Marítimo', booking:'BK-001', has_tr_time:true, senasa_att:'SENASA'},
     {shipper:'Agroindustrial Chao', dispatch_date:'03/08/2026', pack_plan:31, mode:'Aéreo', booking:'BK-002', has_tr_time:false, senasa_att:''},
   ],
+  INCIDENCIAS: [
+    {id_incident:215, persona:'André', id_po:'PO00000050218', dispatch_date:'14/04/2026', t_supplier:'Transportista', supplier:'NWT', incident:'Falla mecánica', criticidad:2, value_range:'1 - 1000 USD', comentario:'', mode:null, pack_plan:null, packing:null, pod:null, fcl:null, pallets:null, matched:false},
+    {id_incident:216, persona:'Erika', id_po:'RH-0133T', dispatch_date:'04/07/2026', t_supplier:'Operador', supplier:'NWT', incident:'Info. incompleta/incorrecta/fuera de plazo', criticidad:2, value_range:'1 - 1000 USD', comentario:'', mode:'Marítimo', pack_plan:27, packing:'Chao', pod:'Philadelphia', fcl:1.0, pallets:20.0, matched:true},
+    {id_incident:217, persona:'Erika', id_po:'PO00000051363', dispatch_date:'09/07/2026', t_supplier:'Operador', supplier:'NWT', incident:'Info. incompleta/incorrecta/fuera de plazo', criticidad:2, value_range:'1 - 1000 USD', comentario:'', mode:'Marítimo', pack_plan:28, packing:'Chao', pod:'Dover', fcl:1.0, pallets:20.0, matched:true},
+    {id_incident:218, persona:'Erika', id_po:'PO00000051400', dispatch_date:'12/07/2026', t_supplier:'Operador', supplier:'NWT', incident:'No hay respuesta', criticidad:2, value_range:'1 - 1000 USD', comentario:'', mode:'Marítimo', pack_plan:28, packing:'Chao', pod:'Shanghai', fcl:1.0, pallets:20.0, matched:true},
+    {id_incident:222, persona:'André', id_po:'RH-0160T', dispatch_date:'10/07/2026', t_supplier:'Despacho', supplier:'Talsa', incident:'Técnico no tiene cita de ingreso', criticidad:1, value_range:'Sin Consecuencia Económica', comentario:'', mode:'Marítimo', pack_plan:28, packing:'Chao', pod:'Kaohsiung', fcl:1.0, pallets:20.0, matched:true},
+  ],
+  UNIVERSO_COMPLIANCE: { "marítimo": {instructions:744, fcl_total:582.5, pallets_total:11800.0, by_pack_plan:{27:14,28:19}}, "aéreo": {pos:95, fcl_total:79.0, pallets_total:1347.0, by_pack_plan:{27:5,28:6}} },
   AIR: [
     {pack_plan:31, dispatch:'04/08/2026', log_op:'Ransa', shipper:'Agroindustrial Chao', instruction:'INS-3402', dest:'Miami', pallets:6, awb:'074-5521', file:'F-2291', line:'DHL', transp_op:'Transvip', basc:'FINALIZADO', dam:'OK', po:'PO-010', packing:'OLMOS', driver:'PEREZ LOPEZ JUAN CARLOS', license:'D-12345678', tractor:'ABC-123', trailer:'XYZ-789', phone:'987654321'},
   ],
@@ -2297,6 +2323,273 @@ function refreshExecute(){
 
 window.postRender_execute = refreshExecute;
 
+/* ============================================================
+   # 11 INCIDENCIAS — vista nueva de Incident Management (solo
+   perfil hortifrut). Replica los 4 dashboards de Tableau que ya
+   existían: Resumen (Incidents 0-6), General Compliance
+   (Cumplimiento 1-6), Marítimo (Marítimo 1-4), Aéreo (Aéreo 1-4).
+   Navegación por sub-pestañas internas + toggle de métrica
+   (Instruction / PO / FCL) para General Compliance.
+   Dataset real: INCIDENCIAS, UNIVERSO_COMPLIANCE.
+   ============================================================ */
+let incActiveTab = 'resumen';
+let incMetric = 'fcl'; // 'instruction' | 'po' | 'fcl' — usado en General Compliance
+
+function incCritClass(c){ return c==null ? 'inc-crit-null' : 'inc-crit-'+Math.min(5, Math.max(0, c)); }
+function incCritLabel(c){ return c==null ? '—' : ['Sin registrar','Muy Leve','Leve','Grave','Grave','Muy Grave'][Math.min(5,Math.max(0,c))] || c; }
+function incMonthKey(ddmmyyyy){
+  if (!ddmmyyyy) return null;
+  const [d,m,y] = ddmmyyyy.split('/');
+  if (!y) return null;
+  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return `${meses[+m-1]} ${y}`;
+}
+
+function renderIncidencias(){
+  return `
+  <div class="inc-subtabs">
+    <button class="inc-subtab active" data-tab="resumen" onclick="incSwitchTab('resumen')">📋 Resumen</button>
+    <button class="inc-subtab" data-tab="general" onclick="incSwitchTab('general')">🌐 General Compliance</button>
+    <button class="inc-subtab" data-tab="maritimo" onclick="incSwitchTab('maritimo')">⚓ Compliance Marítimo</button>
+    <button class="inc-subtab" data-tab="aereo" onclick="incSwitchTab('aereo')">✈ Compliance Aéreo</button>
+  </div>
+  <div id="incTooltip" class="fc-tooltip"></div>
+  <div id="inc-content"></div>`;
+}
+
+function incSwitchTab(tab){
+  incActiveTab = tab;
+  document.querySelectorAll('.inc-subtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  refreshIncidencias();
+}
+
+function refreshIncidencias(){
+  const el = document.getElementById('inc-content');
+  if (!el) return;
+  if (incActiveTab==='resumen') el.innerHTML = incRenderResumen();
+  else if (incActiveTab==='general') { el.innerHTML = incRenderGeneral(); incWireGeneralEvents(); }
+  else if (incActiveTab==='maritimo') { el.innerHTML = incRenderModo('Marítimo', 'instructions', 'marítimo'); incWireModoEvents(); }
+  else if (incActiveTab==='aereo') { el.innerHTML = incRenderModo('Aéreo', 'pos', 'aéreo'); incWireModoEvents(); }
+}
+
+/* ---------------- RESUMEN ---------------- */
+function incRenderResumen(){
+  const rows = INCIDENCIAS || [];
+  const total = rows.length;
+  const matched = rows.filter(r=>r.matched).length;
+  const critVals = rows.map(r=>r.criticidad).filter(c=>c!=null);
+  const critAvg = critVals.length ? (sum(critVals)/critVals.length).toFixed(1) : '—';
+
+  const byMonth = {};
+  rows.forEach(r=>{ const k = incMonthKey(r.dispatch_date); if(!k) return; byMonth[k]=(byMonth[k]||0)+1; });
+  const monthKeys = Object.keys(byMonth);
+  const maxMonth = Math.max(...Object.values(byMonth), 1);
+
+  const bySupplier = {};
+  rows.forEach(r=>{ const k=r.supplier||'(sin dato)'; bySupplier[k]=(bySupplier[k]||0)+1; });
+  const supplierPalette = ['var(--amber)','var(--blue)','var(--purple)','var(--teal)','var(--bad)','var(--ok)','var(--ink-faint)'];
+  const supplierEntries = Object.entries(bySupplier).sort((a,b)=>b[1]-a[1]).map(([k,v],i)=>({name:k,val:v,color:supplierPalette[i%supplierPalette.length]}));
+
+  const byMode = {};
+  rows.forEach(r=>{ const k = r.matched ? (r.mode||'(sin modo)') : '(sin vincular a embarque)'; byMode[k]=(byMode[k]||0)+1; });
+  const maxMode = Math.max(...Object.values(byMode), 1);
+
+  const byTSupplier = {};
+  rows.forEach(r=>{ const k=r.t_supplier||'(sin dato)'; byTSupplier[k]=(byTSupplier[k]||0)+1; });
+  const maxTSupplier = Math.max(...Object.values(byTSupplier), 1);
+
+  const byPersona = {};
+  rows.forEach(r=>{ const k=r.persona||'(sin dato)'; byPersona[k]=(byPersona[k]||0)+1; });
+
+  return `
+  <div class="kg">
+    <div class="kc" style="--acc:var(--bad)"><div class="kl">Incidencias registradas</div><div class="kv">${total}</div></div>
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">Vinculadas a un embarque</div><div class="kv">${matched}</div><div class="kf">${total?pct(matched,total):0}%</div></div>
+    <div class="kc" style="--acc:var(--warn)"><div class="kl">Criticidad promedio</div><div class="kv">${critAvg}<span class="u">/ 5</span></div></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">Incidencias por mes</div><div class="bars">${monthKeys.length ? monthKeys.map(k=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(byMonth[k],maxMonth)}%;"></div></div><span class="bv">${byMonth[k]}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+    <div class="card"><div class="ct">Incidencias por proveedor</div>
+      <div class="donut-wrap">
+        <div class="donut-ring" style="background:conic-gradient(${(()=>{let c=0; const tot=sum(supplierEntries.map(s=>s.val))||1; return supplierEntries.map(s=>{const st=c,en=c+(s.val/tot*360); c=en; return `${s.color} ${st.toFixed(1)}deg ${en.toFixed(1)}deg`;}).join(',');})()});"><div class="donut-center"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;">${total}</div><div style="font-size:8px;color:var(--ink-faint);">incidencias</div></div></div>
+        <div class="donut-legend">${supplierEntries.map(s=>`<div class="dli"><span class="dls" style="background:${s.color};"></span><span>${s.name}</span><span class="dlv">${s.val}·${total?pct(s.val,total):0}%</span></div>`).join('')}</div>
+      </div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">Participación por modo</div><div class="bars">${Object.entries(byMode).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxMode)}%;background:${k.includes('sin vincular')?'var(--ink-faint)':'var(--amber)'};"></div></div><span class="bv">${v}</span></div>`).join('')}</div></div>
+    <div class="card"><div class="ct">Incidencias por tipo de proveedor</div><div class="bars">${Object.entries(byTSupplier).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxTSupplier)}%;background:var(--purple);"></div></div><span class="bv">${v}</span></div>`).join('')}</div></div>
+  </div>
+  <div class="card">
+    <div class="ct">Registros por persona</div>
+    <div class="tbl-wrap"><table class="std"><thead><tr><th>Persona</th><th style="text-align:right">Incidencias registradas</th></tr></thead>
+    <tbody>${Object.entries(byPersona).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td class="mono" style="text-align:right">${v}</td></tr>`).join('') || '<tr><td colspan="2" class="empty-state">Sin datos</td></tr>'}</tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="ct">Detalle de incidencias <span class="sub">${total} registros</span></div>
+    <div class="tbl-scroll"><table class="std"><thead><tr><th>Fecha</th><th>ID/PO</th><th>Persona</th><th>Tipo</th><th>Proveedor</th><th>Incidencia</th><th>Criticidad</th><th>Valor</th></tr></thead>
+    <tbody>${rows.length ? rows.slice().sort((a,b)=>b.id_incident-a.id_incident).map(r=>`<tr><td class="mono">${r.dispatch_date||'—'}</td><td class="mono">${r.id_po||'—'}</td><td>${r.persona||'—'}</td><td>${r.t_supplier||'—'}</td><td>${r.supplier||'—'}</td><td>${r.incident||'—'}</td><td><span class="inc-crit ${incCritClass(r.criticidad)}">${r.criticidad??'—'}</span></td><td class="mono" style="font-size:10.5px;">${r.value_range||'—'}</td></tr>`).join('') : '<tr><td colspan="8" class="empty-state">Sin incidencias registradas</td></tr>'}</tbody></table></div>
+  </div>`;
+}
+
+/* ---------------- GENERAL COMPLIANCE ---------------- */
+function incRenderGeneral(){
+  const rows = (INCIDENCIAS||[]).filter(r=>r.matched);
+  const univ = UNIVERSO_COMPLIANCE || {marítimo:{instructions:0,fcl_total:0,pallets_total:0},aéreo:{pos:0,fcl_total:0,pallets_total:0}};
+  const unitLbl = incMetric==='fcl' ? 'FCL' : incMetric==='instruction' ? 'Instructions' : 'PO';
+
+  return `
+  <div class="card" style="margin-bottom:14px;">
+    <div class="fc-label">Agrupar por</div>
+    <div style="display:flex;gap:6px;">
+      <button type="button" class="fc-metric-btn inc-metric-btn ${incMetric==='fcl'?'active':''}" data-metric="fcl" onclick="incSetMetric('fcl')">📦 FCL</button>
+      <button type="button" class="fc-metric-btn inc-metric-btn ${incMetric==='instruction'?'active':''}" data-metric="instruction" onclick="incSetMetric('instruction')">📄 Instruction</button>
+      <button type="button" class="fc-metric-btn inc-metric-btn ${incMetric==='po'?'active':''}" data-metric="po" onclick="incSetMetric('po')">🧾 PO</button>
+    </div>
+  </div>
+  <div id="inc-general-body"></div>`;
+}
+function incSetMetric(m){
+  incMetric = m;
+  document.querySelectorAll('.inc-metric-btn').forEach(b=>b.classList.toggle('active', b.dataset.metric===m));
+  incRefreshGeneralBody();
+}
+function incWireGeneralEvents(){ incRefreshGeneralBody(); }
+
+function incRefreshGeneralBody(){
+  const body = document.getElementById('inc-general-body');
+  if (!body) return;
+  const rows = (INCIDENCIAS||[]).filter(r=>r.matched);
+  const univ = UNIVERSO_COMPLIANCE || {marítimo:{instructions:0,fcl_total:0,pallets_total:0},aéreo:{pos:0,fcl_total:0,pallets_total:0}};
+  const unitLbl = incMetric==='fcl' ? 'FCL' : incMetric==='instruction' ? 'Instructions' : 'PO';
+
+  // Universo total combinado (Marítimo + Aéreo), según la métrica elegida.
+  let totalUniverse, totalIncidencia;
+  if (incMetric==='fcl'){
+    totalUniverse = (univ.marítimo.fcl_total||0) + (univ.aéreo.fcl_total||0);
+    totalIncidencia = sum(rows.map(r=>r.fcl||0));
+  } else if (incMetric==='instruction'){
+    totalUniverse = univ.marítimo.instructions||0;
+    totalIncidencia = new Set(rows.filter(r=>r.mode==='Marítimo').map(r=>r.id_po)).size;
+  } else {
+    totalUniverse = univ.aéreo.pos||0;
+    totalIncidencia = new Set(rows.filter(r=>r.mode==='Aéreo').map(r=>r.id_po)).size;
+  }
+  const incPct = totalUniverse ? pct(totalIncidencia, totalUniverse) : 0;
+  const compliancePct = totalUniverse ? (100-incPct).toFixed(1) : '—';
+
+  const byPP = {};
+  rows.forEach(r=>{ if(r.pack_plan==null) return; const v = incMetric==='fcl' ? (r.fcl||0) : 1; byPP[r.pack_plan] = (byPP[r.pack_plan]||0) + v; });
+  const ppKeys = Object.keys(byPP).map(Number).sort((a,b)=>a-b);
+  const maxPP = Math.max(...Object.values(byPP), 1);
+
+  const byPacking = {};
+  const packingUniverse = {};
+  rows.forEach(r=>{ if(!r.packing) return; const v = incMetric==='fcl' ? (r.fcl||0) : 1; byPacking[r.packing]=(byPacking[r.packing]||0)+v; });
+  // aproximación del universo por planta usando FCL total si la métrica es FCL; si no, se muestra solo el conteo de incidencias.
+  const maxPacking = Math.max(...Object.values(byPacking), 1);
+
+  const byDest = {};
+  rows.forEach(r=>{ if(!r.pod) return; const v = incMetric==='fcl' ? (r.fcl||0) : 1; byDest[r.pod]=(byDest[r.pod]||0)+v; });
+  const destEntries = Object.entries(byDest).sort((a,b)=>b[1]-a[1]);
+  const maxDest = Math.max(...Object.values(byDest), 1);
+
+  body.innerHTML = `
+  <div class="kg">
+    <div class="kc"><div class="kl">General Shipments (universo)</div><div class="kv">${incMetric==='fcl'?fmt1(totalUniverse):totalUniverse}<span class="u">${unitLbl}</span></div></div>
+    <div class="kc" style="--acc:var(--bad)"><div class="kl">Con incidencia</div><div class="kv">${incMetric==='fcl'?fmt1(totalIncidencia):totalIncidencia}<span class="u">${unitLbl}</span></div><div class="kf">${incPct}%</div></div>
+    <div class="kc" style="--acc:var(--ok)"><div class="kl">General Compliance %</div><div class="kv">${compliancePct}<span class="u">%</span></div></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">Incidencias por Pack Plan <span class="sub">métrica: ${unitLbl}</span></div><div class="bars">${ppKeys.length ? ppKeys.map(pp=>`<div class="br"><span class="bl">S${pp}</span><div class="bt"><div class="bf" style="width:${calcPct(byPP[pp],maxPP)}%;background:var(--bad);"></div></div><span class="bv">${incMetric==='fcl'?fmt1(byPP[pp]):byPP[pp]}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+    <div class="card"><div class="ct">Incidencias por Packing (planta)</div><div class="bars">${Object.keys(byPacking).length ? Object.entries(byPacking).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxPacking)}%;background:var(--purple);"></div></div><span class="bv">${incMetric==='fcl'?fmt1(v):v}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+  </div>
+  <div class="card">
+    <div class="ct">Incidencias por destino (POD)</div>
+    <div class="bars">${destEntries.length ? destEntries.map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxDest)}%;background:var(--amber);"></div></div><span class="bv">${incMetric==='fcl'?fmt1(v):v}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div>
+  </div>
+  <div class="card">
+    <div class="ct">Incidencias vinculadas — detalle</div>
+    <div class="tbl-scroll"><table class="std"><thead><tr><th>ID/PO</th><th>Modo</th><th>Pack Plan</th><th>Packing</th><th>POD</th><th style="text-align:right">FCL</th><th>Incidencia</th><th>Criticidad</th></tr></thead>
+    <tbody>${rows.length ? rows.map(r=>`<tr><td class="mono">${r.id_po}</td><td>${r.mode||'—'}</td><td class="mono">S${r.pack_plan??'—'}</td><td>${r.packing||'—'}</td><td>${r.pod||'—'}</td><td class="mono" style="text-align:right">${r.fcl!=null?fmt1(r.fcl):'—'}</td><td>${r.incident||'—'}</td><td><span class="inc-crit ${incCritClass(r.criticidad)}">${r.criticidad??'—'}</span></td></tr>`).join('') : '<tr><td colspan="8" class="empty-state">Sin incidencias vinculadas a un embarque todavía</td></tr>'}</tbody></table></div>
+  </div>`;
+}
+
+/* ---------------- MARÍTIMO / AÉREO (misma lógica, distinto campo) ---------------- */
+function incRenderModo(modeName, universeKey, univKey){
+  const rows = (INCIDENCIAS||[]).filter(r=>r.matched && r.mode===modeName);
+  const univ = UNIVERSO_COMPLIANCE ? UNIVERSO_COMPLIANCE[univKey] : {[universeKey]:0, by_pack_plan:{}};
+  const totalUniverse = univ ? (univ[universeKey]||0) : 0;
+  const idsConIncidencia = new Set(rows.map(r=>r.id_po));
+  const incPct = totalUniverse ? pct(idsConIncidencia.size, totalUniverse) : 0;
+  const compliancePct = totalUniverse!=null ? (100-incPct).toFixed(1) : '—';
+  const unitLbl = modeName==='Marítimo' ? 'Instructions' : 'PO';
+
+  const byPP = univ ? (univ.by_pack_plan||{}) : {};
+  const ppKeys = Object.keys(byPP).map(Number).sort((a,b)=>a-b);
+  const incByPP = {};
+  rows.forEach(r=>{ if(r.pack_plan==null) return; incByPP[r.pack_plan] = incByPP[r.pack_plan] || new Set(); incByPP[r.pack_plan].add(r.id_po); });
+  const pctByPP = ppKeys.map(pp=>({ pp, pct: byPP[pp] ? pct((incByPP[pp]?incByPP[pp].size:0), byPP[pp]) : 0, n:(incByPP[pp]?incByPP[pp].size:0), tot: byPP[pp]||0 }));
+  const maxPctVal = Math.max(...pctByPP.map(p=>p.pct), 5);
+
+  // Curva histórica (línea) — % de incumplimiento por semana
+  const W=900,H=220,pL=34,pB=24,pT=10;
+  const pts = pctByPP.map((p,i)=>({x: pL + i*(W-pL-14)/Math.max(pctByPP.length-1,1), y: H-pB-(p.pct/Math.max(maxPctVal,1))*(H-pT-pB), ...p}));
+  const pathOf = arr => arr.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
+  const grid = [0,.5,1].map(f=>{ const y=pT+(1-f)*(H-pT-pB); return `<line x1="${pL}" y1="${y.toFixed(0)}" x2="${W-4}" y2="${y.toFixed(0)}" stroke="var(--line)" stroke-width="1"/><text x="${pL-6}" y="${(y+3).toFixed(0)}" text-anchor="end" font-size="9" fill="var(--ink-faint)" font-family="JetBrains Mono">${Math.round(maxPctVal*f)}%</text>`; }).join('');
+  const xlbls = pts.map(p=>`<text x="${p.x.toFixed(0)}" y="${H-6}" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)" font-family="JetBrains Mono">S${p.pp}</text>`).join('');
+
+  const byResp = {};
+  rows.forEach(r=>{ const k = r.t_supplier||'(sin dato)'; byResp[k] = byResp[k] || {}; const k2 = r.supplier||'(sin dato)'; byResp[k][k2]=(byResp[k][k2]||0)+1; });
+
+  return `
+  <div class="kg">
+    <div class="kc"><div class="kl">Total ${unitLbl}</div><div class="kv">${totalUniverse}</div></div>
+    <div class="kc" style="--acc:var(--bad)"><div class="kl">${unitLbl} con incidencia</div><div class="kv">${idsConIncidencia.size}</div><div class="kf">${incPct}%</div></div>
+    <div class="kc" style="--acc:var(--ok)"><div class="kl">Compliance ${modeName} %</div><div class="kv">${compliancePct}<span class="u">%</span></div></div>
+  </div>
+  <div class="card">
+    <div class="ct">Historic Compliance per Pack Plan <span class="sub">% incumplimiento (${unitLbl})</span></div>
+    <div style="position:relative;">
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;height:${H}px;display:block;margin:0 auto;" preserveAspectRatio="xMidYMid meet">
+        ${grid}
+        <path d="${pathOf(pts)}" fill="none" stroke="${modeName==='Marítimo'?'var(--blue)':'var(--purple)'}" stroke-width="2.2"/>
+        ${pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.4" fill="${modeName==='Marítimo'?'var(--blue)':'var(--purple)'}" stroke="var(--surface)" stroke-width="1.2" class="inc-modo-dot" data-pp="${p.pp}" data-pct="${p.pct}" data-n="${p.n}" data-tot="${p.tot}" style="cursor:pointer;"/>`).join('')}
+        ${xlbls}
+      </svg>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">Compliance % per Pack Plan (${modeName})</div>
+    <div class="bars">${pctByPP.length ? pctByPP.map(p=>`<div class="br"><span class="bl">S${p.pp}</span><div class="bt"><div class="bf" style="width:${calcPct(p.pct,maxPctVal)}%;background:${p.pct>10?'var(--bad)':p.pct>0?'var(--warn)':'var(--ok)'};"></div></div><span class="bv">${p.pct}%</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div>
+  </div>
+  <div class="card">
+    <div class="ct">Incidents Detail (${modeName})</div>
+    <div class="tbl-scroll"><table class="std"><thead><tr><th>ID/PO</th><th>Pack Plan</th><th>Packing</th><th>Fecha</th><th>Incidencia</th><th>Criticidad</th><th>Responsable</th></tr></thead>
+    <tbody>${rows.length ? rows.map(r=>`<tr><td class="mono">${r.id_po}</td><td class="mono">S${r.pack_plan??'—'}</td><td>${r.packing||'—'}</td><td class="mono">${r.dispatch_date||'—'}</td><td>${r.incident||'—'}</td><td><span class="inc-crit ${incCritClass(r.criticidad)}">${r.criticidad??'—'}</span></td><td>${r.t_supplier||'—'}${r.supplier?' · '+r.supplier:''}</td></tr>`).join('') : `<tr><td colspan="7" class="empty-state">Sin incidencias registradas en ${modeName} todavía</td></tr>`}</tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="ct">Assignments <span class="sub">Responsables por tipo</span></div>
+    <div class="tbl-wrap"><table class="std"><thead><tr><th>Tipo de proveedor</th><th>Proveedor</th><th style="text-align:right">Incidencias</th></tr></thead>
+    <tbody>${Object.keys(byResp).length ? Object.entries(byResp).flatMap(([tsup,provs])=>Object.entries(provs).map(([prov,n],i)=>`<tr><td>${i===0?tsup:''}</td><td>${prov}</td><td class="mono" style="text-align:right">${n}</td></tr>`)).join('') : '<tr><td colspan="3" class="empty-state">Sin datos</td></tr>'}</tbody></table></div>
+  </div>`;
+}
+function incWireModoEvents(){
+  document.querySelectorAll('.inc-modo-dot').forEach(dot=>{
+    dot.addEventListener('mouseenter', ()=>{
+      const tip = document.getElementById('incTooltip');
+      tip.innerHTML = `<div class="fc-tt-title">S${dot.dataset.pp}</div><div class="fc-tt-row"><span class="fc-tt-lbl">Con incidencia</span><span class="fc-tt-val">${dot.dataset.n}</span></div><div class="fc-tt-row"><span class="fc-tt-lbl">Universo total</span><span class="fc-tt-val">${dot.dataset.tot}</span></div><div class="fc-tt-sep"></div><div class="fc-tt-row"><span class="fc-tt-lbl">% Incumplimiento</span><span class="fc-tt-val">${dot.dataset.pct}%</span></div>`;
+      tip.style.opacity = '1';
+      const rect = dot.getBoundingClientRect();
+      tip.style.left = (rect.left + 10) + 'px';
+      tip.style.top = (rect.top - 10) + 'px';
+    });
+    dot.addEventListener('mouseleave', ()=>{ document.getElementById('incTooltip').style.opacity='0'; });
+  });
+}
+
+window.postRender_incidencias = refreshIncidencias;
+
 function renderUpload(){
   return `
   <div class="g2">
@@ -2997,6 +3290,7 @@ const PANEL_RENDERERS = {
   forecast: renderForecast, ports: renderPorts, weekly: renderWeekly, wep: renderWEP,
   pmi: renderPMI, air: renderAir, execute: renderExecute,
   retiro: renderRetiro, packing: renderPacking, ingreso: renderIngreso,
+  incidencias: renderIncidencias,
   upload: renderUpload,
 };
 const CHART_VIEWS = { retiro:['chRetiroAlmacen','chRetiroWeekly'], packing:['chPackingDonut','chPackingDispatch','chPackingWeekly','chPackingNaviera'], ingreso:['chIngresoAlmacen','chIngresoCarrier','chIngresoWeekly'] };

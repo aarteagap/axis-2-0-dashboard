@@ -245,6 +245,7 @@ table.std tbody tr:hover{background:var(--surface-soft);}
 .att-pa{background:var(--surface-soft); color:var(--ink-soft); border:1px solid var(--line); font-size:9.5px; font-weight:600; padding:2px 7px; border-radius:5px;}
 .att-sn{background:var(--ok-bg); color:var(--ok); font-size:9.5px; font-weight:600; padding:2px 7px; border-radius:5px;}
 table.pivot{width:100%; border-collapse:collapse; font-size:11px;}
+table.pivot.pivot-fixed{table-layout:fixed;}
 table.pivot th{text-align:left; padding:7px 9px; font-size:9.5px; text-transform:uppercase; color:var(--ink-soft); border-bottom:2px solid var(--line); font-weight:600; white-space:nowrap; background:var(--surface); position:sticky; top:0;}
 table.pivot td{padding:6px 9px; border-bottom:1px solid var(--line); white-space:nowrap;}
 table.pivot .tv{font-family:'JetBrains Mono',monospace; text-align:center; color:var(--ink);}
@@ -649,7 +650,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['weekly', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
@@ -1719,7 +1720,7 @@ function renderPMI(){
       <div class="fc-label">Assigned Inspector</div>
       <select id="sn-in-select" onchange="refreshPMIAll()" style="padding:7px 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface-soft);color:var(--ink);font-family:inherit;font-size:12px;min-width:200px;"><option value="ALL">Todos</option></select>
     </div>
-    <div class="pivot-scroll"><table class="pivot"><thead id="sn-head"></thead><tbody id="sn-body"></tbody></table></div>
+    <div class="pivot-scroll"><table class="pivot pivot-fixed"><thead id="sn-head"></thead><tbody id="sn-body"></tbody></table></div>
   </div>
 
   <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">🚦 DISPATCH CONTROL</div>
@@ -1832,7 +1833,7 @@ function renderSenasa(){
   const hasST = ft.some(r=>!r.insp_time);
   const cols = [...allTimes, ...(hasST?['']:[])];
 
-  document.getElementById('sn-head').innerHTML = `<tr><th>Packing</th><th>Loading Date</th><th>Mode</th><th>POD</th><th>SENASA Att.</th>${cols.map(t=>`<th style="text-align:center">${t||'Sin hora'}</th>`).join('')}<th style="text-align:right">Total</th></tr>`;
+  document.getElementById('sn-head').innerHTML = `<tr><th style="width:9%;">Packing</th><th style="width:11%;">Loading Date</th><th style="width:9%;">Mode</th><th style="width:13%;">POD</th><th style="width:9%;">SENASA Att.</th>${cols.map(t=>`<th style="text-align:center;width:${Math.max(6, 42/Math.max(cols.length,1))}%;">${t||'Sin hora'}</th>`).join('')}<th style="text-align:right;width:8%;">Total</th></tr>`;
 
   const modeOrder = ['Marítimo','Aéreo','Terrestre'];
   const packings = [...new Set(ft.map(r=>r.packing).filter(Boolean))].sort();
@@ -2097,7 +2098,7 @@ function renderAir(){
   <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">🛫 Air Transport</div>
   <div class="card">
     <div class="ct">Packing / Instruction <span class="sub" id="at-stat"></span></div>
-    <div class="pivot-scroll"><table class="pivot"><thead><tr><th>Packing</th><th>Instruction</th><th>Dispatch Date</th><th>Shipper</th><th>Logistics</th><th>Positioning Time</th><th>Gate-In Storage</th><th style="text-align:right">Suma de Pallets</th><th style="text-align:right">Suma de FCL</th></tr></thead><tbody id="at-body"></tbody></table></div>
+    <div class="pivot-scroll"><table class="pivot pivot-fixed"><thead><tr><th style="width:9%;">Packing</th><th style="width:10%;">Instruction</th><th style="width:11%;">Dispatch Date</th><th style="width:15%;">Shipper</th><th style="width:12%;">Logistics</th><th style="width:13%;">Positioning Time</th><th style="width:13%;">Gate-In Storage</th><th style="width:9%;text-align:right">Suma de Pallets</th><th style="width:8%;text-align:right">Suma de FCL</th></tr></thead><tbody id="at-body"></tbody></table></div>
   </div>`;
 }
 

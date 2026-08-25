@@ -496,8 +496,8 @@ const NAV = [
   {group:'export', label:'Export (AXIS)', items:[
     {id:'forecast', ix:'01', label:'Forecast'},
     {id:'ports',    ix:'02', label:'Ports'},
-    {id:'weekly',   ix:'03', label:'Weekly'},
     {id:'wep',      ix:'03b',label:'Weekly Export Program'},
+    {id:'pmi',      ix:'04', label:'PMI'},
     {id:'air',      ix:'05', label:'Air Program'},
     {id:'execute',  ix:'06', label:'Execute'},
   ]},
@@ -668,9 +668,9 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
-const SUPPLIER_TABS = ['weekly', 'wep', 'air', 'upload'];
+const SUPPLIER_TABS = ['wep', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
 let SENASA,WROWS,AIR,AIRLINES,FWKS,WKL,KPI,EX,DEST,LINEAS,PMI_PORTS,FWKS_MODE,EMBARQUES,TR_PROGRAM,PORTS_RAW,FORECAST_RAW,META,EXECUTE_RAW,INCIDENCIAS,UNIVERSO_COMPLIANCE,HORIZON_RANGE;
 
@@ -1359,153 +1359,6 @@ function refreshPorts(){
 
 window.postRender_ports = refreshPorts;
 
-/* ============================================================
-   # 09c WEEKLY — tabla dinámica completa (filtros multi-select +
-   jerarquía Packing→Modo→Shipper→POD con rowspan), portada de
-   bWeekly/renderWeekly en AXIS_1_0_.html.
-   ============================================================ */
-function wkChipGroup(cls, opts, labelFn){
-  return opts.length ? opts.map(o=>`<label class="fc-chip mono"><input type="checkbox" class="${cls}" value="${String(o).replace(/"/g,'&quot;')}" checked onchange="refreshWeekly()">${labelFn?labelFn(o):o}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>';
-}
-function wkSetAll(cls, state){ document.querySelectorAll('.'+cls).forEach(cb=>cb.checked=state); refreshWeekly(); }
-function wkChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked')].map(cb=>cb.value); }
-
-function renderWeekly(){
-  const rows = WROWS || [];
-  const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
-  const packings = [...new Set(rows.map(r=>r.packing).filter(Boolean))].sort();
-  const shippers = [...new Set(rows.map(r=>r.shipper).filter(Boolean))].sort();
-  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
-  const modes = [...new Set(rows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
-  const dates = [...new Set(rows.map(r=>r.date).filter(Boolean))].sort();
-
-  return `
-  <div class="card" style="margin-bottom:14px;">
-    <div class="ct">Tabla dinámica unificada <span class="sub" id="wk-stat"></span></div>
-    <div style="margin-bottom:12px;">
-      <span class="pill neu" style="font-family:'JetBrains Mono',monospace;">Status (fijo): Confirmado</span>
-    </div>
-    <div style="display:flex; gap:6px; margin-bottom:12px;">
-      <button type="button" class="fc-metric-btn wk-metric-btn active" data-metric="fcl" onclick="wkSetMetric('fcl')">📦 FCL</button>
-      <button type="button" class="fc-metric-btn wk-metric-btn" data-metric="pallets" onclick="wkSetMetric('pallets')">🧱 Pallets</button>
-    </div>
-    <div class="msd-filterbar">
-      ${msdField('msd-wk-pp', 'All Pack Plans', weeks, 'refreshWeekly', w=>'S'+w)}
-      ${msdField('msd-wk-pk', 'All Packing', packings, 'refreshWeekly')}
-      ${msdField('msd-wk-sh', 'All Shippers', shippers, 'refreshWeekly')}
-      ${msdField('msd-wk-mo', 'All Modes', modes, 'refreshWeekly', m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
-      ${msdField('msd-wk-dt', 'All Loading Dates', dates, 'refreshWeekly')}
-    </div>
-  </div>
-  <div class="card">
-    <div class="ct">Export Summary — todos los modos <span class="sub" id="wk-cols-stat"></span></div>
-    <div class="tbl-wrap"><div style="overflow-x:auto;"><table class="std" id="wk-table"><thead id="wk-head"></thead><tbody id="wk-body"></tbody></table></div></div>
-  </div>`;
-}
-
-let wkMetric = 'fcl';
-function wkSetMetric(m){
-  wkMetric = m;
-  document.querySelectorAll('.wk-metric-btn').forEach(b=>b.classList.toggle('active', b.dataset.metric===m));
-  refreshWeekly();
-}
-
-function refreshWeekly(){
-  const rows = WROWS || [];
-  if(!document.getElementById('wk-body')) return;
-  const selPPraw = msdFilterValues('msd-wk-pp');
-  const selPP = selPPraw ? selPPraw.map(Number) : [];
-  const selPK = msdFilterValues('msd-wk-pk') || [];
-  const selSH = msdFilterValues('msd-wk-sh') || [];
-  const selMO = msdFilterValues('msd-wk-mo') || [];
-  const selDT = msdFilterValues('msd-wk-dt') || [];
-
-  let ft = rows;
-  if (selPP.length) ft = ft.filter(r=>selPP.includes(r.pack_plan));
-  if (selPK.length) ft = ft.filter(r=>selPK.includes(r.packing));
-  if (selSH.length) ft = ft.filter(r=>selSH.includes(r.shipper));
-  if (selMO.length) ft = ft.filter(r=>selMO.includes(r.mode));
-  if (selDT.length) ft = ft.filter(r=>selDT.includes(r.date||''));
-
-  const allDates = [...new Set(ft.map(r=>r.date).filter(Boolean))].sort();
-  const hasSF = ft.some(r=>!r.date);
-  const cols = [...allDates, ...(hasSF?['']:[])];
-  const dayLabel = d => { if(!d) return 'Sin fecha'; const dt=parseLocalDate(d); return !dt ? d : dt.toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'short'}).toUpperCase(); };
-
-  const unit = wkMetric==='fcl' ? 'FCL' : 'Pallets';
-  const fmtM = v => wkMetric==='fcl' ? fmt1(v) : Math.round(v).toLocaleString('es-PE');
-  document.getElementById('wk-head').innerHTML = `<tr><th>Packing</th><th>Modo</th><th>Shipper</th><th>POD</th>${cols.map(d=>`<th style="text-align:center">${dayLabel(d)}</th>`).join('')}<th style="text-align:right">${unit}</th></tr>`;
-
-  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
-  const packings = [...new Set(ft.map(r=>r.packing).filter(Boolean))].sort();
-  const gt = {}; cols.forEach(d=>gt[d]=0); gt['__t']=0;
-
-  // Filas como objetos: pkCell/modeCell/shCell solo llevan {span} en su primera
-  // aparición, así el render final ya sale con los rowspan correctos sin
-  // necesidad de parchear el DOM después.
-  let bodyRows = [];
-  packings.forEach(pk=>{
-    const pkRows = ft.filter(r=>r.packing===pk);
-    const pkT = {}; cols.forEach(d=>pkT[d]=0); pkT['__t']=0;
-    const modes = [...new Set(pkRows.map(r=>r.mode))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
-    let pkRowSpan = 0;
-    const pkFirstRowIdx = bodyRows.length;
-
-    modes.forEach(mode=>{
-      const shippers = [...new Set(pkRows.filter(r=>r.mode===mode).map(r=>r.shipper))].sort();
-      let modeRowSpan = 0;
-      const modeFirstRowIdx = bodyRows.length;
-      const modeIcon = mode==='Aéreo'?'✈':mode==='Marítimo'?'⚓':'🚚';
-
-      shippers.forEach(sh=>{
-        const pods = [...new Set(pkRows.filter(r=>r.mode===mode&&r.shipper===sh).map(r=>r.pod))].sort();
-        const shFirstRowIdx = bodyRows.length;
-        pods.forEach(pod=>{
-          const cellsData = {};
-          cols.forEach(d=>{ cellsData[d] = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod&&(r.date||'')===d).map(r=>(r[wkMetric]||0))); });
-          const rt = sum(Object.values(cellsData));
-          cols.forEach(d=>{ pkT[d]+=cellsData[d]; gt[d]+=cellsData[d]; });
-          pkT['__t']+=rt; gt['__t']+=rt;
-          bodyRows.push({ pkCell:null, modeCell:null, shCell:null, pod, cellsData, rt });
-          pkRowSpan++; modeRowSpan++;
-        });
-        bodyRows[shFirstRowIdx].shCell = { shipper: sh, span: pods.length };
-      });
-      bodyRows[modeFirstRowIdx].modeCell = { icon: modeIcon, mode, span: modeRowSpan };
-    });
-    bodyRows[pkFirstRowIdx].pkCell = { pk, span: pkRowSpan };
-    bodyRows.push({ isPkTotal:true, pk, pkT });
-  });
-
-  let html = bodyRows.map(r=>{
-    if (r.isPkTotal){
-      return `<tr style="background:var(--surface-soft);font-weight:600;"><td colspan="3">Total ${r.pk}</td>${cols.map(d=>r.pkT[d]>0?`<td class="mono" style="text-align:center;">${fmtM(r.pkT[d])}</td>`:`<td class="mono" style="text-align:center;color:var(--ink-faint);">·</td>`).join('')}<td class="mono" style="text-align:right;font-weight:700;">${fmtM(r.pkT['__t'])}</td></tr>`;
-    }
-    const pkTd = r.pkCell ? `<td rowspan="${r.pkCell.span}" style="background:var(--surface-soft);font-weight:700;border-right:2px solid var(--blue);vertical-align:top;">${r.pkCell.pk}</td>` : '';
-    const modeTd = r.modeCell ? `<td rowspan="${r.modeCell.span}" style="vertical-align:top;"><span class="pill neu">${r.modeCell.icon} ${r.modeCell.mode}</span></td>` : '';
-    const shTd = r.shCell ? `<td rowspan="${r.shCell.span}" style="vertical-align:top;font-weight:500;">${r.shCell.shipper}</td>` : '';
-    const cellsHtml = cols.map(d=>r.cellsData[d]>0 ? `<td class="mono" style="text-align:center;">${fmtM(r.cellsData[d])}</td>` : `<td class="mono" style="text-align:center;color:var(--ink-faint);">·</td>`).join('');
-    return `<tr>${pkTd}${modeTd}${shTd}<td>${r.pod}</td>${cellsHtml}<td class="mono" style="text-align:right;font-weight:600;">${fmtM(r.rt)}</td></tr>`;
-  }).join('');
-
-  html += `<tr style="background:var(--navy);color:#fff;font-weight:700;"><td colspan="4">Total general</td>${cols.map(d=>gt[d]>0?`<td class="mono" style="text-align:center;">${fmtM(gt[d])}</td>`:`<td class="mono" style="text-align:center;opacity:.5;">·</td>`).join('')}<td class="mono" style="text-align:right;">${fmtM(gt['__t'])}</td></tr>`;
-
-  document.getElementById('wk-body').innerHTML = html || `<tr><td colspan="${4+cols.length+1}" class="empty-state">Sin datos para este filtro</td></tr>`;
-  document.getElementById('wk-stat').textContent = `${ft.length} filas · ${fmtM(gt['__t'])} ${unit}`;
-  document.getElementById('wk-cols-stat').textContent = `${cols.length} fecha(s) de carga`;
-}
-
-window.postRender_weekly = refreshWeekly;
-
-function pillCellStyle(v,max){ const a = (v/max*0.34+0.05).toFixed(2); return v? `background:rgba(240,179,87,${a});` : ''; }
-/* ============================================================
-   # 09g WEEKLY EXPORT PROGRAM — versión con el diseño de referencia
-   (Weekly_Export_Program.html): filtros por Packing/Shipper/Modo,
-   secciones por planta con badges de modo, celdas ámbar, mini-barras
-   por POD, y panel lateral con carga por día + insight + top destinos.
-   Dataset real: WROWS (Planta=packing, Modo=mode, Shipper=shipper,
-   Destino=pod, Fecha de carga=date, FCL=fcl).
-   ============================================================ */
 function wepChecked_select(id){ const el = document.getElementById(id); return el ? el.value : 'ALL'; }
 function wepPickCurrentWeek(rows){
   // Elige la semana cuyo rango de fechas de carga contiene HOY (o la más
@@ -1731,6 +1584,402 @@ function modeOrderIdx(m){ return ['Marítimo','Aéreo','Terrestre'].indexOf(m); 
 window.postRender_wep = refreshWEP;
 
 const AIR_PALETTE = ['#E8A33D','#2E8FB0','#163B54','#7A6FD0','#C0392B','#2E8B57','#C77D1E','#9CA3AF','#6B7280','#1C2940'];
+
+function pmiChipGroup(cls, opts, labelFn){
+  return opts.length ? opts.map(o=>`<label class="fc-chip mono"><input type="checkbox" class="${cls}" value="${String(o).replace(/"/g,'&quot;')}" checked onchange="refreshPMIAll()">${labelFn?labelFn(o):o}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>';
+}
+function pmiSetAll(cls, state){ document.querySelectorAll('.'+cls).forEach(cb=>cb.checked=state); refreshPMIAll(); }
+function pmiSelectToday(){
+  const found = msdSelectOnly('msd-pmi-dd', todayDDMMYYYY());
+  if (!found) alert('No hay despachos registrados para la fecha de hoy (' + todayDDMMYYYY() + ').');
+  refreshPMIAll();
+}
+function pmiChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked')].map(cb=>cb.value); }
+function pmiRing(pctVal, color){
+  const r=22, c=2*Math.PI*r, off=c-(Math.min(pctVal,100)/100)*c;
+  return `<svg width="52" height="52" viewBox="0 0 52 52" style="flex-shrink:0;"><circle cx="26" cy="26" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="26" cy="26" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 26 26)"/></svg>`;
+}
+function pmiFmtDate(d){ if(!d) return ''; const dt=parseLocalDate(d); return !dt?d:dt.toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'short',year:'2-digit'}).toUpperCase(); }
+
+function renderPMI(){
+  const em = EMBARQUES || [];
+  const packings = [...new Set(em.map(r=>r.packing).filter(Boolean))].sort();
+  const weeks = [...new Set(em.map(r=>r.pack_plan))].sort((a,b)=>a-b);
+  const dispatchDates = [...new Set(em.map(r=>r.dispatch_date).filter(Boolean))].sort(cmpDDMMYYYY);
+  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
+  const modes = [...new Set(em.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
+
+  return `
+  <div class="card" style="margin-bottom:14px;">
+    <div class="ct">Filtro global <span class="sub" id="pmi-stat"></span></div>
+    <div style="margin-bottom:14px;">
+      <span class="pill neu" style="font-family:'JetBrains Mono',monospace;">Status (fijo): Confirmado</span>
+    </div>
+    <div class="msd-filterbar" style="margin-bottom:14px;">
+      ${msdField('msd-pmi-pk', 'All Packing', packings, 'refreshPMIAll')}
+      ${msdField('msd-pmi-pp', 'All Pack Plans', weeks, 'refreshPMIAll', w=>'S'+w)}
+      ${msdField('msd-pmi-dd', 'All Dispatch Dates', dispatchDates, 'refreshPMIAll')}
+      <button type="button" class="fc-metric-btn" style="align-self:center;" onclick="pmiSelectToday()" title="Filtrar solo por la fecha de hoy">📅 Hoy</button>
+      ${msdField('msd-pmi-mo', 'All Modes', modes, 'refreshPMIAll', m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
+    </div>
+    <div id="pmi-kpis"></div>
+  </div>
+
+  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">🌿 SENASA PROGRAM</div>
+  <div class="card">
+    <div class="ct">Inspection Time por Inspector <span class="sub" id="sn-stat"></span></div>
+    <div style="margin-bottom:12px;">
+      <div class="fc-label">Assigned Inspector</div>
+      <select id="sn-in-select" onchange="refreshPMIAll()" style="padding:7px 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface-soft);color:var(--ink);font-family:inherit;font-size:12px;min-width:200px;"><option value="ALL">Todos</option></select>
+    </div>
+    <div class="pivot-scroll"><table class="pivot pivot-fixed"><thead id="sn-head"></thead><tbody id="sn-body"></tbody></table></div>
+  </div>
+
+  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">🚦 DISPATCH CONTROL</div>
+  <div class="card">
+    <div class="ct" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Rondas de despacho <span class="sub" id="emb-stat"></span></span>
+      <button type="button" class="theme-toggle" onclick="downloadEmbarquesExcel()">⬇ Descargar Excel</button>
+    </div>
+    <div class="pivot-scroll"><table class="pivot"><thead><tr>
+      <th>Dispatch Ro.</th><th>Loading Date</th><th>Loading Time</th><th>Positioning Time</th><th>Packing Stage Estim.</th>
+      <th>Journey Status BASC</th><th>Packing Stage Load Status</th><th>Instruction</th><th>PO</th><th>Line</th>
+      <th>Logistics Operator</th><th>Transport Operator</th><th>Booking|AWB|CRT</th><th>Container</th><th>POD</th><th>Packing</th><th>Gate-In Storage</th>
+    </tr></thead><tbody id="emb-body"></tbody></table></div>
+  </div>
+
+  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">T.R. PROGRAM</div>
+  <div class="card">
+    <div class="ct">Programa de Técnicos Reefer <span class="sub" id="tr-stat"></span></div>
+    <div class="msd-filterbar" style="margin-bottom:12px;">
+      <div id="tr-ln-wrap"></div>
+      <div id="tr-tt-wrap"></div>
+    </div>
+    <div class="pivot-scroll"><table class="pivot"><thead><tr>
+      <th>Packing</th><th>Logistics Operator</th><th>SENASA Attention</th><th>Line</th><th>Dispatch Date</th>
+      <th>Inspection Time</th><th>T.R. Time</th><th>Assigned T.R.</th><th>Booking|AWB</th><th>Assigned Inspector</th>
+    </tr></thead><tbody id="tr-body"></tbody></table></div>
+  </div>`;
+}
+
+let LAST_EMBARQUES_FILTERED = [];
+
+function pmiGlobalFiltered(dataset){
+  const selPK = msdFilterValues('msd-pmi-pk') || [];
+  const selPPraw = msdFilterValues('msd-pmi-pp');
+  const selPP = selPPraw ? selPPraw.map(Number) : [];
+  const selDD = msdFilterValues('msd-pmi-dd') || [];
+  const selMO = msdFilterValues('msd-pmi-mo') || [];
+  let ft = dataset || [];
+  if (selPK.length) ft = ft.filter(r=>selPK.includes(r.packing));
+  if (selPP.length) ft = ft.filter(r=>selPP.includes(r.pack_plan));
+  if (selDD.length) ft = ft.filter(r=>selDD.includes(r.dispatch_date||''));
+  if (selMO.length) ft = ft.filter(r=>selMO.includes(r.mode));
+  return ft;
+}
+
+function refreshPMIAll(){
+  if (!document.getElementById('pmi-kpis')) return;
+  const selPK = msdFilterValues('msd-pmi-pk');
+  const selPP = msdFilterValues('msd-pmi-pp');
+  const selDD = msdFilterValues('msd-pmi-dd');
+  const selMO = msdFilterValues('msd-pmi-mo');
+  document.getElementById('pmi-stat').textContent = `Packing: ${selPK?selPK.length+' sel.':'Todos'} · Pack Plan: ${selPP?selPP.length+' sel.':'Todos'} · Dispatch: ${selDD?selDD.length+' sel.':'Todos'} · Modo: ${selMO?selMO.length+' sel.':'Todos'}`;
+  renderPMIKPIs();
+  renderSenasa();
+  renderEmbarques();
+  renderTR();
+}
+
+function renderPMIKPIs(){
+  const ft = pmiGlobalFiltered(EMBARQUES);
+  const modeMeta = {'Aéreo':{ic:'✈',c:'var(--blue)'}, 'Marítimo':{ic:'⚓',c:'var(--navy2)'}, 'Terrestre':{ic:'🚚',c:'var(--purple)'}};
+  const modes = Object.keys(modeMeta);
+  const byMode = modes.map(m=>{ const sub = ft.filter(r=>r.mode===m); return { mode:m, fcl: sum(sub.map(r=>r.fcl||0)), po: new Set(sub.filter(r=>r.po).map(r=>r.po)).size }; });
+  const bascGroups = {};
+  ft.forEach(r=>{ const b = r.basc || '(sin estado)'; bascGroups[b] = (bascGroups[b]||0) + (r.fcl||0); });
+  const bascRows = Object.entries(bascGroups).sort((a,b)=>b[1]-a[1]);
+  const bascMax = Math.max(...bascRows.map(r=>r[1]), 1);
+  const totalFcl = sum(ft.map(r=>r.fcl||0));
+  const citaFcl = sum(ft.filter(r=>r.retiro_cita).map(r=>r.fcl||0));
+  const loadFcl = sum(ft.filter(r=>r.load_status==='CARGADO').map(r=>r.fcl||0));
+  const citaPct = totalFcl>0 ? pct(citaFcl,totalFcl) : 0;
+  const loadPct = totalFcl>0 ? pct(loadFcl,totalFcl) : 0;
+
+  const modeRows = byMode.map(m=>`<div class="pmi-mode-row" style="--mc:${modeMeta[m.mode].c};"><div class="pmi-mode-lbl">${modeMeta[m.mode].ic} ${m.mode}</div><div class="pmi-mode-val">${m.po}<span class="pmi-mode-sub">(${fmt1(m.fcl)} FCL)</span></div></div>`).join('');
+  const bascRowsHtml = bascRows.map(([b,v])=>`<div class="pmi-basc-row"><div class="pmi-basc-lbl">${b}</div><div class="pmi-basc-bar-wrap"><div class="pmi-basc-bar" style="width:${(v/bascMax*100).toFixed(1)}%;"></div></div><div class="pmi-basc-val">${fmt1(v)}</div></div>`).join('');
+
+  document.getElementById('pmi-kpis').innerHTML = `
+    <div class="pmi-kpi-zone">
+      <div class="pmi-kpi-col" style="min-width:230px;">
+        <div class="pmi-kpi-h">Modo · PO diferenciados <span class="pmi-kpi-h-sub">(Σ FCL)</span></div>
+        <div>${modeRows || '<div class="empty-state">Sin datos</div>'}</div>
+      </div>
+      <div class="pmi-kpi-col" style="flex:1;min-width:260px;">
+        <div class="pmi-kpi-h">Σ FCL por Journey Status BASC</div>
+        <div>${bascRowsHtml || '<div class="empty-state">Sin datos</div>'}</div>
+      </div>
+      <div class="pmi-kpi-col" style="min-width:280px;">
+        <div class="pmi-kpi-h">Cobertura</div>
+        <div style="display:flex;gap:14px;">
+          <div class="pmi-ring-card">${pmiRing(citaPct,'var(--ok)')}<div><div class="pmi-ring-t">Cita de retiro</div><div class="pmi-ring-v">${fmt1(citaFcl)}<span class="pmi-ring-u"> / ${fmt1(totalFcl)}</span></div><div style="color:var(--ok);font-family:'JetBrains Mono',monospace;font-size:11px;">${totalFcl>0?citaPct+'%':'—'}</div></div></div>
+          <div class="pmi-ring-card">${pmiRing(loadPct,'var(--amber)')}<div><div class="pmi-ring-t">Cargados</div><div class="pmi-ring-v">${fmt1(loadFcl)}<span class="pmi-ring-u"> / ${fmt1(totalFcl)}</span></div><div style="color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:11px;">${totalFcl>0?loadPct+'%':'—'}</div></div></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderSenasa(){
+  const all = SENASA || [];
+  const inSelect = document.getElementById('sn-in-select');
+  if (inSelect.dataset.built !== '1'){
+    const inspectors = [...new Set(all.map(r=>r.inspector).filter(Boolean))].sort();
+    inSelect.innerHTML = '<option value="ALL">Todos</option>' + inspectors.map(i=>`<option value="${i}">${i}</option>`).join('');
+    inSelect.dataset.built = '1';
+  }
+  let ft = pmiGlobalFiltered(all);
+  const selIN = inSelect.value;
+  if (selIN !== 'ALL') ft = ft.filter(r=>r.inspector===selIN);
+
+  const allTimes = [...new Set(ft.map(r=>r.insp_time).filter(Boolean))].sort();
+  const hasST = ft.some(r=>!r.insp_time);
+  const cols = [...allTimes, ...(hasST?['']:[])];
+
+  document.getElementById('sn-head').innerHTML = `<tr><th style="width:9%;">Packing</th><th style="width:11%;">Loading Date</th><th style="width:9%;">Mode</th><th style="width:13%;">POD</th><th style="width:9%;">SENASA Att.</th>${cols.map(t=>`<th style="text-align:center;width:${Math.max(6, 42/Math.max(cols.length,1))}%;">${t||'Sin hora'}</th>`).join('')}<th style="text-align:right;width:8%;">Total</th></tr>`;
+
+  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
+  const packings = [...new Set(ft.map(r=>r.packing).filter(Boolean))].sort();
+  const gt = {}; cols.forEach(t=>gt[t]=0); gt['__t']=0;
+  let bodyRows = [];
+
+  packings.forEach(pk=>{
+    const pkRows = ft.filter(r=>r.packing===pk);
+    const dates = [...new Set(pkRows.map(r=>r.insp_date||''))].sort();
+    let pkRowSpan = 0;
+    const pkFirstIdx = bodyRows.length;
+
+    dates.forEach(dk=>{
+      const dateRows = pkRows.filter(r=>(r.insp_date||'')===dk);
+      const dateT = {}; cols.forEach(t=>dateT[t]=0); dateT['__t']=0;
+      const modes = [...new Set(dateRows.map(r=>r.mode))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
+      let dateRowSpan = 0;
+      const dateFirstIdx = bodyRows.length;
+
+      modes.forEach(mode=>{
+        const modeRows_ = dateRows.filter(r=>r.mode===mode);
+        let modeRowSpan = 0;
+        const modeFirstIdx = bodyRows.length;
+        const pods = [...new Set(modeRows_.map(r=>r.pod))].sort();
+        pods.forEach(pod=>{
+          const podRows = modeRows_.filter(r=>r.pod===pod);
+          const atts = [...new Set(podRows.map(r=>r.senasa_att))].sort();
+          const podFirstIdx = bodyRows.length;
+          atts.forEach(att=>{
+            const attRows = podRows.filter(r=>r.senasa_att===att);
+            const cellsData = {};
+            cols.forEach(t=>{ cellsData[t] = new Set(attRows.filter(r=>(r.insp_time||'')===t).map(r=>r.po||Math.random())).size; });
+            const rt = sum(Object.values(cellsData));
+            cols.forEach(t=>{ gt[t]+=cellsData[t]; dateT[t]+=cellsData[t]; });
+            gt['__t']+=rt; dateT['__t']+=rt;
+            bodyRows.push({ pkCell:null, dateCell:null, modeCell:null, podCell:null, att, cellsData, rt });
+            pkRowSpan++; dateRowSpan++; modeRowSpan++;
+          });
+          bodyRows[podFirstIdx].podCell = { pod, span: atts.length };
+        });
+        bodyRows[modeFirstIdx].modeCell = { mode, span: modeRowSpan };
+      });
+      bodyRows[dateFirstIdx].dateCell = { dk, span: dateRowSpan };
+      bodyRows.push({ isDateTotal:true, dk, dateT });
+    });
+    bodyRows[pkFirstIdx].pkCell = { pk, span: pkRowSpan };
+  });
+
+  const mIcon = m => m==='Aéreo'?'✈':m==='Marítimo'?'⚓':'🚚';
+  const mCls = m => m==='Aéreo'?'mA':m==='Marítimo'?'mM':'mT';
+
+  let html = bodyRows.map(r=>{
+    if (r.isDateTotal){
+      return `<tr class="date-total"><td colspan="4">Total ${r.dk?pmiFmtDate(r.dk):'Sin fecha'}</td>${cols.map(t=>r.dateT[t]>0?`<td class="tv">${r.dateT[t]}</td>`:`<td class="tz">·</td>`).join('')}<td class="tot-v">${r.dateT['__t']}</td></tr>`;
+    }
+    const pkTd = r.pkCell ? `<td rowspan="${r.pkCell.span}" style="background:var(--surface-soft);font-weight:700;border-right:2px solid var(--blue);vertical-align:top;">${r.pkCell.pk}</td>` : '';
+    const dateTd = r.dateCell ? `<td rowspan="${r.dateCell.span}" class="mono" style="vertical-align:top;font-size:10px;">${r.dateCell.dk?pmiFmtDate(r.dateCell.dk):'Sin fecha'}</td>` : '';
+    const modeTd = r.modeCell ? `<td rowspan="${r.modeCell.span}" style="vertical-align:top;"><span class="mode-badge ${mCls(r.modeCell.mode)}">${mIcon(r.modeCell.mode)} ${r.modeCell.mode}</span></td>` : '';
+    const podTd = r.podCell ? `<td rowspan="${r.podCell.span}" style="vertical-align:top;">${r.podCell.pod}</td>` : '';
+    const attBadge = r.att==='PA' ? `<span class="att-pa">PA</span>` : `<span class="att-sn">SENASA</span>`;
+    const cells = cols.map(t=>r.cellsData[t]>0?`<td class="tv">${r.cellsData[t]}</td>`:`<td class="tz">·</td>`).join('');
+    return `<tr>${pkTd}${dateTd}${modeTd}${podTd}<td>${attBadge}</td>${cells}<td class="tot-v">${r.rt}</td></tr>`;
+  }).join('');
+  html += `<tr class="grand-total"><td colspan="5">Total general</td>${cols.map(t=>gt[t]>0?`<td class="tv">${gt[t]}</td>`:`<td class="tz">·</td>`).join('')}<td class="tot-v">${gt['__t']}</td></tr>`;
+
+  document.getElementById('sn-body').innerHTML = html || `<tr><td colspan="${5+cols.length+1}" class="empty-state">Sin registros para este filtro</td></tr>`;
+  document.getElementById('sn-stat').textContent = `${ft.length} filas · ${sum(ft.map(r=>r.fcl||0))?fmt1(sum(ft.map(r=>r.fcl||0))):0} FCL`;
+}
+
+function renderEmbarques(){
+  const ft = pmiGlobalFiltered(EMBARQUES);
+  LAST_EMBARQUES_FILTERED = ft;
+  const rndGroups = {};
+  ft.forEach(r=>{ const rnd = r.round; if(!rndGroups[rnd]) rndGroups[rnd]=[]; rndGroups[rnd].push(r); });
+  const bascCl = b => b==='FINALIZADO' ? 'ok' : (b && (b.includes('PACKING')||b.includes('RUTA'))) ? 'warn' : b ? 'bad' : 'neu';
+
+  let html = '', rows = 0;
+  Object.keys(rndGroups).sort().forEach(rnd=>{
+    const recs = rndGroups[rnd];
+    recs.forEach((r,i)=>{
+      rows++;
+      html += `<tr>${i===0?`<td rowspan="${recs.length}" style="background:var(--surface-soft);font-weight:700;border-right:2px solid var(--blue);vertical-align:middle;text-align:center;">${rnd}</td>`:''}<td class="mono">${r.load_date||'—'}</td><td class="mono">${r.load_time||'—'}</td><td class="mono">${r.postime||'—'}</td><td class="mono">${r.pack_est||'—'}</td><td><span class="pill ${bascCl(r.basc)}" style="font-size:9px;">${r.basc||'—'}</span></td><td>${r.load_status||'—'}</td><td class="mono">${r.instruction||'—'}</td><td class="mono">${r.po||'—'}</td><td>${r.line||'—'}</td><td>${r.log_op||'—'}</td><td>${r.transp_op||'—'}</td><td class="mono">${r.booking||'—'}</td><td class="mono">${r.container||'—'}</td><td>${r.pod||'—'}</td><td>${r.packing||'—'}</td><td>${r.gatein||'—'}</td></tr>`;
+    });
+  });
+  document.getElementById('emb-body').innerHTML = html || `<tr><td colspan="16" class="empty-state">Sin registros para este filtro</td></tr>`;
+  document.getElementById('emb-stat').textContent = `${rows} filas · ${Object.keys(rndGroups).length} ronda(s)`;
+}
+
+function downloadEmbarquesExcel(){
+  if (!LAST_EMBARQUES_FILTERED.length){ alert('No hay registros para exportar con el filtro actual.'); return; }
+  if (typeof XLSX === 'undefined'){ alert('La librería de Excel no cargó todavía. Intenta de nuevo en unos segundos.'); return; }
+  const data = LAST_EMBARQUES_FILTERED.map(r=>({
+    'Dispatch Round': r.round, 'Loading Date': r.load_date, 'Loading Time': r.load_time,
+    'Positioning Time': r.postime, 'Packing Stage Estim.': r.pack_est, 'Journey Status BASC': r.basc,
+    'Packing Stage Load Status': r.load_status, 'Instruction': r.instruction, 'PO': r.po,
+    'Line': r.line, 'Logistics Operator': r.log_op, 'Transport Operator': r.transp_op,
+    'Booking|AWB|CRT': r.booking, 'Container': r.container, 'POD': r.pod, 'Packing': r.packing,
+    'Gate-In Storage': r.gatein, 'Pack Plan': r.pack_plan, 'Dispatch Date': r.dispatch_date, 'Mode': r.mode,
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = Object.keys(data[0]).map(k=>({wch: Math.max(k.length, 14)}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Dispatch Control');
+  const stamp = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `Dispatch_Control_${stamp}.xlsx`);
+}
+
+function renderTR(){
+  const all = TR_PROGRAM || [];
+  const lnWrap = document.getElementById('tr-ln-wrap');
+  const ttWrap = document.getElementById('tr-tt-wrap');
+  if (lnWrap.dataset.built !== '1'){
+    const lines = [...new Set(all.map(r=>r.line).filter(Boolean))].sort();
+    lnWrap.innerHTML = msdField('msd-tr-ln', 'All Lines', lines, 'refreshPMIAll');
+    const ttRaw = [...new Set(all.map(r=>r.tr_time))];
+    const tts = ttRaw.filter(Boolean).sort();
+    const hasBlank = ttRaw.some(t=>!t);
+    ttWrap.innerHTML = msdField('msd-tr-tt', 'All T.R. Times', hasBlank ? [...tts, '(vacío)'] : tts, 'refreshPMIAll');
+    lnWrap.dataset.built = '1';
+  }
+  let ft = pmiGlobalFiltered(all);
+  const selLN = msdFilterValues('msd-tr-ln');
+  if (selLN) ft = ft.filter(r=>selLN.includes(r.line));
+  const selTT = msdFilterValues('msd-tr-tt');
+  if (selTT) ft = ft.filter(r=>selTT.includes(r.tr_time || '(vacío)'));
+
+  const pkGroups = {};
+  ft.forEach(r=>{ const pk=r.packing||'(en blanco)'; if(!pkGroups[pk]) pkGroups[pk]={}; const ln=r.line||'(en blanco)'; if(!pkGroups[pk][ln]) pkGroups[pk][ln]=[]; pkGroups[pk][ln].push(r); });
+
+  let html = '', rows = 0;
+  Object.keys(pkGroups).sort().forEach(pk=>{
+    const lnMap = pkGroups[pk];
+    let pkRowCount = 0; Object.values(lnMap).forEach(recs=>pkRowCount+=recs.length);
+    let pkFirst = true;
+    Object.keys(lnMap).sort().forEach(ln=>{
+      const recs = lnMap[ln];
+      recs.forEach((r,i)=>{
+        rows++;
+        html += `<tr>${pkFirst?`<td rowspan="${pkRowCount}" style="background:var(--navy);color:#fff;font-weight:700;text-align:center;vertical-align:middle;">${pk}</td><td rowspan="${pkRowCount}" style="vertical-align:middle;">${r.log_op||'—'}</td><td rowspan="${pkRowCount}" style="vertical-align:middle;">${r.senasa_att||'—'}</td>`:''}${i===0?`<td rowspan="${recs.length}" style="vertical-align:middle;font-weight:600;">${ln}</td>`:''}<td class="mono">${r.dispatch_date||'—'}</td><td class="mono">${r.insp_time||'—'}</td><td class="mono">${r.tr_time||'—'}</td><td>${r.assigned_tr||'—'}</td><td class="mono">${r.booking||'—'}</td><td>${r.inspector||'—'}</td></tr>`;
+        pkFirst = false;
+      });
+    });
+  });
+  document.getElementById('tr-body').innerHTML = html || `<tr><td colspan="10" class="empty-state">Sin registros para este filtro</td></tr>`;
+  document.getElementById('tr-stat').textContent = `${rows} filas`;
+}
+
+window.postRender_pmi = refreshPMIAll;
+
+/* ============================================================
+   # 09e AIR PROGRAM — versión completa (filtros + KPIs + PO por
+   aerolínea + donut + tabla de despachos + tabla dinámica Packing/
+   Instruction), portada de bAir/renderAirAll/renderAirTable/
+   renderAirTransport en AXIS_1_0_.html. Dataset real: AIR.
+   ============================================================ */
+
+function airChipGroup(cls, opts, labelFn){
+  return opts.length ? opts.map(o=>`<label class="fc-chip mono"><input type="checkbox" class="${cls}" value="${String(o).replace(/"/g,'&quot;')}" checked onchange="refreshAir()">${labelFn?labelFn(o):o}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>';
+}
+function airSetAll(cls, state){ document.querySelectorAll('.'+cls).forEach(cb=>cb.checked=state); refreshAir(); }
+function airChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked')].map(cb=>cb.value); }
+
+function openAirDetail(idx){
+  const r = (AIR||[])[idx];
+  if(!r) return;
+  document.getElementById('airDetailSub').textContent = [r.awb, r.pack_plan?'S'+r.pack_plan:null, r.dest].filter(Boolean).join(' · ');
+  const driverFields = [
+    ['👤','Conductor', r.driver],
+    ['🪪','Licencia', r.license],
+    ['🚛','Tracto', r.tractor],
+    ['🚚','Remolque', r.trailer],
+    ['📱','Celular', r.phone],
+  ];
+  document.getElementById('airDetailBody').innerHTML = driverFields.map(([icon,k,v])=>`<div class="detail-icon-row"><div class="detail-icon">${icon}</div><div class="detail-icon-txt"><div class="detail-icon-lbl">${k}</div><div class="detail-icon-val">${v||'—'}</div></div></div>`).join('');
+  document.getElementById('airDetailOverlay').classList.add('open');
+}
+function closeAirDetail(){ document.getElementById('airDetailOverlay').classList.remove('open'); }
+
+/* ============================================================
+   # 09h AIR PROGRAM — Instructivos por destino (POD), contenido fijo
+   provisto por el equipo operativo. matchPods se usa solo para el
+   "match resaltado" visual si en el futuro se abre desde una fila
+   puntual — hoy el modal siempre muestra las 5 pestañas completas.
+   ============================================================ */
+const AIR_INSTRUCTIVOS = [
+  { id:'singapore', label:'Singapore', matchPods:['Singapore','Singapur'],
+    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
+    documentos:['Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)','Emitir CO'],
+    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Adjuntar solo Factura HF LIMITED, PL y PHYTO','Colocar en el AWB "KEEP ON REFRIGERATION"','Agregar 25 Gel-Packs por skid','Flete Prepaid'] },
+  { id:'usa', label:'USA (NY / Miami)', matchPods:['New York','Miami'],
+    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
+    documentos:['Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)','No requiere CO'],
+    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Adjuntar solo Factura HF LIMITED, PL y PHYTO','Colocar en el AWB "KEEP ON REFRIGERATION"','Flete Prepaid'] },
+  { id:'colbra', label:'Colombia / Brasil', matchPods:['Bogota','Bogotá','Guarulhos'],
+    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
+    documentos:['Certificado de Origen (debe tener la misma fecha de emisión de la factura o posterior)','Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)'],
+    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Colocar en el AWB "KEEP ON REFRIGERATION"','Flete Prepaid'] },
+  { id:'telaviv', label:'Tel Aviv', matchPods:['Tel Aviv'],
+    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
+    documentos:['Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)','Emitir CO'],
+    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Adjuntar solo Factura HF LIMITED, PL y PHYTO','Colocar en el AWB "KEEP ON REFRIGERATION"','Agregar 25 Gel-Packs por skid','Flete Prepaid'] },
+  { id:'india', label:'India (Bombay / Delhi)', matchPods:['Bombay','Delhi'],
+    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
+    documentos:['Certificado de Origen (debe tener la misma fecha de emisión de la factura o posterior)','Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)'],
+    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Colocar en el AWB "KEEP ON REFRIGERATION"','Flete Prepaid','Usar número de factura LIMITED para el CO'] },
+  { id:'london', label:'London', matchPods:['London','Londres'],
+    intro:'Revisar y descargar la documentación correspondiente a cada AWB según ZIP adjunto.',
+    documentos:['Certificado de Origen (debe tener la misma fecha de emisión de la factura o posterior)','Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)'],
+    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Colocar en el AWB "KEEP ON REFRIGERATION"','Flete Prepaid'] },
+];
+let instrActiveTab = 'singapore';
+
+function renderInstructivoTab(id){
+  const g = AIR_INSTRUCTIVOS.find(x=>x.id===id);
+  if (!g) return '';
+  return `
+    <div class="instr-intro">${g.intro}</div>
+    <div class="instr-section-h">Documentos a gestionar</div>
+    <ul class="instr-list">${g.documentos.map(d=>`<li>${d}</li>`).join('')}</ul>
+    <div class="instr-section-h">Información a considerar</div>
+    <ul class="instr-list">${g.info.map(d=>`<li>${d}</li>`).join('')}</ul>`;
+}
+function switchInstructivoTab(id){
+  instrActiveTab = id;
+  document.querySelectorAll('.instr-tab').forEach(t=>t.classList.toggle('active', t.dataset.id===id));
+  document.getElementById('instrBody').innerHTML = renderInstructivoTab(id);
+}
+function openInstructivos(){
+  document.getElementById('instrTabs').innerHTML = AIR_INSTRUCTIVOS.map(g=>`<div class="instr-tab ${g.id===instrActiveTab?'active':''}" data-id="${g.id}" onclick="switchInstructivoTab('${g.id}')">${g.label}</div>`).join('');
+  document.getElementById('instrBody').innerHTML = renderInstructivoTab(instrActiveTab);
+  document.getElementById('instructivosOverlay').classList.add('open');
+}
+function closeInstructivos(){ document.getElementById('instructivosOverlay').classList.remove('open'); }
+
 
 function renderAir(){
   const rows = AIR || [];
@@ -3011,8 +3260,8 @@ function refreshIngreso(){
 window.postRender_ingreso = refreshIngreso;
 
 const PANEL_RENDERERS = {
-  forecast: renderForecast, ports: renderPorts, weekly: renderWeekly, wep: renderWEP,
-  air: renderAir, execute: renderExecute,
+  forecast: renderForecast, ports: renderPorts, wep: renderWEP,
+  pmi: renderPMI, air: renderAir, execute: renderExecute,
   retiro: renderRetiro, packing: renderPacking, ingreso: renderIngreso,
   incidencias: renderIncidencias,
   upload: renderUpload,

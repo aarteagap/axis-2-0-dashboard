@@ -1730,6 +1730,8 @@ function modeOrderIdx(m){ return ['Marítimo','Aéreo','Terrestre'].indexOf(m); 
 
 window.postRender_wep = refreshWEP;
 
+const AIR_PALETTE = ['#E8A33D','#2E8FB0','#163B54','#7A6FD0','#C0392B','#2E8B57','#C77D1E','#9CA3AF','#6B7280','#1C2940'];
+
 function renderAir(){
   const rows = AIR || [];
   const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);

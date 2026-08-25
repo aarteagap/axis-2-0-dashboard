@@ -148,6 +148,7 @@ main{padding:22px 26px 60px;}
 .ct{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13.5px; display:flex; align-items:center; justify-content:space-between; margin-bottom:13px; flex-wrap:wrap; gap:8px;}
 .ct .sub{font-size:10px; color:var(--ink-faint); font-family:'JetBrains Mono',monospace; font-weight:400;}
 .g2{display:grid; grid-template-columns:1.4fr 1fr; gap:14px; align-items:start;}
+.g2 > *{min-width:0;}
 .g3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
 @media(max-width:1080px){.g2,.g3{grid-template-columns:1fr;}}
 
@@ -496,8 +497,7 @@ const NAV = [
     {id:'forecast', ix:'01', label:'Forecast'},
     {id:'ports',    ix:'02', label:'Ports'},
     {id:'weekly',   ix:'03', label:'Weekly'},
-    {id:'wep',      ix:'03b',label:'Weekly Export Program', tag:'NEW'},
-    {id:'pmi',      ix:'04', label:'PMI'},
+    {id:'wep',      ix:'03b',label:'Weekly Export Program'},
     {id:'air',      ix:'05', label:'Air Program'},
     {id:'execute',  ix:'06', label:'Execute'},
   ]},
@@ -668,11 +668,11 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
-const SUPPLIER_TABS = ['weekly', 'pmi', 'air', 'upload'];
+const SUPPLIER_TABS = ['weekly', 'wep', 'air', 'upload'];
 let USER_ROLE = null;
-let SENASA,WROWS,AIR,AIRLINES,FWKS,WKL,KPI,EX,DEST,LINEAS,PMI_PORTS,FWKS_MODE,EMBARQUES,TR_PROGRAM,PORTS_RAW,FORECAST_RAW,META,EXECUTE_RAW,INCIDENCIAS,UNIVERSO_COMPLIANCE;
+let SENASA,WROWS,AIR,AIRLINES,FWKS,WKL,KPI,EX,DEST,LINEAS,PMI_PORTS,FWKS_MODE,EMBARQUES,TR_PROGRAM,PORTS_RAW,FORECAST_RAW,META,EXECUTE_RAW,INCIDENCIAS,UNIVERSO_COMPLIANCE,HORIZON_RANGE;
 
 async function tryLogin(){
   const email = document.getElementById('gateEmail').value.trim();
@@ -713,7 +713,7 @@ async function loadDataAndInit(){
     if (error) throw error;
     const d = {};
     rows.forEach(r => { d[r.dataset_name] = r.payload; });
-    ({SENASA, WROWS, AIR, AIRLINES, FWKS, WKL, KPI, EX, DEST, LINEAS, PMI_PORTS, FWKS_MODE, EMBARQUES, TR_PROGRAM, PORTS_RAW, FORECAST_RAW, META, EXECUTE_RAW, INCIDENCIAS, UNIVERSO_COMPLIANCE} = d);
+    ({SENASA, WROWS, AIR, AIRLINES, FWKS, WKL, KPI, EX, DEST, LINEAS, PMI_PORTS, FWKS_MODE, EMBARQUES, TR_PROGRAM, PORTS_RAW, FORECAST_RAW, META, EXECUTE_RAW, INCIDENCIAS, UNIVERSO_COMPLIANCE, HORIZON_RANGE} = d);
     if (META && META.excel_modified_iso) {
       const dt = new Date(META.excel_modified_iso);
       document.getElementById('statusTxt').textContent = `Datos AXIS · act. ${dt.toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}`;
@@ -721,7 +721,7 @@ async function loadDataAndInit(){
   } catch(e){
     console.error('No se pudo conectar a Supabase, usando datos de muestra de respaldo:', e);
     document.getElementById('statusTxt').innerHTML = '<span style="color:var(--warn);">⚠ Sin conexión a Supabase — datos de muestra</span>';
-    ({SENASA, WROWS, AIR, AIRLINES, FWKS, WKL, KPI, EX, DEST, LINEAS, PMI_PORTS, FWKS_MODE, EMBARQUES, TR_PROGRAM, PORTS_RAW, FORECAST_RAW, META, EXECUTE_RAW, INCIDENCIAS, UNIVERSO_COMPLIANCE} = SAMPLE_FALLBACK);
+    ({SENASA, WROWS, AIR, AIRLINES, FWKS, WKL, KPI, EX, DEST, LINEAS, PMI_PORTS, FWKS_MODE, EMBARQUES, TR_PROGRAM, PORTS_RAW, FORECAST_RAW, META, EXECUTE_RAW, INCIDENCIAS, UNIVERSO_COMPLIANCE, HORIZON_RANGE} = SAMPLE_FALLBACK);
   }
 
   // Transporte: igual patrón que dashboard_data, pero en una tabla separada
@@ -805,13 +805,20 @@ const SAMPLE_FALLBACK = {
     {shipper:'Agroindustrial Chao', dispatch_date:'03/08/2026', pack_plan:31, mode:'Aéreo', booking:'BK-002', has_tr_time:false, senasa_att:''},
   ],
   INCIDENCIAS: [
-    {id_incident:215, persona:'André', id_po:'PO00000050218', dispatch_date:'14/04/2026', t_supplier:'Transportista', supplier:'NWT', incident:'Falla mecánica', criticidad:2, value_range:'1 - 1000 USD', comentario:'', mode:null, pack_plan:null, packing:null, pod:null, fcl:null, pallets:null, matched:false},
     {id_incident:216, persona:'Erika', id_po:'RH-0133T', dispatch_date:'04/07/2026', t_supplier:'Operador', supplier:'NWT', incident:'Info. incompleta/incorrecta/fuera de plazo', criticidad:2, value_range:'1 - 1000 USD', comentario:'', mode:'Marítimo', pack_plan:27, packing:'Chao', pod:'Philadelphia', fcl:1.0, pallets:20.0, matched:true},
     {id_incident:217, persona:'Erika', id_po:'PO00000051363', dispatch_date:'09/07/2026', t_supplier:'Operador', supplier:'NWT', incident:'Info. incompleta/incorrecta/fuera de plazo', criticidad:2, value_range:'1 - 1000 USD', comentario:'', mode:'Marítimo', pack_plan:28, packing:'Chao', pod:'Dover', fcl:1.0, pallets:20.0, matched:true},
     {id_incident:218, persona:'Erika', id_po:'PO00000051400', dispatch_date:'12/07/2026', t_supplier:'Operador', supplier:'NWT', incident:'No hay respuesta', criticidad:2, value_range:'1 - 1000 USD', comentario:'', mode:'Marítimo', pack_plan:28, packing:'Chao', pod:'Shanghai', fcl:1.0, pallets:20.0, matched:true},
     {id_incident:222, persona:'André', id_po:'RH-0160T', dispatch_date:'10/07/2026', t_supplier:'Despacho', supplier:'Talsa', incident:'Técnico no tiene cita de ingreso', criticidad:1, value_range:'Sin Consecuencia Económica', comentario:'', mode:'Marítimo', pack_plan:28, packing:'Chao', pod:'Kaohsiung', fcl:1.0, pallets:20.0, matched:true},
   ],
-  UNIVERSO_COMPLIANCE: { "marítimo": {instructions:744, fcl_total:582.5, pallets_total:11800.0, by_pack_plan:{27:14,28:19}}, "aéreo": {pos:95, fcl_total:79.0, pallets_total:1347.0, by_pack_plan:{27:5,28:6}} },
+  UNIVERSO_COMPLIANCE: {
+    "marítimo": {instructions:744, fcl_total:582.5, pallets_total:11800.0, by_pack_plan:{27:14,28:19}},
+    "aéreo": {pos:95, fcl_total:79.0, pallets_total:1347.0, by_pack_plan:{27:5,28:6}},
+    "general": {
+      by_pack_plan_instruction:{25:22,26:24,27:44,28:59,29:65}, by_pack_plan_po:{25:23,26:24,27:39,28:52,29:50}, by_pack_plan_fcl:{25:23.0,26:29.0,27:47.0,28:66.5,29:60.5},
+      total_instruction:781, total_po:480, total_fcl:792.2,
+    },
+  },
+  HORIZON_RANGE: { pack_plans:[20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40], months:['2026-05','2026-06','2026-07','2026-08','2026-09'] },
   AIR: [
     {pack_plan:31, dispatch:'04/08/2026', log_op:'Ransa', shipper:'Agroindustrial Chao', instruction:'INS-3402', dest:'Miami', pallets:6, awb:'074-5521', file:'F-2291', line:'DHL', transp_op:'Transvip', basc:'FINALIZADO', dam:'OK', po:'PO-010', packing:'OLMOS', driver:'PEREZ LOPEZ JUAN CARLOS', license:'D-12345678', tractor:'ABC-123', trailer:'XYZ-789', phone:'987654321'},
   ],
@@ -989,6 +996,7 @@ function refreshForecast(){
   if(selShippers.length) ft = ft.filter(r=>selShippers.includes(r.shipper));
   if(selModes.length) ft = ft.filter(r=>selModes.includes(r.mode));
   if(selPods.length) ft = ft.filter(r=>selPods.includes(r.pod));
+  const ftBeforeWeekFilter = ft; // para "Proyección 6W": siempre las últimas 6 semanas reales, sin importar qué esté tildado en el checklist de Pack Plan
   if(selWeeks.length) ft = ft.filter(r=>selWeeks.includes(r.pack_plan));
 
   const allWeeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
@@ -1007,13 +1015,21 @@ function refreshForecast(){
   const totC = sum(wks.map(w=>w[kC])), totP = sum(wks.map(w=>w[kP])), totA = sum(wks.map(w=>w[kA]));
   const totAdd = sum(wks.map(w=>w[kAdd])), totExpo = sum(wks.map(w=>w[kExpo])), totExadd = sum(wks.map(w=>w[kExadd])), totAirAdd = sum(wks.map(w=>w[kAirAdd]));
 
+  // Proyección 6W: suma de Proyección (PRE) de las últimas 6 semanas (Pack Plan) que
+  // existan en el dataset — siempre las últimas 6 reales, sin importar qué esté
+  // tildado en el checklist de Pack Plan del filtro.
+  const allWeeksSorted = [...new Set(ftBeforeWeekFilter.map(r=>r.pack_plan))].sort((a,b)=>a-b);
+  const last6Weeks = allWeeksSorted.slice(-6);
+  const wks6 = fcAggregate(ftBeforeWeekFilter, last6Weeks);
+  const totP6W = sum(wks6.map(w=>w[kP]));
+
   document.getElementById('fc-kg').innerHTML = `<div class="kg">
     <div class="kc" style="--acc:var(--blue)"><div class="kl">${unit} Confirmado</div><div class="kv">${fmtM(totC)}<span class="u">${unit}</span></div><div class="kf">${wks.length} semana(s)</div></div>
     <div class="kc" style="--acc:var(--amber)"><div class="kl">AIRADD</div><div class="kv">${fmtM(totAirAdd)}<span class="u">${unit}</span></div><div class="kf">adicionales</div></div>
     <div class="kc" style="--acc:var(--ok)"><div class="kl">ADD</div><div class="kv">${fmtM(totAdd)}<span class="u">${unit}</span></div><div class="kf">adicionales</div></div>
     <div class="kc" style="--acc:var(--purple)"><div class="kl">EXPO</div><div class="kv">${fmtM(totExpo)}<span class="u">${unit}</span></div><div class="kf">adicionales</div></div>
     <div class="kc" style="--acc:var(--warn)"><div class="kl">EXPOADD</div><div class="kv">${fmtM(totExadd)}<span class="u">${unit}</span></div><div class="kf">adicionales</div></div>
-    <div class="kc" style="--acc:var(--navy2)"><div class="kl">Total proyectado</div><div class="kv">${fmtM(totP)}<span class="u">${unit}</span></div></div>
+    <div class="kc" style="--acc:var(--navy2)"><div class="kl">Proyección 6W</div><div class="kv">${fmtM(totP6W)}<span class="u">${unit}</span></div><div class="kf">últimas ${last6Weeks.length} semana(s): ${last6Weeks.map(w=>'S'+w).join(', ')}</div></div>
   </div>`;
 
   const rowsHtml = wks.map(w=>{
@@ -1538,6 +1554,10 @@ function renderWEP(){
     </div>
   </div>
   <div id="wep-kg"></div>
+  <div style="display:flex; gap:6px; margin-bottom:12px;">
+    <button type="button" class="fc-metric-btn wep-metric-btn active" data-metric="fcl" onclick="wepSetMetric('fcl')">📦 FCL</button>
+    <button type="button" class="fc-metric-btn wep-metric-btn" data-metric="pallets" onclick="wepSetMetric('pallets')">🧱 Pallets</button>
+  </div>
   <div class="wep-filterbar">
     <span class="wep-filter-lbl">VISTA</span>
     <div class="wep-pill-select"><span class="wep-filter-lbl">Pack Plan</span><select id="wep-pp-select" onchange="wepOnPlanChange()">${weeks.map(w=>`<option value="${w}" ${w===curWeek?'selected':''}>S${w}</option>`).join('')}</select></div>
@@ -1548,7 +1568,7 @@ function renderWEP(){
     <span class="sub" id="wep-linecount" style="margin-left:auto;"></span>
   </div>
   <div class="g2">
-    <div class="card" style="margin-bottom:0;"><div class="tbl-wrap"><div class="wep-grid" id="wep-grid"></div></div></div>
+    <div class="card" style="margin-bottom:0;min-width:0;"><div class="tbl-wrap"><div class="wep-grid" id="wep-grid"></div></div></div>
     <div>
       <div class="card"><div class="ct">Carga por día · FCL</div><div id="wep-daybars" style="display:flex;gap:10px;align-items:flex-end;"></div><div class="wep-insight" id="wep-insight"></div></div>
       <div class="card" style="margin-bottom:0;"><div class="ct">Top destinos</div><div id="wep-topdest"></div></div>
@@ -1574,6 +1594,13 @@ function wepOnPlanChange(){
   refreshWEP();
 }
 
+let wepMetric = 'fcl';
+function wepSetMetric(m){
+  wepMetric = m;
+  document.querySelectorAll('.wep-metric-btn').forEach(b=>b.classList.toggle('active', b.dataset.metric===m));
+  refreshWEP();
+}
+
 function refreshWEP(){
   const all = WROWS || [];
   if (!document.getElementById('wep-kg')) return;
@@ -1590,24 +1617,27 @@ function refreshWEP(){
   if (selMO!=='ALL') rows = rows.filter(r=>r.mode===selMO);
   if (selPOD!=='ALL') rows = rows.filter(r=>r.pod===selPOD);
 
+  const unit = wepMetric==='fcl' ? 'FCL' : 'Pallets';
+  const fmtM = v => wepMetric==='fcl' ? fmt1(v) : Math.round(v).toLocaleString('es-PE');
+
   const days = [...new Set(rows.map(r=>r.date).filter(Boolean))].sort();
   const dayLabel = ds => { const dt = parseLocalDate(ds); return !dt ? ds : dt.toLocaleDateString('es-PE',{weekday:'short'}).toUpperCase().replace('.',''); };
   const dayDateLabel = ds => { const dt = parseLocalDate(ds); return !dt ? '' : dt.toLocaleDateString('es-PE',{day:'2-digit',month:'short'}).toUpperCase(); };
 
-  const totalFCL = sum(rows.map(r=>r.fcl||0));
+  const totalFCL = sum(rows.map(r=>r[wepMetric]||0));
   const packings = [...new Set(rows.map(r=>r.packing).filter(Boolean))];
   const pods = [...new Set(rows.map(r=>r.pod))];
   const modesUsed = [...new Set(rows.map(r=>r.mode).filter(Boolean))];
-  const weekdayTotals = days.map(dy=>sum(rows.filter(r=>r.date===dy).map(r=>r.fcl||0)));
+  const weekdayTotals = days.map(dy=>sum(rows.filter(r=>r.date===dy).map(r=>r[wepMetric]||0)));
   const maxW = Math.max(...weekdayTotals, 1);
   const peakIdx = weekdayTotals.indexOf(Math.max(...weekdayTotals));
 
-  document.getElementById('wep-week-label').textContent = `${curWeek?'S'+curWeek:'—'} · ${days.length?dayDateLabel(days[0])+' – '+dayDateLabel(days[days.length-1]):''} · FCL por fecha de carga`;
-  document.getElementById('wep-linecount').textContent = `${rows.length} líneas · ${fmt1(totalFCL)} FCL`;
+  document.getElementById('wep-week-label').textContent = `${curWeek?'S'+curWeek:'—'} · ${days.length?dayDateLabel(days[0])+' – '+dayDateLabel(days[days.length-1]):''} · ${unit} por fecha de carga`;
+  document.getElementById('wep-linecount').textContent = `${rows.length} líneas · ${fmtM(totalFCL)} ${unit}`;
 
   document.getElementById('wep-kg').innerHTML = `<div class="kg">
-    <div class="kc" style="--acc:var(--amber)"><div class="kl">Total FCL</div><div class="kv">${fmt1(totalFCL)}</div></div>
-    <div class="kc"><div class="kl">Pico del día</div><div class="kv">${fmt1(weekdayTotals[peakIdx]||0)}<span class="u">${days[peakIdx]?dayLabel(days[peakIdx])+' '+dayDateLabel(days[peakIdx]).split(' ')[0]:''}</span></div></div>
+    <div class="kc" style="--acc:var(--amber)"><div class="kl">Total ${unit}</div><div class="kv">${fmtM(totalFCL)}</div></div>
+    <div class="kc"><div class="kl">Pico del día</div><div class="kv">${fmtM(weekdayTotals[peakIdx]||0)}<span class="u">${days[peakIdx]?dayLabel(days[peakIdx])+' '+dayDateLabel(days[peakIdx]).split(' ')[0]:''}</span></div></div>
     <div class="kc"><div class="kl">Plantas</div><div class="kv">${packings.length}<span class="u">${packings.join(' · ')||'—'}</span></div></div>
     <div class="kc"><div class="kl">Destinos (POD)</div><div class="kv">${pods.length}</div></div>
     <div class="kc"><div class="kl">Modos</div><div class="kv">${modesUsed.length}<span class="u">${modesUsed.map(m=>m.slice(0,3).toUpperCase()).join(' · ')||'—'}</span></div></div>
@@ -1616,9 +1646,9 @@ function refreshWEP(){
   const gridEl = document.getElementById('wep-grid');
   gridEl.style.setProperty('--wep-cols', `minmax(200px,1.6fr) repeat(${Math.max(days.length,1)}, minmax(56px,1fr)) 150px`);
 
-  const headRow = `<div class="wep-row head"><div>Destino</div>${days.map(dy=>`<div class="wep-day-hd">${dayLabel(dy)}<b>${dayDateLabel(dy)}</b></div>`).join('')}<div class="wep-day-hd" style="text-align:right;padding-right:4px;">FCL</div></div>`;
+  const headRow = `<div class="wep-row head"><div>Destino</div>${days.map(dy=>`<div class="wep-day-hd">${dayLabel(dy)}<b>${dayDateLabel(dy)}</b></div>`).join('')}<div class="wep-day-hd" style="text-align:right;padding-right:4px;">${unit}</div></div>`;
 
-  const podTotalsAll = pods.map(p=>({name:p, val:sum(rows.filter(r=>r.pod===p).map(r=>r.fcl||0))})).sort((a,b)=>b.val-a.val);
+  const podTotalsAll = pods.map(p=>({name:p, val:sum(rows.filter(r=>r.pod===p).map(r=>r[wepMetric]||0))})).sort((a,b)=>b.val-a.val);
   const topPodName = podTotalsAll[0] ? podTotalsAll[0].name : null;
   const maxPodVal = Math.max(...podTotalsAll.map(p=>p.val), 1);
   const plantColors = ['var(--amber)','var(--teal)','var(--purple)','var(--blue)'];
@@ -1632,10 +1662,10 @@ function refreshWEP(){
   packings.forEach((pk,pkIdx)=>{
     const pkRows = rows.filter(r=>r.packing===pk);
     const pkPods = new Set(pkRows.map(r=>r.pod));
-    const pkTotal = sum(pkRows.map(r=>r.fcl||0));
-    const pkTotalsByDay = days.map(dy=>sum(pkRows.filter(r=>r.date===dy).map(r=>r.fcl||0)));
+    const pkTotal = sum(pkRows.map(r=>r[wepMetric]||0));
+    const pkTotalsByDay = days.map(dy=>sum(pkRows.filter(r=>r.date===dy).map(r=>r[wepMetric]||0)));
 
-    bodyHtml += `<div class="wep-plant-header" style="--pc:${plantColors[pkIdx%plantColors.length]};"><div class="wep-plant-name">${pk}<span class="wep-plant-sub">${pkRows.length} líneas · ${pkPods.size} POD</span></div><div class="mono" style="font-weight:700;color:${plantColors[pkIdx%plantColors.length]};">${fmt1(pkTotal)}</div></div>`;
+    bodyHtml += `<div class="wep-plant-header" style="--pc:${plantColors[pkIdx%plantColors.length]};"><div class="wep-plant-name">${pk}<span class="wep-plant-sub">${pkRows.length} líneas · ${pkPods.size} POD</span></div><div class="mono" style="font-weight:700;color:${plantColors[pkIdx%plantColors.length]};">${fmtM(pkTotal)}</div></div>`;
 
     const modesInPk = [...new Set(pkRows.map(r=>r.mode))].sort((a,b)=>modeOrderIdx(a)-modeOrderIdx(b));
     modesInPk.forEach(mode=>{
@@ -1644,24 +1674,24 @@ function refreshWEP(){
         bodyHtml += `<div class="wep-mode-row"><span class="wep-mode-badge ${mCls(mode)}">${mode}</span><b>${sh}</b></div>`;
         const podsForSh = [...new Set(pkRows.filter(r=>r.mode===mode&&r.shipper===sh).map(r=>r.pod))];
         podsForSh.forEach(pod=>{
-          const podTotal = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod).map(r=>r.fcl||0));
+          const podTotal = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod).map(r=>r[wepMetric]||0));
           const cells = days.map(dy=>{
-            const v = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod&&r.date===dy).map(r=>r.fcl||0));
-            return `<div class="wep-day-cell"><span class="wep-cell ${v?'has-val':'zero'}">${v?fmt1(v):'·'}</span></div>`;
+            const v = sum(pkRows.filter(r=>r.mode===mode&&r.shipper===sh&&r.pod===pod&&r.date===dy).map(r=>r[wepMetric]||0));
+            return `<div class="wep-day-cell"><span class="wep-cell ${v?'has-val':'zero'}">${v?fmtM(v):'·'}</span></div>`;
           }).join('');
           const isTop = pod===topPodName;
-          bodyHtml += `<div class="wep-row pod"><div>${pod}${isTop?'<span class="wep-top-tag">TOP</span>':''}</div>${cells}<div class="wep-fcl-cell"><div class="wep-fcl-num">${fmt1(podTotal)}</div><div class="wep-pod-bar-wrap"><div class="wep-pod-bar" style="width:${calcPct(podTotal,maxPodVal)}%;"></div></div></div></div>`;
+          bodyHtml += `<div class="wep-row pod"><div>${pod}${isTop?'<span class="wep-top-tag">TOP</span>':''}</div>${cells}<div class="wep-fcl-cell"><div class="wep-fcl-num">${fmtM(podTotal)}</div><div class="wep-pod-bar-wrap"><div class="wep-pod-bar" style="width:${calcPct(podTotal,maxPodVal)}%;"></div></div></div></div>`;
         });
       });
     });
 
-    bodyHtml += `<div class="wep-row subtotal"><div>SUBTOTAL ${pk.toUpperCase()}</div>${pkTotalsByDay.map(v=>`<div class="wep-day-cell mono">${v?fmt1(v):'·'}</div>`).join('')}<div class="wep-fcl-cell wep-fcl-num" style="color:var(--amber);">${fmt1(pkTotal)}</div></div>`;
+    bodyHtml += `<div class="wep-row subtotal"><div>SUBTOTAL ${pk.toUpperCase()}</div>${pkTotalsByDay.map(v=>`<div class="wep-day-cell mono">${v?fmtM(v):'·'}</div>`).join('')}<div class="wep-fcl-cell wep-fcl-num" style="color:var(--amber);">${fmtM(pkTotal)}</div></div>`;
 
     pkTotalsByDay.forEach((v,i)=>{ grandTotalByDay[i]+=v; });
     grandTotal += pkTotal;
   });
 
-  bodyHtml += `<div class="wep-row grandtotal"><div>TOTAL GENERAL</div>${grandTotalByDay.map(v=>`<div class="wep-day-cell mono">${v?fmt1(v):'·'}</div>`).join('')}<div class="wep-fcl-cell wep-fcl-num">${fmt1(grandTotal)}</div></div>`;
+  bodyHtml += `<div class="wep-row grandtotal"><div>TOTAL GENERAL</div>${grandTotalByDay.map(v=>`<div class="wep-day-cell mono">${v?fmtM(v):'·'}</div>`).join('')}<div class="wep-fcl-cell wep-fcl-num">${fmtM(grandTotal)}</div></div>`;
 
   gridEl.innerHTML = headRow + (bodyHtml || '<div class="empty-state">Sin datos de WROWS para esta semana</div>');
 
@@ -1669,7 +1699,7 @@ function refreshWEP(){
   document.getElementById('wep-daybars').innerHTML = days.map((dy,i)=>{
     const v = weekdayTotals[i];
     const isPeak = i===peakIdx;
-    return `<div class="wep-side-bar-col"><span class="mono" style="font-size:10.5px;font-weight:${isPeak?700:400};color:${isPeak?'var(--amber)':'var(--ink-soft)'};">${v?fmt1(v):''}</span><div class="wep-side-bar-track"><div class="wep-side-bar-fill" style="height:${Math.max(4,calcPct(v,maxW))}%;background:${isPeak?'linear-gradient(180deg,var(--amber),#a97430)':'var(--navy2)'};"></div></div><span class="mono" style="font-size:9px;color:var(--ink-faint);">${dayLabel(dy)}</span></div>`;
+    return `<div class="wep-side-bar-col"><span class="mono" style="font-size:10.5px;font-weight:${isPeak?700:400};color:${isPeak?'var(--amber)':'var(--ink-soft)'};">${v?fmtM(v):''}</span><div class="wep-side-bar-track"><div class="wep-side-bar-fill" style="height:${Math.max(4,calcPct(v,maxW))}%;background:${isPeak?'linear-gradient(180deg,var(--amber),#a97430)':'var(--navy2)'};"></div></div><span class="mono" style="font-size:9px;color:var(--ink-faint);">${dayLabel(dy)}</span></div>`;
   }).join('') || '<div class="empty-state">Sin datos</div>';
 
   // Insight dinámico: los 2 días con más carga
@@ -1684,416 +1714,21 @@ function refreshWEP(){
 
   // Top destinos
   document.getElementById('wep-topdest').innerHTML = podTotalsAll.slice(0,6).map(p=>`
-    <div class="wep-top-dest-row"><div class="hd"><span>${p.name}</span><span class="mono" style="color:var(--amber);">${fmt1(p.val)}</span></div><div class="bt"><div class="bf" style="width:${calcPct(p.val,maxPodVal)}%;background:var(--amber);"></div></div></div>`).join('') || '<div class="empty-state">Sin datos</div>';
+    <div class="wep-top-dest-row"><div class="hd"><span>${p.name}</span><span class="mono" style="color:var(--amber);">${fmtM(p.val)}</span></div><div class="bt"><div class="bf" style="width:${calcPct(p.val,maxPodVal)}%;background:var(--amber);"></div></div></div>`).join('') || '<div class="empty-state">Sin datos</div>';
 
   // Split por modo
   const modeColorsWep = {'Marítimo':'var(--teal)','Aéreo':'var(--purple)','Terrestre':'var(--amber)'};
-  const splitData = modesUsed.map(m=>({mode:m, val:sum(rows.filter(r=>r.mode===m).map(r=>r.fcl||0)), color:modeColorsWep[m]||'var(--ink-faint)'})).sort((a,b)=>b.val-a.val);
+  const splitData = modesUsed.map(m=>({mode:m, val:sum(rows.filter(r=>r.mode===m).map(r=>r[wepMetric]||0)), color:modeColorsWep[m]||'var(--ink-faint)'})).sort((a,b)=>b.val-a.val);
   const splitTrack = splitData.map(s=>`<div style="width:${totalFCL?(s.val/totalFCL*100).toFixed(1):0}%;background:${s.color};"></div>`).join('');
-  const splitLegend = splitData.map(s=>`<div style="display:flex;align-items:center;gap:9px;margin-top:10px;font-size:12.5px;"><span style="width:9px;height:9px;border-radius:2px;background:${s.color};flex-shrink:0;"></span><span style="flex:1;">${s.mode}</span><span class="mono" style="font-weight:600;">${fmt1(s.val)}</span></div>`).join('');
+  const splitLegend = splitData.map(s=>`<div style="display:flex;align-items:center;gap:9px;margin-top:10px;font-size:12.5px;"><span style="width:9px;height:9px;border-radius:2px;background:${s.color};flex-shrink:0;"></span><span style="flex:1;">${s.mode}</span><span class="mono" style="font-weight:600;">${fmtM(s.val)}</span></div>`).join('');
   document.getElementById('wep-splitmode').innerHTML = splitData.length ? `
     <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px;">${splitTrack}</div>
     ${splitLegend}` : '<div class="empty-state">Sin datos</div>';
 }
 function modeOrderIdx(m){ return ['Marítimo','Aéreo','Terrestre'].indexOf(m); }
 
+
 window.postRender_wep = refreshWEP;
-
-function pmiChipGroup(cls, opts, labelFn){
-  return opts.length ? opts.map(o=>`<label class="fc-chip mono"><input type="checkbox" class="${cls}" value="${String(o).replace(/"/g,'&quot;')}" checked onchange="refreshPMIAll()">${labelFn?labelFn(o):o}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>';
-}
-function pmiSetAll(cls, state){ document.querySelectorAll('.'+cls).forEach(cb=>cb.checked=state); refreshPMIAll(); }
-function pmiSelectToday(){
-  const found = msdSelectOnly('msd-pmi-dd', todayDDMMYYYY());
-  if (!found) alert('No hay despachos registrados para la fecha de hoy (' + todayDDMMYYYY() + ').');
-  refreshPMIAll();
-}
-function pmiChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked')].map(cb=>cb.value); }
-function pmiRing(pctVal, color){
-  const r=22, c=2*Math.PI*r, off=c-(Math.min(pctVal,100)/100)*c;
-  return `<svg width="52" height="52" viewBox="0 0 52 52" style="flex-shrink:0;"><circle cx="26" cy="26" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="26" cy="26" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 26 26)"/></svg>`;
-}
-function pmiFmtDate(d){ if(!d) return ''; const dt=parseLocalDate(d); return !dt?d:dt.toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'short',year:'2-digit'}).toUpperCase(); }
-
-function renderPMI(){
-  const em = EMBARQUES || [];
-  const packings = [...new Set(em.map(r=>r.packing).filter(Boolean))].sort();
-  const weeks = [...new Set(em.map(r=>r.pack_plan))].sort((a,b)=>a-b);
-  const dispatchDates = [...new Set(em.map(r=>r.dispatch_date).filter(Boolean))].sort(cmpDDMMYYYY);
-  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
-  const modes = [...new Set(em.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
-
-  return `
-  <div class="card" style="margin-bottom:14px;">
-    <div class="ct">Filtro global <span class="sub" id="pmi-stat"></span></div>
-    <div style="margin-bottom:14px;">
-      <span class="pill neu" style="font-family:'JetBrains Mono',monospace;">Status (fijo): Confirmado</span>
-    </div>
-    <div class="msd-filterbar" style="margin-bottom:14px;">
-      ${msdField('msd-pmi-pk', 'All Packing', packings, 'refreshPMIAll')}
-      ${msdField('msd-pmi-pp', 'All Pack Plans', weeks, 'refreshPMIAll', w=>'S'+w)}
-      ${msdField('msd-pmi-dd', 'All Dispatch Dates', dispatchDates, 'refreshPMIAll')}
-      <button type="button" class="fc-metric-btn" style="align-self:center;" onclick="pmiSelectToday()" title="Filtrar solo por la fecha de hoy">📅 Hoy</button>
-      ${msdField('msd-pmi-mo', 'All Modes', modes, 'refreshPMIAll', m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
-    </div>
-    <div id="pmi-kpis"></div>
-  </div>
-
-  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">🌿 SENASA PROGRAM</div>
-  <div class="card">
-    <div class="ct">Inspection Time por Inspector <span class="sub" id="sn-stat"></span></div>
-    <div style="margin-bottom:12px;">
-      <div class="fc-label">Assigned Inspector</div>
-      <select id="sn-in-select" onchange="refreshPMIAll()" style="padding:7px 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface-soft);color:var(--ink);font-family:inherit;font-size:12px;min-width:200px;"><option value="ALL">Todos</option></select>
-    </div>
-    <div class="pivot-scroll"><table class="pivot pivot-fixed"><thead id="sn-head"></thead><tbody id="sn-body"></tbody></table></div>
-  </div>
-
-  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">🚦 DISPATCH CONTROL</div>
-  <div class="card">
-    <div class="ct" style="display:flex;justify-content:space-between;align-items:center;">
-      <span>Rondas de despacho <span class="sub" id="emb-stat"></span></span>
-      <button type="button" class="theme-toggle" onclick="downloadEmbarquesExcel()">⬇ Descargar Excel</button>
-    </div>
-    <div class="pivot-scroll"><table class="pivot"><thead><tr>
-      <th>Dispatch Ro.</th><th>Loading Date</th><th>Loading Time</th><th>Positioning Time</th><th>Packing Stage Estim.</th>
-      <th>Journey Status BASC</th><th>Packing Stage Load Status</th><th>Instruction</th><th>PO</th><th>Line</th>
-      <th>Logistics Operator</th><th>Transport Operator</th><th>Booking|AWB|CRT</th><th>Container</th><th>POD</th><th>Packing</th><th>Gate-In Storage</th>
-    </tr></thead><tbody id="emb-body"></tbody></table></div>
-  </div>
-
-  <div class="sec-title" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;margin:20px 0 12px;">T.R. PROGRAM</div>
-  <div class="card">
-    <div class="ct">Programa de Técnicos Reefer <span class="sub" id="tr-stat"></span></div>
-    <div class="msd-filterbar" style="margin-bottom:12px;">
-      <div id="tr-ln-wrap"></div>
-      <div id="tr-tt-wrap"></div>
-    </div>
-    <div class="pivot-scroll"><table class="pivot"><thead><tr>
-      <th>Packing</th><th>Logistics Operator</th><th>SENASA Attention</th><th>Line</th><th>Dispatch Date</th>
-      <th>Inspection Time</th><th>T.R. Time</th><th>Assigned T.R.</th><th>Booking|AWB</th><th>Assigned Inspector</th>
-    </tr></thead><tbody id="tr-body"></tbody></table></div>
-  </div>`;
-}
-
-let LAST_EMBARQUES_FILTERED = [];
-
-function pmiGlobalFiltered(dataset){
-  const selPK = msdFilterValues('msd-pmi-pk') || [];
-  const selPPraw = msdFilterValues('msd-pmi-pp');
-  const selPP = selPPraw ? selPPraw.map(Number) : [];
-  const selDD = msdFilterValues('msd-pmi-dd') || [];
-  const selMO = msdFilterValues('msd-pmi-mo') || [];
-  let ft = dataset || [];
-  if (selPK.length) ft = ft.filter(r=>selPK.includes(r.packing));
-  if (selPP.length) ft = ft.filter(r=>selPP.includes(r.pack_plan));
-  if (selDD.length) ft = ft.filter(r=>selDD.includes(r.dispatch_date||''));
-  if (selMO.length) ft = ft.filter(r=>selMO.includes(r.mode));
-  return ft;
-}
-
-function refreshPMIAll(){
-  if (!document.getElementById('pmi-kpis')) return;
-  const selPK = msdFilterValues('msd-pmi-pk');
-  const selPP = msdFilterValues('msd-pmi-pp');
-  const selDD = msdFilterValues('msd-pmi-dd');
-  const selMO = msdFilterValues('msd-pmi-mo');
-  document.getElementById('pmi-stat').textContent = `Packing: ${selPK?selPK.length+' sel.':'Todos'} · Pack Plan: ${selPP?selPP.length+' sel.':'Todos'} · Dispatch: ${selDD?selDD.length+' sel.':'Todos'} · Modo: ${selMO?selMO.length+' sel.':'Todos'}`;
-  renderPMIKPIs();
-  renderSenasa();
-  renderEmbarques();
-  renderTR();
-}
-
-function renderPMIKPIs(){
-  const ft = pmiGlobalFiltered(EMBARQUES);
-  const modeMeta = {'Aéreo':{ic:'✈',c:'var(--blue)'}, 'Marítimo':{ic:'⚓',c:'var(--navy2)'}, 'Terrestre':{ic:'🚚',c:'var(--purple)'}};
-  const modes = Object.keys(modeMeta);
-  const byMode = modes.map(m=>{ const sub = ft.filter(r=>r.mode===m); return { mode:m, fcl: sum(sub.map(r=>r.fcl||0)), po: new Set(sub.filter(r=>r.po).map(r=>r.po)).size }; });
-  const bascGroups = {};
-  ft.forEach(r=>{ const b = r.basc || '(sin estado)'; bascGroups[b] = (bascGroups[b]||0) + (r.fcl||0); });
-  const bascRows = Object.entries(bascGroups).sort((a,b)=>b[1]-a[1]);
-  const bascMax = Math.max(...bascRows.map(r=>r[1]), 1);
-  const totalFcl = sum(ft.map(r=>r.fcl||0));
-  const citaFcl = sum(ft.filter(r=>r.retiro_cita).map(r=>r.fcl||0));
-  const loadFcl = sum(ft.filter(r=>r.load_status==='CARGADO').map(r=>r.fcl||0));
-  const citaPct = totalFcl>0 ? pct(citaFcl,totalFcl) : 0;
-  const loadPct = totalFcl>0 ? pct(loadFcl,totalFcl) : 0;
-
-  const modeRows = byMode.map(m=>`<div class="pmi-mode-row" style="--mc:${modeMeta[m.mode].c};"><div class="pmi-mode-lbl">${modeMeta[m.mode].ic} ${m.mode}</div><div class="pmi-mode-val">${m.po}<span class="pmi-mode-sub">(${fmt1(m.fcl)} FCL)</span></div></div>`).join('');
-  const bascRowsHtml = bascRows.map(([b,v])=>`<div class="pmi-basc-row"><div class="pmi-basc-lbl">${b}</div><div class="pmi-basc-bar-wrap"><div class="pmi-basc-bar" style="width:${(v/bascMax*100).toFixed(1)}%;"></div></div><div class="pmi-basc-val">${fmt1(v)}</div></div>`).join('');
-
-  document.getElementById('pmi-kpis').innerHTML = `
-    <div class="pmi-kpi-zone">
-      <div class="pmi-kpi-col" style="min-width:230px;">
-        <div class="pmi-kpi-h">Modo · PO diferenciados <span class="pmi-kpi-h-sub">(Σ FCL)</span></div>
-        <div>${modeRows || '<div class="empty-state">Sin datos</div>'}</div>
-      </div>
-      <div class="pmi-kpi-col" style="flex:1;min-width:260px;">
-        <div class="pmi-kpi-h">Σ FCL por Journey Status BASC</div>
-        <div>${bascRowsHtml || '<div class="empty-state">Sin datos</div>'}</div>
-      </div>
-      <div class="pmi-kpi-col" style="min-width:280px;">
-        <div class="pmi-kpi-h">Cobertura</div>
-        <div style="display:flex;gap:14px;">
-          <div class="pmi-ring-card">${pmiRing(citaPct,'var(--ok)')}<div><div class="pmi-ring-t">Cita de retiro</div><div class="pmi-ring-v">${fmt1(citaFcl)}<span class="pmi-ring-u"> / ${fmt1(totalFcl)}</span></div><div style="color:var(--ok);font-family:'JetBrains Mono',monospace;font-size:11px;">${totalFcl>0?citaPct+'%':'—'}</div></div></div>
-          <div class="pmi-ring-card">${pmiRing(loadPct,'var(--amber)')}<div><div class="pmi-ring-t">Cargados</div><div class="pmi-ring-v">${fmt1(loadFcl)}<span class="pmi-ring-u"> / ${fmt1(totalFcl)}</span></div><div style="color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:11px;">${totalFcl>0?loadPct+'%':'—'}</div></div></div>
-        </div>
-      </div>
-    </div>`;
-}
-
-function renderSenasa(){
-  const all = SENASA || [];
-  const inSelect = document.getElementById('sn-in-select');
-  if (inSelect.dataset.built !== '1'){
-    const inspectors = [...new Set(all.map(r=>r.inspector).filter(Boolean))].sort();
-    inSelect.innerHTML = '<option value="ALL">Todos</option>' + inspectors.map(i=>`<option value="${i}">${i}</option>`).join('');
-    inSelect.dataset.built = '1';
-  }
-  let ft = pmiGlobalFiltered(all);
-  const selIN = inSelect.value;
-  if (selIN !== 'ALL') ft = ft.filter(r=>r.inspector===selIN);
-
-  const allTimes = [...new Set(ft.map(r=>r.insp_time).filter(Boolean))].sort();
-  const hasST = ft.some(r=>!r.insp_time);
-  const cols = [...allTimes, ...(hasST?['']:[])];
-
-  document.getElementById('sn-head').innerHTML = `<tr><th style="width:9%;">Packing</th><th style="width:11%;">Loading Date</th><th style="width:9%;">Mode</th><th style="width:13%;">POD</th><th style="width:9%;">SENASA Att.</th>${cols.map(t=>`<th style="text-align:center;width:${Math.max(6, 42/Math.max(cols.length,1))}%;">${t||'Sin hora'}</th>`).join('')}<th style="text-align:right;width:8%;">Total</th></tr>`;
-
-  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
-  const packings = [...new Set(ft.map(r=>r.packing).filter(Boolean))].sort();
-  const gt = {}; cols.forEach(t=>gt[t]=0); gt['__t']=0;
-  let bodyRows = [];
-
-  packings.forEach(pk=>{
-    const pkRows = ft.filter(r=>r.packing===pk);
-    const dates = [...new Set(pkRows.map(r=>r.insp_date||''))].sort();
-    let pkRowSpan = 0;
-    const pkFirstIdx = bodyRows.length;
-
-    dates.forEach(dk=>{
-      const dateRows = pkRows.filter(r=>(r.insp_date||'')===dk);
-      const dateT = {}; cols.forEach(t=>dateT[t]=0); dateT['__t']=0;
-      const modes = [...new Set(dateRows.map(r=>r.mode))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
-      let dateRowSpan = 0;
-      const dateFirstIdx = bodyRows.length;
-
-      modes.forEach(mode=>{
-        const modeRows_ = dateRows.filter(r=>r.mode===mode);
-        let modeRowSpan = 0;
-        const modeFirstIdx = bodyRows.length;
-        const pods = [...new Set(modeRows_.map(r=>r.pod))].sort();
-        pods.forEach(pod=>{
-          const podRows = modeRows_.filter(r=>r.pod===pod);
-          const atts = [...new Set(podRows.map(r=>r.senasa_att))].sort();
-          const podFirstIdx = bodyRows.length;
-          atts.forEach(att=>{
-            const attRows = podRows.filter(r=>r.senasa_att===att);
-            const cellsData = {};
-            cols.forEach(t=>{ cellsData[t] = new Set(attRows.filter(r=>(r.insp_time||'')===t).map(r=>r.po||Math.random())).size; });
-            const rt = sum(Object.values(cellsData));
-            cols.forEach(t=>{ gt[t]+=cellsData[t]; dateT[t]+=cellsData[t]; });
-            gt['__t']+=rt; dateT['__t']+=rt;
-            bodyRows.push({ pkCell:null, dateCell:null, modeCell:null, podCell:null, att, cellsData, rt });
-            pkRowSpan++; dateRowSpan++; modeRowSpan++;
-          });
-          bodyRows[podFirstIdx].podCell = { pod, span: atts.length };
-        });
-        bodyRows[modeFirstIdx].modeCell = { mode, span: modeRowSpan };
-      });
-      bodyRows[dateFirstIdx].dateCell = { dk, span: dateRowSpan };
-      bodyRows.push({ isDateTotal:true, dk, dateT });
-    });
-    bodyRows[pkFirstIdx].pkCell = { pk, span: pkRowSpan };
-  });
-
-  const mIcon = m => m==='Aéreo'?'✈':m==='Marítimo'?'⚓':'🚚';
-  const mCls = m => m==='Aéreo'?'mA':m==='Marítimo'?'mM':'mT';
-
-  let html = bodyRows.map(r=>{
-    if (r.isDateTotal){
-      return `<tr class="date-total"><td colspan="4">Total ${r.dk?pmiFmtDate(r.dk):'Sin fecha'}</td>${cols.map(t=>r.dateT[t]>0?`<td class="tv">${r.dateT[t]}</td>`:`<td class="tz">·</td>`).join('')}<td class="tot-v">${r.dateT['__t']}</td></tr>`;
-    }
-    const pkTd = r.pkCell ? `<td rowspan="${r.pkCell.span}" style="background:var(--surface-soft);font-weight:700;border-right:2px solid var(--blue);vertical-align:top;">${r.pkCell.pk}</td>` : '';
-    const dateTd = r.dateCell ? `<td rowspan="${r.dateCell.span}" class="mono" style="vertical-align:top;font-size:10px;">${r.dateCell.dk?pmiFmtDate(r.dateCell.dk):'Sin fecha'}</td>` : '';
-    const modeTd = r.modeCell ? `<td rowspan="${r.modeCell.span}" style="vertical-align:top;"><span class="mode-badge ${mCls(r.modeCell.mode)}">${mIcon(r.modeCell.mode)} ${r.modeCell.mode}</span></td>` : '';
-    const podTd = r.podCell ? `<td rowspan="${r.podCell.span}" style="vertical-align:top;">${r.podCell.pod}</td>` : '';
-    const attBadge = r.att==='PA' ? `<span class="att-pa">PA</span>` : `<span class="att-sn">SENASA</span>`;
-    const cells = cols.map(t=>r.cellsData[t]>0?`<td class="tv">${r.cellsData[t]}</td>`:`<td class="tz">·</td>`).join('');
-    return `<tr>${pkTd}${dateTd}${modeTd}${podTd}<td>${attBadge}</td>${cells}<td class="tot-v">${r.rt}</td></tr>`;
-  }).join('');
-  html += `<tr class="grand-total"><td colspan="5">Total general</td>${cols.map(t=>gt[t]>0?`<td class="tv">${gt[t]}</td>`:`<td class="tz">·</td>`).join('')}<td class="tot-v">${gt['__t']}</td></tr>`;
-
-  document.getElementById('sn-body').innerHTML = html || `<tr><td colspan="${5+cols.length+1}" class="empty-state">Sin registros para este filtro</td></tr>`;
-  document.getElementById('sn-stat').textContent = `${ft.length} filas · ${sum(ft.map(r=>r.fcl||0))?fmt1(sum(ft.map(r=>r.fcl||0))):0} FCL`;
-}
-
-function renderEmbarques(){
-  const ft = pmiGlobalFiltered(EMBARQUES);
-  LAST_EMBARQUES_FILTERED = ft;
-  const rndGroups = {};
-  ft.forEach(r=>{ const rnd = r.round; if(!rndGroups[rnd]) rndGroups[rnd]=[]; rndGroups[rnd].push(r); });
-  const bascCl = b => b==='FINALIZADO' ? 'ok' : (b && (b.includes('PACKING')||b.includes('RUTA'))) ? 'warn' : b ? 'bad' : 'neu';
-
-  let html = '', rows = 0;
-  Object.keys(rndGroups).sort().forEach(rnd=>{
-    const recs = rndGroups[rnd];
-    recs.forEach((r,i)=>{
-      rows++;
-      html += `<tr>${i===0?`<td rowspan="${recs.length}" style="background:var(--surface-soft);font-weight:700;border-right:2px solid var(--blue);vertical-align:middle;text-align:center;">${rnd}</td>`:''}<td class="mono">${r.load_date||'—'}</td><td class="mono">${r.load_time||'—'}</td><td class="mono">${r.postime||'—'}</td><td class="mono">${r.pack_est||'—'}</td><td><span class="pill ${bascCl(r.basc)}" style="font-size:9px;">${r.basc||'—'}</span></td><td>${r.load_status||'—'}</td><td class="mono">${r.instruction||'—'}</td><td class="mono">${r.po||'—'}</td><td>${r.line||'—'}</td><td>${r.log_op||'—'}</td><td>${r.transp_op||'—'}</td><td class="mono">${r.booking||'—'}</td><td class="mono">${r.container||'—'}</td><td>${r.pod||'—'}</td><td>${r.packing||'—'}</td><td>${r.gatein||'—'}</td></tr>`;
-    });
-  });
-  document.getElementById('emb-body').innerHTML = html || `<tr><td colspan="16" class="empty-state">Sin registros para este filtro</td></tr>`;
-  document.getElementById('emb-stat').textContent = `${rows} filas · ${Object.keys(rndGroups).length} ronda(s)`;
-}
-
-function downloadEmbarquesExcel(){
-  if (!LAST_EMBARQUES_FILTERED.length){ alert('No hay registros para exportar con el filtro actual.'); return; }
-  if (typeof XLSX === 'undefined'){ alert('La librería de Excel no cargó todavía. Intenta de nuevo en unos segundos.'); return; }
-  const data = LAST_EMBARQUES_FILTERED.map(r=>({
-    'Dispatch Round': r.round, 'Loading Date': r.load_date, 'Loading Time': r.load_time,
-    'Positioning Time': r.postime, 'Packing Stage Estim.': r.pack_est, 'Journey Status BASC': r.basc,
-    'Packing Stage Load Status': r.load_status, 'Instruction': r.instruction, 'PO': r.po,
-    'Line': r.line, 'Logistics Operator': r.log_op, 'Transport Operator': r.transp_op,
-    'Booking|AWB|CRT': r.booking, 'Container': r.container, 'POD': r.pod, 'Packing': r.packing,
-    'Gate-In Storage': r.gatein, 'Pack Plan': r.pack_plan, 'Dispatch Date': r.dispatch_date, 'Mode': r.mode,
-  }));
-  const ws = XLSX.utils.json_to_sheet(data);
-  ws['!cols'] = Object.keys(data[0]).map(k=>({wch: Math.max(k.length, 14)}));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Dispatch Control');
-  const stamp = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb, `Dispatch_Control_${stamp}.xlsx`);
-}
-
-function renderTR(){
-  const all = TR_PROGRAM || [];
-  const lnWrap = document.getElementById('tr-ln-wrap');
-  const ttWrap = document.getElementById('tr-tt-wrap');
-  if (lnWrap.dataset.built !== '1'){
-    const lines = [...new Set(all.map(r=>r.line).filter(Boolean))].sort();
-    lnWrap.innerHTML = msdField('msd-tr-ln', 'All Lines', lines, 'refreshPMIAll');
-    const ttRaw = [...new Set(all.map(r=>r.tr_time))];
-    const tts = ttRaw.filter(Boolean).sort();
-    const hasBlank = ttRaw.some(t=>!t);
-    ttWrap.innerHTML = msdField('msd-tr-tt', 'All T.R. Times', hasBlank ? [...tts, '(vacío)'] : tts, 'refreshPMIAll');
-    lnWrap.dataset.built = '1';
-  }
-  let ft = pmiGlobalFiltered(all);
-  const selLN = msdFilterValues('msd-tr-ln');
-  if (selLN) ft = ft.filter(r=>selLN.includes(r.line));
-  const selTT = msdFilterValues('msd-tr-tt');
-  if (selTT) ft = ft.filter(r=>selTT.includes(r.tr_time || '(vacío)'));
-
-  const pkGroups = {};
-  ft.forEach(r=>{ const pk=r.packing||'(en blanco)'; if(!pkGroups[pk]) pkGroups[pk]={}; const ln=r.line||'(en blanco)'; if(!pkGroups[pk][ln]) pkGroups[pk][ln]=[]; pkGroups[pk][ln].push(r); });
-
-  let html = '', rows = 0;
-  Object.keys(pkGroups).sort().forEach(pk=>{
-    const lnMap = pkGroups[pk];
-    let pkRowCount = 0; Object.values(lnMap).forEach(recs=>pkRowCount+=recs.length);
-    let pkFirst = true;
-    Object.keys(lnMap).sort().forEach(ln=>{
-      const recs = lnMap[ln];
-      recs.forEach((r,i)=>{
-        rows++;
-        html += `<tr>${pkFirst?`<td rowspan="${pkRowCount}" style="background:var(--navy);color:#fff;font-weight:700;text-align:center;vertical-align:middle;">${pk}</td><td rowspan="${pkRowCount}" style="vertical-align:middle;">${r.log_op||'—'}</td><td rowspan="${pkRowCount}" style="vertical-align:middle;">${r.senasa_att||'—'}</td>`:''}${i===0?`<td rowspan="${recs.length}" style="vertical-align:middle;font-weight:600;">${ln}</td>`:''}<td class="mono">${r.dispatch_date||'—'}</td><td class="mono">${r.insp_time||'—'}</td><td class="mono">${r.tr_time||'—'}</td><td>${r.assigned_tr||'—'}</td><td class="mono">${r.booking||'—'}</td><td>${r.inspector||'—'}</td></tr>`;
-        pkFirst = false;
-      });
-    });
-  });
-  document.getElementById('tr-body').innerHTML = html || `<tr><td colspan="10" class="empty-state">Sin registros para este filtro</td></tr>`;
-  document.getElementById('tr-stat').textContent = `${rows} filas`;
-}
-
-window.postRender_pmi = refreshPMIAll;
-
-/* ============================================================
-   # 09e AIR PROGRAM — versión completa (filtros + KPIs + PO por
-   aerolínea + donut + tabla de despachos + tabla dinámica Packing/
-   Instruction), portada de bAir/renderAirAll/renderAirTable/
-   renderAirTransport en AXIS_1_0_.html. Dataset real: AIR.
-   ============================================================ */
-const AIR_PALETTE = ['#E8A33D','#2E8FB0','#163B54','#7A6FD0','#C0392B','#2E8B57','#C77D1E','#9CA3AF','#6B7280','#1C2940'];
-
-function airChipGroup(cls, opts, labelFn){
-  return opts.length ? opts.map(o=>`<label class="fc-chip mono"><input type="checkbox" class="${cls}" value="${String(o).replace(/"/g,'&quot;')}" checked onchange="refreshAir()">${labelFn?labelFn(o):o}</label>`).join('') : '<span class="fc-label" style="margin:0;">Sin datos</span>';
-}
-function airSetAll(cls, state){ document.querySelectorAll('.'+cls).forEach(cb=>cb.checked=state); refreshAir(); }
-function airChecked(cls){ return [...document.querySelectorAll('.'+cls+':checked')].map(cb=>cb.value); }
-
-function openAirDetail(idx){
-  const r = (AIR||[])[idx];
-  if(!r) return;
-  document.getElementById('airDetailSub').textContent = [r.awb, r.pack_plan?'S'+r.pack_plan:null, r.dest].filter(Boolean).join(' · ');
-  const driverFields = [
-    ['👤','Conductor', r.driver],
-    ['🪪','Licencia', r.license],
-    ['🚛','Tracto', r.tractor],
-    ['🚚','Remolque', r.trailer],
-    ['📱','Celular', r.phone],
-  ];
-  document.getElementById('airDetailBody').innerHTML = driverFields.map(([icon,k,v])=>`<div class="detail-icon-row"><div class="detail-icon">${icon}</div><div class="detail-icon-txt"><div class="detail-icon-lbl">${k}</div><div class="detail-icon-val">${v||'—'}</div></div></div>`).join('');
-  document.getElementById('airDetailOverlay').classList.add('open');
-}
-function closeAirDetail(){ document.getElementById('airDetailOverlay').classList.remove('open'); }
-
-/* ============================================================
-   # 09h AIR PROGRAM — Instructivos por destino (POD), contenido fijo
-   provisto por el equipo operativo. matchPods se usa solo para el
-   "match resaltado" visual si en el futuro se abre desde una fila
-   puntual — hoy el modal siempre muestra las 5 pestañas completas.
-   ============================================================ */
-const AIR_INSTRUCTIVOS = [
-  { id:'singapore', label:'Singapore', matchPods:['Singapore','Singapur'],
-    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
-    documentos:['Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)','Emitir CO'],
-    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Adjuntar solo Factura HF LIMITED, PL y PHYTO','Colocar en el AWB "KEEP ON REFRIGERATION"','Agregar 25 Gel-Packs por skid','Flete Prepaid'] },
-  { id:'usa', label:'USA (NY / Miami)', matchPods:['New York','Miami'],
-    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
-    documentos:['Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)','No requiere CO'],
-    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Adjuntar solo Factura HF LIMITED, PL y PHYTO','Colocar en el AWB "KEEP ON REFRIGERATION"','Flete Prepaid'] },
-  { id:'colbra', label:'Colombia / Brasil', matchPods:['Bogota','Bogotá','Guarulhos'],
-    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
-    documentos:['Certificado de Origen (debe tener la misma fecha de emisión de la factura o posterior)','Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)'],
-    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Colocar en el AWB "KEEP ON REFRIGERATION"','Flete Prepaid'] },
-  { id:'telaviv', label:'Tel Aviv', matchPods:['Tel Aviv'],
-    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
-    documentos:['Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)','Emitir CO'],
-    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Adjuntar solo Factura HF LIMITED, PL y PHYTO','Colocar en el AWB "KEEP ON REFRIGERATION"','Agregar 25 Gel-Packs por skid','Flete Prepaid'] },
-  { id:'india', label:'India (Bombay / Delhi)', matchPods:['Bombay','Delhi'],
-    intro:'Revisar y descargar la documentación correspondiente a cada AWB en el drive compartido.',
-    documentos:['Certificado de Origen (debe tener la misma fecha de emisión de la factura o posterior)','Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)'],
-    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Colocar en el AWB "KEEP ON REFRIGERATION"','Flete Prepaid','Usar número de factura LIMITED para el CO'] },
-  { id:'london', label:'London', matchPods:['London','Londres'],
-    intro:'Revisar y descargar la documentación correspondiente a cada AWB según ZIP adjunto.',
-    documentos:['Certificado de Origen (debe tener la misma fecha de emisión de la factura o posterior)','Numeración y regularización de DAM (no olvidar adjuntar DAM en pre-alerta)'],
-    info:['La carga debe ubicarse en el área del almacén de menor temperatura','Colocar en el AWB "KEEP ON REFRIGERATION"','Flete Prepaid'] },
-];
-let instrActiveTab = 'singapore';
-
-function renderInstructivoTab(id){
-  const g = AIR_INSTRUCTIVOS.find(x=>x.id===id);
-  if (!g) return '';
-  return `
-    <div class="instr-intro">${g.intro}</div>
-    <div class="instr-section-h">Documentos a gestionar</div>
-    <ul class="instr-list">${g.documentos.map(d=>`<li>${d}</li>`).join('')}</ul>
-    <div class="instr-section-h">Información a considerar</div>
-    <ul class="instr-list">${g.info.map(d=>`<li>${d}</li>`).join('')}</ul>`;
-}
-function switchInstructivoTab(id){
-  instrActiveTab = id;
-  document.querySelectorAll('.instr-tab').forEach(t=>t.classList.toggle('active', t.dataset.id===id));
-  document.getElementById('instrBody').innerHTML = renderInstructivoTab(id);
-}
-function openInstructivos(){
-  document.getElementById('instrTabs').innerHTML = AIR_INSTRUCTIVOS.map(g=>`<div class="instr-tab ${g.id===instrActiveTab?'active':''}" data-id="${g.id}" onclick="switchInstructivoTab('${g.id}')">${g.label}</div>`).join('');
-  document.getElementById('instrBody').innerHTML = renderInstructivoTab(instrActiveTab);
-  document.getElementById('instructivosOverlay').classList.add('open');
-}
-function closeInstructivos(){ document.getElementById('instructivosOverlay').classList.remove('open'); }
 
 function renderAir(){
   const rows = AIR || [];
@@ -2341,7 +1976,11 @@ function incMonthKey(ddmmyyyy){
   if (!ddmmyyyy) return null;
   const [d,m,y] = ddmmyyyy.split('/');
   if (!y) return null;
+  return `${y}-${String(m).padStart(2,'0')}`;
+}
+function incMonthLabel(yyyymm){
   const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const [y,m] = yyyymm.split('-');
   return `${meses[+m-1]} ${y}`;
 }
 
@@ -2376,27 +2015,33 @@ function refreshIncidencias(){
 function incRenderResumen(){
   const rows = INCIDENCIAS || [];
   const total = rows.length;
-  const matched = rows.filter(r=>r.matched).length;
   const critVals = rows.map(r=>r.criticidad).filter(c=>c!=null);
   const critAvg = critVals.length ? (sum(critVals)/critVals.length).toFixed(1) : '—';
 
+  // Scorecards por modo (a la izquierda de Criticidad promedio)
+  const modeOrder = ['Marítimo','Aéreo','Terrestre'];
+  const byModeCount = {};
+  rows.forEach(r=>{ const k=r.mode||'(sin modo)'; byModeCount[k]=(byModeCount[k]||0)+1; });
+  const modeCards = [...new Set(rows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b))
+    .map(m=>`<div class="kc" style="--acc:${m==='Marítimo'?'var(--blue)':m==='Aéreo'?'var(--purple)':'var(--teal)'}"><div class="kl">${m}</div><div class="kv">${byModeCount[m]}</div></div>`).join('');
+
+  // Incidencias por mes: TODOS los meses del Horizon (dispatch date), no solo los que tuvieron incidencia.
   const byMonth = {};
   rows.forEach(r=>{ const k = incMonthKey(r.dispatch_date); if(!k) return; byMonth[k]=(byMonth[k]||0)+1; });
-  const monthKeys = Object.keys(byMonth);
-  const maxMonth = Math.max(...Object.values(byMonth), 1);
+  const allMonths = (HORIZON_RANGE && HORIZON_RANGE.months && HORIZON_RANGE.months.length) ? HORIZON_RANGE.months.slice() : Object.keys(byMonth).sort();
+  const maxMonth = Math.max(...allMonths.map(k=>byMonth[k]||0), 1);
 
+  // Incidencias por proveedor: muchos proveedores → barras horizontales (más legible que un donut)
   const bySupplier = {};
   rows.forEach(r=>{ const k=r.supplier||'(sin dato)'; bySupplier[k]=(bySupplier[k]||0)+1; });
-  const supplierPalette = ['var(--amber)','var(--blue)','var(--purple)','var(--teal)','var(--bad)','var(--ok)','var(--ink-faint)'];
-  const supplierEntries = Object.entries(bySupplier).sort((a,b)=>b[1]-a[1]).map(([k,v],i)=>({name:k,val:v,color:supplierPalette[i%supplierPalette.length]}));
+  const supplierEntries = Object.entries(bySupplier).sort((a,b)=>b[1]-a[1]);
+  const maxSupplier = Math.max(...supplierEntries.map(([,v])=>v), 1);
 
-  const byMode = {};
-  rows.forEach(r=>{ const k = r.matched ? (r.mode||'(sin modo)') : '(sin vincular a embarque)'; byMode[k]=(byMode[k]||0)+1; });
-  const maxMode = Math.max(...Object.values(byMode), 1);
-
+  // Incidencias por tipo de proveedor: pocas categorías → donut
   const byTSupplier = {};
   rows.forEach(r=>{ const k=r.t_supplier||'(sin dato)'; byTSupplier[k]=(byTSupplier[k]||0)+1; });
-  const maxTSupplier = Math.max(...Object.values(byTSupplier), 1);
+  const tSupplierPalette = ['var(--amber)','var(--blue)','var(--purple)','var(--teal)','var(--bad)','var(--ok)'];
+  const tSupplierEntries = Object.entries(byTSupplier).sort((a,b)=>b[1]-a[1]).map(([k,v],i)=>({name:k,val:v,color:tSupplierPalette[i%tSupplierPalette.length]}));
 
   const byPersona = {};
   rows.forEach(r=>{ const k=r.persona||'(sin dato)'; byPersona[k]=(byPersona[k]||0)+1; });
@@ -2404,21 +2049,21 @@ function incRenderResumen(){
   return `
   <div class="kg">
     <div class="kc" style="--acc:var(--bad)"><div class="kl">Incidencias registradas</div><div class="kv">${total}</div></div>
-    <div class="kc" style="--acc:var(--blue)"><div class="kl">Vinculadas a un embarque</div><div class="kv">${matched}</div><div class="kf">${total?pct(matched,total):0}%</div></div>
+    ${modeCards}
     <div class="kc" style="--acc:var(--warn)"><div class="kl">Criticidad promedio</div><div class="kv">${critAvg}<span class="u">/ 5</span></div></div>
   </div>
-  <div class="g2">
-    <div class="card"><div class="ct">Incidencias por mes</div><div class="bars">${monthKeys.length ? monthKeys.map(k=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(byMonth[k],maxMonth)}%;"></div></div><span class="bv">${byMonth[k]}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
-    <div class="card"><div class="ct">Incidencias por proveedor</div>
-      <div class="donut-wrap">
-        <div class="donut-ring" style="background:conic-gradient(${(()=>{let c=0; const tot=sum(supplierEntries.map(s=>s.val))||1; return supplierEntries.map(s=>{const st=c,en=c+(s.val/tot*360); c=en; return `${s.color} ${st.toFixed(1)}deg ${en.toFixed(1)}deg`;}).join(',');})()});"><div class="donut-center"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;">${total}</div><div style="font-size:8px;color:var(--ink-faint);">incidencias</div></div></div>
-        <div class="donut-legend">${supplierEntries.map(s=>`<div class="dli"><span class="dls" style="background:${s.color};"></span><span>${s.name}</span><span class="dlv">${s.val}·${total?pct(s.val,total):0}%</span></div>`).join('')}</div>
-      </div>
-    </div>
+  <div class="card">
+    <div class="ct">Incidencias por mes <span class="sub">${allMonths.length} mes(es) desde el inicio del Pack Plan en Horizon</span></div>
+    <div class="sc-chart" style="height:170px;">${allMonths.length ? allMonths.map(k=>{ const v=byMonth[k]||0; const h=Math.max(2, calcPct(v,maxMonth)); return `<div class="sc-col" style="height:100%;"><span class="sc-val">${v||''}</span><div class="sc-bars" style="height:${h}%;"><div class="seg" style="height:100%;background:${v?'var(--bad)':'var(--line)'};"></div></div><span class="sc-lbl">${incMonthLabel(k)}</span></div>`; }).join('') : '<div class="empty-state">Sin datos</div>'}</div>
   </div>
   <div class="g2">
-    <div class="card"><div class="ct">Participación por modo</div><div class="bars">${Object.entries(byMode).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxMode)}%;background:${k.includes('sin vincular')?'var(--ink-faint)':'var(--amber)'};"></div></div><span class="bv">${v}</span></div>`).join('')}</div></div>
-    <div class="card"><div class="ct">Incidencias por tipo de proveedor</div><div class="bars">${Object.entries(byTSupplier).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxTSupplier)}%;background:var(--purple);"></div></div><span class="bv">${v}</span></div>`).join('')}</div></div>
+    <div class="card"><div class="ct">Incidencias por proveedor</div><div class="bars">${supplierEntries.length ? supplierEntries.map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxSupplier)}%;background:var(--bad);"></div></div><span class="bv">${v}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+    <div class="card"><div class="ct">Incidencias por tipo de proveedor</div>
+      <div class="donut-wrap">
+        <div class="donut-ring" style="background:conic-gradient(${(()=>{let c=0; const tot=sum(tSupplierEntries.map(s=>s.val))||1; return tSupplierEntries.map(s=>{const st=c,en=c+(s.val/tot*360); c=en; return `${s.color} ${st.toFixed(1)}deg ${en.toFixed(1)}deg`;}).join(',');})()});"><div class="donut-center"><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;">${total}</div><div style="font-size:8px;color:var(--ink-faint);">incidencias</div></div></div>
+        <div class="donut-legend">${tSupplierEntries.map(s=>`<div class="dli"><span class="dls" style="background:${s.color};"></span><span>${s.name}</span><span class="dlv">${s.val}·${total?pct(s.val,total):0}%</span></div>`).join('')}</div>
+      </div>
+    </div>
   </div>
   <div class="card">
     <div class="ct">Registros por persona</div>
@@ -2434,10 +2079,6 @@ function incRenderResumen(){
 
 /* ---------------- GENERAL COMPLIANCE ---------------- */
 function incRenderGeneral(){
-  const rows = (INCIDENCIAS||[]).filter(r=>r.matched);
-  const univ = UNIVERSO_COMPLIANCE || {marítimo:{instructions:0,fcl_total:0,pallets_total:0},aéreo:{pos:0,fcl_total:0,pallets_total:0}};
-  const unitLbl = incMetric==='fcl' ? 'FCL' : incMetric==='instruction' ? 'Instructions' : 'PO';
-
   return `
   <div class="card" style="margin-bottom:14px;">
     <div class="fc-label">Agrupar por</div>
@@ -2445,6 +2086,9 @@ function incRenderGeneral(){
       <button type="button" class="fc-metric-btn inc-metric-btn ${incMetric==='fcl'?'active':''}" data-metric="fcl" onclick="incSetMetric('fcl')">📦 FCL</button>
       <button type="button" class="fc-metric-btn inc-metric-btn ${incMetric==='instruction'?'active':''}" data-metric="instruction" onclick="incSetMetric('instruction')">📄 Instruction</button>
       <button type="button" class="fc-metric-btn inc-metric-btn ${incMetric==='po'?'active':''}" data-metric="po" onclick="incSetMetric('po')">🧾 PO</button>
+    </div>
+    <div style="font-size:10.5px;color:var(--ink-faint);margin-top:8px;line-height:1.5;">
+      <b>Instruction</b>: cuenta Instructions con al menos 1 pedido en incidencia. <b>PO</b>: cuenta PO's con incidencia (1 PO con 2 incidencias sigue siendo 1 PO afectado). <b>FCL</b>: suma el FCL de los embarques afectados, una sola vez por embarque.
     </div>
   </div>
   <div id="inc-general-body"></div>`;
@@ -2456,62 +2100,140 @@ function incSetMetric(m){
 }
 function incWireGeneralEvents(){ incRefreshGeneralBody(); }
 
+// Devuelve el key por el que se deduplica según la métrica activa —
+// "1 PO con 2 incidencias sigue siendo 1 PO afectado" (nunca se cuenta 2 veces).
+function incDedupeKey(r){ return incMetric==='instruction' ? (r.instruction||r.po) : (r.po||r.instruction); }
+
+// Afectados (numerador) según la métrica: total y desglose por Pack Plan.
+// FCL se deduplica por PO/Instruction (el FCL es propiedad del embarque, no de
+// la incidencia — si un embarque tiene 2 incidencias, su FCL solo cuenta 1 vez).
+function incComputeAffected(rows){
+  if (incMetric === 'fcl'){
+    const seen = new Set();
+    let total = 0;
+    const byPP = {};
+    rows.forEach(r=>{
+      const key = r.po || r.instruction;
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      const v = r.fcl || 0;
+      total += v;
+      if (r.pack_plan!=null) byPP[r.pack_plan] = (byPP[r.pack_plan]||0) + v;
+    });
+    return { total, byPP };
+  }
+  const seenTotal = new Set();
+  const byPPSets = {};
+  rows.forEach(r=>{
+    const key = incDedupeKey(r);
+    if (!key) return;
+    seenTotal.add(key);
+    if (r.pack_plan!=null){
+      byPPSets[r.pack_plan] = byPPSets[r.pack_plan] || new Set();
+      byPPSets[r.pack_plan].add(key);
+    }
+  });
+  const byPP = {};
+  Object.entries(byPPSets).forEach(([pp,s])=>{ byPP[pp]=s.size; });
+  return { total: seenTotal.size, byPP };
+}
+// Universo (denominador) según la métrica — siempre TODO Horizon, no solo lo que tuvo incidencia.
+function incUniverseTotals(){
+  const g = (UNIVERSO_COMPLIANCE && UNIVERSO_COMPLIANCE.general) || {total_instruction:0,total_po:0,total_fcl:0,by_pack_plan_instruction:{},by_pack_plan_po:{},by_pack_plan_fcl:{}};
+  if (incMetric==='instruction') return { total: g.total_instruction||0, byPP: g.by_pack_plan_instruction||{} };
+  if (incMetric==='po') return { total: g.total_po||0, byPP: g.by_pack_plan_po||{} };
+  return { total: g.total_fcl||0, byPP: g.by_pack_plan_fcl||{} };
+}
+// Afectados por modo, siempre en FCL (para los scorecards de Marítimo/Aéreo,
+// que no dependen del toggle Instruction/PO/FCL).
+function incAffectedFclByMode(rows, mode){
+  const seen = new Set(); let total = 0;
+  rows.filter(r=>r.mode===mode).forEach(r=>{
+    const key = r.po || r.instruction;
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    total += (r.fcl||0);
+  });
+  return total;
+}
+
 function incRefreshGeneralBody(){
   const body = document.getElementById('inc-general-body');
   if (!body) return;
-  const rows = (INCIDENCIAS||[]).filter(r=>r.matched);
-  const univ = UNIVERSO_COMPLIANCE || {marítimo:{instructions:0,fcl_total:0,pallets_total:0},aéreo:{pos:0,fcl_total:0,pallets_total:0}};
+  const rows = INCIDENCIAS || [];
+  const univ = UNIVERSO_COMPLIANCE || {marítimo:{fcl_total:0},aéreo:{fcl_total:0},general:{}};
   const unitLbl = incMetric==='fcl' ? 'FCL' : incMetric==='instruction' ? 'Instructions' : 'PO';
+  const fmtU = v => incMetric==='fcl' ? fmt1(v) : v;
 
-  // Universo total combinado (Marítimo + Aéreo), según la métrica elegida.
-  let totalUniverse, totalIncidencia;
-  if (incMetric==='fcl'){
-    totalUniverse = (univ.marítimo.fcl_total||0) + (univ.aéreo.fcl_total||0);
-    totalIncidencia = sum(rows.map(r=>r.fcl||0));
-  } else if (incMetric==='instruction'){
-    totalUniverse = univ.marítimo.instructions||0;
-    totalIncidencia = new Set(rows.filter(r=>r.mode==='Marítimo').map(r=>r.id_po)).size;
-  } else {
-    totalUniverse = univ.aéreo.pos||0;
-    totalIncidencia = new Set(rows.filter(r=>r.mode==='Aéreo').map(r=>r.id_po)).size;
-  }
-  const incPct = totalUniverse ? pct(totalIncidencia, totalUniverse) : 0;
-  const compliancePct = totalUniverse ? (100-incPct).toFixed(1) : '—';
+  const affected = incComputeAffected(rows);
+  const universe = incUniverseTotals();
+  const incPct = universe.total ? pct(affected.total, universe.total) : 0;
+  const compliancePct = universe.total ? (100-incPct).toFixed(1) : '—';
 
-  const byPP = {};
-  rows.forEach(r=>{ if(r.pack_plan==null) return; const v = incMetric==='fcl' ? (r.fcl||0) : 1; byPP[r.pack_plan] = (byPP[r.pack_plan]||0) + v; });
-  const ppKeys = Object.keys(byPP).map(Number).sort((a,b)=>a-b);
-  const maxPP = Math.max(...Object.values(byPP), 1);
+  const maritFclAffected = incAffectedFclByMode(rows, 'Marítimo');
+  const maritFclTotal = univ.marítimo ? (univ.marítimo.fcl_total||0) : 0;
+  const maritCompliancePct = maritFclTotal ? (100 - pct(maritFclAffected, maritFclTotal)).toFixed(1) : '—';
+  const aereoFclAffected = incAffectedFclByMode(rows, 'Aéreo');
+  const aereoFclTotal = univ.aéreo ? (univ.aéreo.fcl_total||0) : 0;
+  const aereoCompliancePct = aereoFclTotal ? (100 - pct(aereoFclAffected, aereoFclTotal)).toFixed(1) : '—';
+
+  // Incidencias por Pack Plan — barra apilada de 2 colores (cumplimiento / incumplimiento),
+  // sobre TODOS los Pack Plan que existan en Horizon (no solo los que tuvieron incidencia).
+  const allPP = (HORIZON_RANGE && HORIZON_RANGE.pack_plans && HORIZON_RANGE.pack_plans.length) ? HORIZON_RANGE.pack_plans : Object.keys(universe.byPP).map(Number).sort((a,b)=>a-b);
+  const ppStack = allPP.map(pp=>{
+    const tot = universe.byPP[pp] || 0;
+    const aff = affected.byPP[pp] || 0;
+    return { pp, tot, aff, ok: Math.max(0, tot-aff) };
+  });
+  const maxPPTot = Math.max(...ppStack.map(p=>p.tot), 1);
 
   const byPacking = {};
-  const packingUniverse = {};
-  rows.forEach(r=>{ if(!r.packing) return; const v = incMetric==='fcl' ? (r.fcl||0) : 1; byPacking[r.packing]=(byPacking[r.packing]||0)+v; });
-  // aproximación del universo por planta usando FCL total si la métrica es FCL; si no, se muestra solo el conteo de incidencias.
-  const maxPacking = Math.max(...Object.values(byPacking), 1);
+  rows.forEach(r=>{ if(!r.packing) return; const key = incDedupeKey(r); if(!key) return; byPacking[r.packing] = byPacking[r.packing] || new Map(); if(!byPacking[r.packing].has(key)) byPacking[r.packing].set(key, r.fcl||0); });
+  const packingEntries = Object.entries(byPacking).map(([k,m])=>[k, incMetric==='fcl' ? sum([...m.values()]) : m.size]).sort((a,b)=>b[1]-a[1]);
+  const maxPacking = Math.max(...packingEntries.map(([,v])=>v), 1);
 
   const byDest = {};
-  rows.forEach(r=>{ if(!r.pod) return; const v = incMetric==='fcl' ? (r.fcl||0) : 1; byDest[r.pod]=(byDest[r.pod]||0)+v; });
-  const destEntries = Object.entries(byDest).sort((a,b)=>b[1]-a[1]);
-  const maxDest = Math.max(...Object.values(byDest), 1);
+  rows.forEach(r=>{ if(!r.pod) return; const key = incDedupeKey(r); if(!key) return; byDest[r.pod] = byDest[r.pod] || new Map(); if(!byDest[r.pod].has(key)) byDest[r.pod].set(key, r.fcl||0); });
+  const destEntries = Object.entries(byDest).map(([k,m])=>[k, incMetric==='fcl' ? sum([...m.values()]) : m.size]).sort((a,b)=>b[1]-a[1]);
+  const maxDest = Math.max(...destEntries.map(([,v])=>v), 1);
 
   body.innerHTML = `
   <div class="kg">
-    <div class="kc"><div class="kl">General Shipments (universo)</div><div class="kv">${incMetric==='fcl'?fmt1(totalUniverse):totalUniverse}<span class="u">${unitLbl}</span></div></div>
-    <div class="kc" style="--acc:var(--bad)"><div class="kl">Con incidencia</div><div class="kv">${incMetric==='fcl'?fmt1(totalIncidencia):totalIncidencia}<span class="u">${unitLbl}</span></div><div class="kf">${incPct}%</div></div>
-    <div class="kc" style="--acc:var(--ok)"><div class="kl">General Compliance %</div><div class="kv">${compliancePct}<span class="u">%</span></div></div>
+    <div class="kc"><div class="kl">General Shipments (universo)</div><div class="kv">${fmtU(universe.total)}<span class="u">${unitLbl}</span></div></div>
+    <div class="kc" style="--acc:var(--bad)"><div class="kl">Con incidencia</div><div class="kv">${fmtU(affected.total)}<span class="u">${unitLbl}</span></div><div class="kf">${incPct}%</div></div>
+    <div class="kc" style="--acc:var(--ok)"><div class="kl">General Compliance %</div><div class="kv">${compliancePct}<span class="u">%</span></div><div class="kf">${fmtU(universe.total-affected.total)}/${fmtU(universe.total)} sin incidencia</div></div>
+  </div>
+  <div class="kg">
+    <div class="kc" style="--acc:var(--blue)"><div class="kl">Marítimo — Universo FCL</div><div class="kv">${fmt1(maritFclTotal)}<span class="u">FCL</span></div></div>
+    <div class="kc" style="--acc:var(--bad)"><div class="kl">Marítimo — FCL con incidencia</div><div class="kv">${fmt1(maritFclAffected)}<span class="u">FCL</span></div></div>
+    <div class="kc" style="--acc:var(--ok)"><div class="kl">Compliance Marítimo % (FCL)</div><div class="kv">${maritCompliancePct}<span class="u">%</span></div></div>
+    <div class="kc" style="--acc:var(--purple)"><div class="kl">Aéreo — Universo FCL</div><div class="kv">${fmt1(aereoFclTotal)}<span class="u">FCL</span></div></div>
+    <div class="kc" style="--acc:var(--bad)"><div class="kl">Aéreo — FCL con incidencia</div><div class="kv">${fmt1(aereoFclAffected)}<span class="u">FCL</span></div></div>
+    <div class="kc" style="--acc:var(--ok)"><div class="kl">Compliance Aéreo % (FCL)</div><div class="kv">${aereoCompliancePct}<span class="u">%</span></div></div>
   </div>
   <div class="g2">
-    <div class="card"><div class="ct">Incidencias por Pack Plan <span class="sub">métrica: ${unitLbl}</span></div><div class="bars">${ppKeys.length ? ppKeys.map(pp=>`<div class="br"><span class="bl">S${pp}</span><div class="bt"><div class="bf" style="width:${calcPct(byPP[pp],maxPP)}%;background:var(--bad);"></div></div><span class="bv">${incMetric==='fcl'?fmt1(byPP[pp]):byPP[pp]}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
-    <div class="card"><div class="ct">Incidencias por Packing (planta)</div><div class="bars">${Object.keys(byPacking).length ? Object.entries(byPacking).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxPacking)}%;background:var(--purple);"></div></div><span class="bv">${incMetric==='fcl'?fmt1(v):v}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
-  </div>
-  <div class="card">
-    <div class="ct">Incidencias por destino (POD)</div>
-    <div class="bars">${destEntries.length ? destEntries.map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxDest)}%;background:var(--amber);"></div></div><span class="bv">${incMetric==='fcl'?fmt1(v):v}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div>
+    <div>
+      <div class="card">
+        <div class="ct">Incidencias por Pack Plan <span class="sub">métrica: ${unitLbl} · cumplimiento vs. incumplimiento</span></div>
+        <div class="sc-chart" style="height:190px;">${ppStack.length ? ppStack.map(p=>{
+          const h = Math.max(2, calcPct(p.tot, maxPPTot));
+          const okPct = p.tot ? (p.ok/p.tot*100).toFixed(1) : 0;
+          const affPct = p.tot ? (p.aff/p.tot*100).toFixed(1) : 0;
+          return `<div class="sc-col" style="height:100%;"><span class="sc-val">${p.tot?fmtU(p.tot):''}</span><div class="sc-bars" style="height:${h}%;"><div class="seg" style="height:${affPct}%;background:var(--bad);"></div><div class="seg" style="height:${okPct}%;background:var(--ok);"></div></div><span class="sc-lbl">S${p.pp}</span></div>`;
+        }).join('') : '<div class="empty-state">Sin datos</div>'}</div>
+        <div style="display:flex;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-soft);">
+          <div style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--ok);"></span>Cumplimiento</div>
+          <div style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--bad);"></span>Incumplimiento</div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:0;"><div class="ct">Incidencias por Packing (planta) <span class="sub">métrica: ${unitLbl}</span></div><div class="bars">${packingEntries.length ? packingEntries.map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxPacking)}%;background:var(--purple);"></div></div><span class="bv">${fmtU(v)}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+    </div>
+    <div class="card" style="margin-bottom:0;"><div class="ct">Incidencias por destino (POD)</div><div>${destEntries.length ? destEntries.map(([k,v])=>`<div class="wep-top-dest-row"><div class="hd"><span>${k}</span><span class="mono" style="color:var(--bad);">${fmtU(v)}</span></div><div class="bt"><div class="bf" style="width:${calcPct(v,maxDest)}%;background:var(--bad);"></div></div></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
   </div>
   <div class="card">
     <div class="ct">Incidencias vinculadas — detalle</div>
-    <div class="tbl-scroll"><table class="std"><thead><tr><th>ID/PO</th><th>Modo</th><th>Pack Plan</th><th>Packing</th><th>POD</th><th style="text-align:right">FCL</th><th>Incidencia</th><th>Criticidad</th></tr></thead>
-    <tbody>${rows.length ? rows.map(r=>`<tr><td class="mono">${r.id_po}</td><td>${r.mode||'—'}</td><td class="mono">S${r.pack_plan??'—'}</td><td>${r.packing||'—'}</td><td>${r.pod||'—'}</td><td class="mono" style="text-align:right">${r.fcl!=null?fmt1(r.fcl):'—'}</td><td>${r.incident||'—'}</td><td><span class="inc-crit ${incCritClass(r.criticidad)}">${r.criticidad??'—'}</span></td></tr>`).join('') : '<tr><td colspan="8" class="empty-state">Sin incidencias vinculadas a un embarque todavía</td></tr>'}</tbody></table></div>
+    <div class="tbl-scroll"><table class="std"><thead><tr><th>ID Incidencia</th><th>Pack Plan</th><th>ID/PO</th><th>Modo</th><th>Packing</th><th>POD</th><th style="text-align:right">FCL</th><th>Incidencia</th><th>Criticidad</th></tr></thead>
+    <tbody>${rows.length ? rows.map(r=>`<tr><td class="mono">${r.id_incident}</td><td class="mono">S${r.pack_plan??'—'}</td><td class="mono">${r.id_po}</td><td>${r.mode||'—'}</td><td>${r.packing||'—'}</td><td>${r.pod||'—'}</td><td class="mono" style="text-align:right">${r.fcl!=null?fmt1(r.fcl):'—'}</td><td>${r.incident||'—'}</td><td><span class="inc-crit ${incCritClass(r.criticidad)}">${r.criticidad??'—'}</span></td></tr>`).join('') : '<tr><td colspan="9" class="empty-state">Sin incidencias vinculadas a un embarque todavía</td></tr>'}</tbody></table></div>
   </div>`;
 }
 
@@ -3288,7 +3010,7 @@ window.postRender_ingreso = refreshIngreso;
 
 const PANEL_RENDERERS = {
   forecast: renderForecast, ports: renderPorts, weekly: renderWeekly, wep: renderWEP,
-  pmi: renderPMI, air: renderAir, execute: renderExecute,
+  air: renderAir, execute: renderExecute,
   retiro: renderRetiro, packing: renderPacking, ingreso: renderIngreso,
   incidencias: renderIncidencias,
   upload: renderUpload,

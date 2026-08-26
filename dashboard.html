@@ -2685,9 +2685,18 @@ async function doUpload(target){
     .then(r=>r.json().then(data=>({ok:r.ok,data})))
     .then(({ok,data})=>{
       btn.disabled = false; btn.textContent = '⬆ Procesar y Publicar';
-      if(!ok){ statusEl.innerHTML = `<span style="color:var(--bad);">❌ Error: ${data.error||'algo salió mal'}</span>`; return; }
+      if(!ok){
+        // El backend responde error (incluido 502) si Supabase — la fuente real
+        // que lee este dashboard — no se pudo actualizar, aunque el respaldo a
+        // GitHub haya funcionado. Sin este chequeo, un fallo silencioso de
+        // Supabase se veía como "✅ Publicado" sin que nada cambiara al refrescar.
+        statusEl.innerHTML = `<span style="color:var(--bad);">❌ Error: ${data.error||'algo salió mal'}</span>`;
+        return;
+      }
+      const commitSha = target==='transportes' ? data.commit_sha : (data.github && data.github.info);
       const extra = target==='transportes' && data.rows_processed!=null ? ` · ${data.rows_processed} filas` : '';
-      statusEl.innerHTML = `<span style="color:var(--ok);">✅ Publicado correctamente (commit ${(data.commit_sha||'').slice(0,7)}${extra}). Refresca para ver los datos nuevos.</span>`;
+      const commitTxt = commitSha ? ` (commit ${String(commitSha).slice(0,7)})` : '';
+      statusEl.innerHTML = `<span style="color:var(--ok);">✅ Publicado correctamente${commitTxt}${extra}. Refresca para ver los datos nuevos.</span>`;
     })
     .catch(err=>{
       btn.disabled = false; btn.textContent = '⬆ Procesar y Publicar';

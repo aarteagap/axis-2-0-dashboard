@@ -419,6 +419,19 @@ table.pivot tr.grand-total td{background:var(--navy); color:#fff; font-weight:70
   </div>
 </div>
 
+<div class="detail-overlay" id="fcDetailOverlay">
+  <div class="detail-box" style="width:1100px;max-height:85vh;display:flex;flex-direction:column;">
+    <div class="detail-head">
+      <div>
+        <div>Detalle de pedidos — Curva global</div>
+        <div class="detail-head-sub" id="fcDetailSub"></div>
+      </div>
+      <button onclick="closeFcDetail()">✕</button>
+    </div>
+    <div class="detail-body" id="fcDetailBody" style="overflow-y:auto;padding:0;"></div>
+  </div>
+</div>
+
 <div class="detail-overlay" id="instructivosOverlay">
   <div class="detail-box" style="width:520px;">
     <div class="detail-head">
@@ -964,6 +977,7 @@ function todayDDMMYYYY(){
    gráficos dentro del módulo Export.
    ============================================================ */
 let fcMetric = 'fcl';
+let fcDetailRows = []; // snapshot de las filas que componen la Curva global (post-filtros), para el botón "Detalle"
 
 function fcAggregate(rows, weeks){
   const byWeek = {};
@@ -1056,7 +1070,10 @@ function renderForecast(){
   </div>
   <div id="fc-kg"></div>
   <div class="card">
-    <div class="ct">Curva global <span class="sub">hover para detalle</span></div>
+    <div class="ct" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <span>Curva global <span class="sub">hover para detalle</span></span>
+      <button type="button" class="theme-toggle" onclick="openFcDetail()" style="font-size:11px;padding:6px 12px;">📋 Detalle</button>
+    </div>
     <div id="fc-chart-wrap" style="position:relative;"></div>
     <div style="display:flex;gap:16px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-soft);">
       <div style="display:flex;align-items:center;gap:6px;"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="var(--blue)" stroke-width="2.5"/></svg>Confirmado</div>
@@ -1094,6 +1111,7 @@ function refreshForecast(){
   if(selMarkets.length) ft = ft.filter(r=>selMarkets.includes(r.market));
   const ftBeforeWeekFilter = ft; // para "Proyección 6W": siempre las últimas 6 semanas reales, sin importar qué esté tildado en el checklist de Pack Plan
   if(selWeeks.length) ft = ft.filter(r=>selWeeks.includes(r.pack_plan));
+  fcDetailRows = ft; // exactamente las filas que componen la Curva global de abajo
 
   // Filtros en cascada: las opciones de CADA filtro reflejan el subconjunto de
   // datos que dejan los DEMÁS filtros activos (no el propio) — así, si se
@@ -1173,6 +1191,33 @@ function refreshForecast(){
     });
   }
 }
+
+// Ventana emergente con el detalle de pedidos (fila a fila) que componen la
+// Curva global — exactamente el mismo subconjunto ya filtrado (filtros
+// globales + Pack Plan tildados) que alimenta el gráfico de arriba.
+function openFcDetail(){
+  const rows = fcDetailRows || [];
+  document.getElementById('fcDetailSub').textContent = `${rows.length} pedido(s) con los filtros actuales`;
+  const cols = [
+    ['pack_plan', 'Pack Plan', v=>'S'+v],
+    ['shipper', 'Shipper'],
+    ['mode', 'Mode'],
+    ['status', 'Status'],
+    ['instruction', 'Instruction'],
+    ['po', 'PO'],
+    ['fcl', 'FCL', v=>fmt1(v)],
+    ['pallets', 'Pallets', v=>fmt1(v)],
+    ['line', 'Line'],
+    ['transport_operator', 'Transport Operator'],
+    ['pod', 'POD'],
+    ['market', 'Market'],
+  ];
+  const body = document.getElementById('fcDetailBody');
+  body.innerHTML = `<div class="tbl-scroll" style="max-height:60vh;"><table class="std"><thead><tr>${cols.map(([,lbl])=>`<th>${lbl}</th>`).join('')}</tr></thead>
+    <tbody>${rows.length ? rows.map(r=>`<tr>${cols.map(([k,,fmt])=>`<td class="mono">${fmt ? fmt(r[k]) : (r[k]||'—')}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${cols.length}" class="empty-state">Sin pedidos con los filtros actuales</td></tr>`}</tbody></table></div>`;
+  document.getElementById('fcDetailOverlay').classList.add('open');
+}
+function closeFcDetail(){ document.getElementById('fcDetailOverlay').classList.remove('open'); }
 
 function renderForecastCurve(wrapId, weeksData, metric){
   const el = document.getElementById(wrapId);

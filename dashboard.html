@@ -529,6 +529,39 @@ function renderSidebar(){
   `).join('<div class="sb-div"></div>');
 }
 
+// Reproduce, para cualquier vista, el mismo "llenado gradual" que ya tenían
+// las 3 vistas de Transporte (que reconstruyen sus Chart.js al hacer visible
+// el panel). El resto de gráficos del dashboard NO son Chart.js — son barras
+// y SVG dibujados a mano con % en el propio style — así que en vez de un
+// motor de animación, se les pone su ancho/alto final en 0, se fuerza un
+// reflow, y se les regresa a su valor real con una transición CSS.
+function animateBarsIn(root){
+  if(!root) return;
+  root.querySelectorAll('.bf, .sc-bars, .seg').forEach(el=>{
+    const isWidth = el.style.width !== '';
+    const isHeight = el.style.height !== '';
+    if (!isWidth && !isHeight) return;
+    const target = isWidth ? el.style.width : el.style.height;
+    el.style.transition = 'none';
+    if (isWidth) el.style.width = '0%'; else el.style.height = '0%';
+    void el.offsetWidth; // fuerza reflow para que el navegador registre el 0% antes de animar
+    requestAnimationFrame(()=>{
+      el.style.transition = (isWidth ? 'width' : 'height') + ' .7s cubic-bezier(.22,1,.36,1)';
+      if (isWidth) el.style.width = target; else el.style.height = target;
+    });
+  });
+  root.querySelectorAll('.donut-ring').forEach(el=>{
+    const bg = el.style.background;
+    el.style.transition = 'none';
+    el.style.background = 'none';
+    void el.offsetWidth;
+    requestAnimationFrame(()=>{
+      el.style.transition = 'background .8s ease';
+      el.style.background = bg;
+    });
+  });
+}
+
 function goTo(id){
   currentView = id;
   document.querySelectorAll('.sb-item').forEach(el=>el.classList.toggle('active', el.dataset.view===id));
@@ -551,6 +584,10 @@ function goTo(id){
       });
     });
   }
+  // Mismo motivo que el bloque de arriba (panel oculto al construir el
+  // contenido) aplicado a las barras/SVG a mano del resto de vistas: se
+  // animan recién cuando el panel ya es visible.
+  requestAnimationFrame(() => animateBarsIn(document.getElementById('p-'+id)));
   if (window['onShow_'+id]) window['onShow_'+id]();
 }
 
@@ -2333,6 +2370,19 @@ function incRenderResumen(filteredRows){
 
   const byPersona = {};
   rows.forEach(r=>{ const k=r.persona||'(sin dato)'; byPersona[k]=(byPersona[k]||0)+1; });
+  const personaEntries = Object.entries(byPersona).sort((a,b)=>b[1]-a[1]);
+  const maxPersona = Math.max(...personaEntries.map(([,v])=>v), 1);
+
+  // Incidencias por criticidad: hoy solo se veía el promedio (un número); este
+  // desglose 1-5 dice de dónde viene ese promedio (¿son puras leves, o hay
+  // varias Muy Graves escondidas detrás de un promedio bajo?).
+  const critColors = ['var(--ink-faint)','var(--ok)','var(--teal)','var(--warn)','var(--bad)','var(--bad)'];
+  const byCrit = {};
+  rows.forEach(r=>{ const k = r.criticidad==null ? 'null' : String(r.criticidad); byCrit[k]=(byCrit[k]||0)+1; });
+  const critLevels = [0,1,2,3,4,5];
+  const critEntries = critLevels.map(c=>({ c, v: byCrit[String(c)]||0, label: incCritLabel(c), color: critColors[c] }));
+  if (byCrit['null']) critEntries.unshift({ c:null, v: byCrit['null'], label:'Sin registrar', color:'var(--ink-faint)' });
+  const maxCrit = Math.max(...critEntries.map(e=>e.v), 1);
 
   return `
   <div class="kg">
@@ -2353,10 +2403,9 @@ function incRenderResumen(filteredRows){
       </div>
     </div>
   </div>
-  <div class="card">
-    <div class="ct">Registros por persona</div>
-    <div class="tbl-wrap"><table class="std"><thead><tr><th>Persona</th><th style="text-align:right">Incidencias registradas</th></tr></thead>
-    <tbody>${Object.entries(byPersona).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td class="mono" style="text-align:right">${v}</td></tr>`).join('') || '<tr><td colspan="2" class="empty-state">Sin datos</td></tr>'}</tbody></table></div>
+  <div class="g2">
+    <div class="card"><div class="ct">Incidencias por criticidad <span class="sub">de dónde sale el promedio</span></div><div class="bars">${critEntries.some(e=>e.v>0) ? critEntries.filter(e=>e.v>0).map(e=>`<div class="br"><span class="bl">${e.label}</span><div class="bt"><div class="bf" style="width:${calcPct(e.v,maxCrit)}%;background:${e.color};"></div></div><span class="bv">${e.v}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+    <div class="card"><div class="ct">Registros por persona</div><div class="bars">${personaEntries.length ? personaEntries.map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxPersona)}%;background:var(--navy2);"></div></div><span class="bv">${v}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
   </div>
   <div class="card">
     <div class="ct">Detalle de incidencias <span class="sub">${total} registros</span></div>
@@ -2497,32 +2546,30 @@ function incRefreshGeneralBody(){
     <div class="kc" style="--acc:var(--ok)"><div class="kl">General Compliance %</div><div class="kv">${compliancePct}<span class="u">%</span></div><div class="kf">${fmtU(universe.total-affected.total)}/${fmtU(universe.total)} sin incidencia</div></div>
     <div class="kc" style="--acc:var(--warn)"><div class="kl">Criticidad promedio</div><div class="kv">${critAvg}<span class="u">/ 5</span></div></div>
   </div>
-  <div class="g2">
-    <div style="min-width:0;">
-      <div class="card">
-        <div class="ct">Incidencias por Pack Plan <span class="sub">métrica: ${unitLbl} · cumplimiento vs. incumplimiento</span></div>
-        <div class="sc-chart" style="height:190px;">${ppStack.length ? ppStack.map(p=>{
-          const h = Math.max(2, calcPct(p.tot, maxPPTot));
-          const okPct = p.tot ? (p.ok/p.tot*100).toFixed(1) : 0;
-          const affPct = p.tot ? (p.aff/p.tot*100).toFixed(1) : 0;
-          return `<div class="sc-col" style="height:100%;"><span class="sc-val">${p.tot?fmtU(p.tot):''}</span><div class="sc-bars" style="height:${h}%;"><div class="seg" style="height:${affPct}%;background:var(--bad);"></div><div class="seg" style="height:${okPct}%;background:var(--ok);"></div></div><span class="sc-lbl">S${p.pp}</span></div>`;
-        }).join('') : '<div class="empty-state">Sin datos</div>'}</div>
-        <div style="display:flex;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-soft);">
-          <div style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--ok);"></span>Cumplimiento</div>
-          <div style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--bad);"></span>Incumplimiento</div>
-        </div>
-      </div>
-      <div class="card"><div class="ct">Incidencias por Packing (planta) <span class="sub">métrica: ${unitLbl}</span></div><div class="bars">${packingEntries.length ? packingEntries.map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxPacking)}%;background:var(--purple);"></div></div><span class="bv">${fmtU(v)}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
-      <div class="card" style="margin-bottom:0;">
-        <div class="ct">Split de incidencias por modo <span class="sub">métrica: ${unitLbl}</span></div>
-        ${modeSplit.length ? `
-        <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px;">${modeSplit.map(s=>`<div style="width:${(s.val/modeSplitTotal*100).toFixed(1)}%;background:${s.color};"></div>`).join('')}</div>
-        ${modeSplit.map(s=>`<div style="display:flex;align-items:center;gap:9px;margin-top:10px;font-size:12.5px;"><span style="width:9px;height:9px;border-radius:2px;background:${s.color};flex-shrink:0;"></span><span style="flex:1;">${s.mode}</span><span class="mono" style="font-weight:600;">${fmtU(s.val)}</span></div>`).join('')}
-        ` : '<div class="empty-state">Sin datos</div>'}
+  <div style="display:grid;grid-template-columns:1fr 260px;gap:14px;align-items:start;margin-bottom:14px;">
+    <div class="card" style="margin-bottom:0;">
+      <div class="ct">Incidencias por Pack Plan <span class="sub">métrica: ${unitLbl} · cumplimiento vs. incumplimiento</span></div>
+      <div class="sc-chart" style="height:190px;">${ppStack.length ? ppStack.map(p=>{
+        const h = Math.max(2, calcPct(p.tot, maxPPTot));
+        const okPct = p.tot ? (p.ok/p.tot*100).toFixed(1) : 0;
+        const affPct = p.tot ? (p.aff/p.tot*100).toFixed(1) : 0;
+        return `<div class="sc-col" style="height:100%;"><span class="sc-val">${p.tot?fmtU(p.tot):''}</span><div class="sc-bars" style="height:${h}%;"><div class="seg" style="height:${affPct}%;background:var(--bad);"></div><div class="seg" style="height:${okPct}%;background:var(--ok);"></div></div><span class="sc-lbl">S${p.pp}</span></div>`;
+      }).join('') : '<div class="empty-state">Sin datos</div>'}</div>
+      <div style="display:flex;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-soft);">
+        <div style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--ok);"></span>Cumplimiento</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--bad);"></span>Incumplimiento</div>
       </div>
     </div>
-    <div style="min-width:0;max-width:260px;">
-      <div class="card" style="margin-bottom:0;"><div class="ct">Incidencias por destino (POD)</div><div>${destEntries.length ? destEntries.map(([k,v])=>`<div class="wep-top-dest-row"><div class="hd"><span>${k}</span><span class="mono" style="color:var(--bad);">${fmtU(v)}</span></div><div class="bt"><div class="bf" style="width:${calcPct(v,maxDest)}%;background:var(--bad);"></div></div></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+    <div class="card" style="margin-bottom:0;min-width:0;"><div class="ct">Incidencias por destino (POD)</div><div>${destEntries.length ? destEntries.map(([k,v])=>`<div class="wep-top-dest-row"><div class="hd"><span>${k}</span><span class="mono" style="color:var(--bad);">${fmtU(v)}</span></div><div class="bt"><div class="bf" style="width:${calcPct(v,maxDest)}%;background:var(--bad);"></div></div></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+  </div>
+  <div class="g2">
+    <div class="card" style="margin-bottom:0;"><div class="ct">Incidencias por Packing (planta) <span class="sub">métrica: ${unitLbl}</span></div><div class="bars">${packingEntries.length ? packingEntries.map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxPacking)}%;background:var(--purple);"></div></div><span class="bv">${fmtU(v)}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
+    <div class="card" style="margin-bottom:0;">
+      <div class="ct">Split de incidencias por modo <span class="sub">métrica: ${unitLbl}</span></div>
+      ${modeSplit.length ? `
+      <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px;">${modeSplit.map(s=>`<div style="width:${(s.val/modeSplitTotal*100).toFixed(1)}%;background:${s.color};"></div>`).join('')}</div>
+      ${modeSplit.map(s=>`<div style="display:flex;align-items:center;gap:9px;margin-top:10px;font-size:12.5px;"><span style="width:9px;height:9px;border-radius:2px;background:${s.color};flex-shrink:0;"></span><span style="flex:1;">${s.mode}</span><span class="mono" style="font-weight:600;">${fmtU(s.val)}</span></div>`).join('')}
+      ` : '<div class="empty-state">Sin datos</div>'}
     </div>
   </div>
   <div class="card">
@@ -2560,6 +2607,21 @@ function incRenderModo(modeName, universeKey, univKey){
   const byResp = {};
   rows.forEach(r=>{ const k = r.t_supplier||'(sin dato)'; byResp[k] = byResp[k] || {}; const k2 = r.supplier||'(sin dato)'; byResp[k][k2]=(byResp[k][k2]||0)+1; });
 
+  // Fulfillment of the Assignment — % de incumplimiento por proveedor (Line):
+  // de todas las Instructions/PO que Horizon le asignó a esa naviera/aerolínea/
+  // transportista, cuántas terminaron con al menos 1 incidencia. A diferencia
+  // de "Historic Compliance per Pack Plan" (que mide el modo completo en el
+  // tiempo), esto mide a cada proveedor puntualmente — de mayor a menor
+  // incumplimiento, y sin mostrar a los que están en 0%.
+  const totalByLine = (univ && univ.by_line) || {};
+  const affByLine = {};
+  rows.forEach(r=>{ const line = r.line || '(sin línea)'; affByLine[line] = affByLine[line] || new Set(); affByLine[line].add(r.id_po); });
+  const fulfillment = Object.entries(totalByLine)
+    .map(([line,tot])=>{ const aff = affByLine[line] ? affByLine[line].size : 0; return { line, tot, aff, pct: tot ? +(aff/tot*100).toFixed(1) : 0 }; })
+    .filter(p=>p.pct>0)
+    .sort((a,b)=>b.pct-a.pct);
+  const maxFulfillPct = Math.max(...fulfillment.map(p=>p.pct), 5);
+
   return `
   <div class="kg">
     <div class="kc"><div class="kl">Total ${unitLbl}</div><div class="kv">${totalUniverse}</div></div>
@@ -2578,8 +2640,11 @@ function incRenderModo(modeName, universeKey, univKey){
     </div>
   </div>
   <div class="card">
-    <div class="ct">Compliance % per Pack Plan (${modeName})</div>
-    <div class="bars">${pctByPP.length ? pctByPP.map(p=>`<div class="br"><span class="bl">S${p.pp}</span><div class="bt"><div class="bf" style="width:${calcPct(p.pct,maxPctVal)}%;background:${p.pct>10?'var(--bad)':p.pct>0?'var(--warn)':'var(--ok)'};"></div></div><span class="bv">${p.pct}%</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div>
+    <div class="ct">Fulfillment of the Assignment (${modeName}) <span class="sub">% incumplimiento por proveedor · mayor a menor</span></div>
+    <div class="sc-chart" style="height:190px;">${fulfillment.length ? fulfillment.map(p=>{
+      const h = Math.max(2, calcPct(p.pct, maxFulfillPct));
+      return `<div class="sc-col" style="height:100%;"><span class="sc-val">${p.pct}%</span><div class="sc-bars" style="height:${h}%;"><div class="seg" style="height:100%;background:${p.pct>10?'var(--bad)':'var(--warn)'};"></div></div><span class="sc-lbl" title="${p.line}">${p.line}</span></div>`;
+    }).join('') : '<div class="empty-state">Ningún proveedor tiene incumplimientos registrados</div>'}</div>
   </div>
   <div class="card">
     <div class="ct">Incidents Detail (${modeName})</div>

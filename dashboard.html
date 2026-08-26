@@ -506,14 +506,9 @@ const NAV = [
     {id:'packing',  ix:'08', label:'Packing'},
     {id:'ingreso',  ix:'09', label:'Receiving'},
   ]},
-  // ── Vista "Incidencias" retirada temporalmente del menú (ver ETL:
-  // ENABLE_INCIDENCIAS = False) mientras se investiga el error
-  // "Failed to fetch" en /publish, para no arriesgar la carga del
-  // Excel de quienes ya usan el dashboard. Reactivar descomentando
-  // este bloque + poniendo ENABLE_INCIDENCIAS = True en el ETL.
-  // {group:'calidad', label:'Calidad', items:[
-  //   {id:'incidencias', ix:'11', label:'Incidencias', tag:'NEW'},
-  // ]},
+  {group:'calidad', label:'Calidad', items:[
+    {id:'incidencias', ix:'11', label:'Incidencias'},
+  ]},
   {group:'sistema', label:'Sistema', items:[
     {id:'upload',   ix:'10', label:'Actualizar Datos'},
   ]},
@@ -673,7 +668,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
-const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
+const UPLOAD_API_KEY = 'REEMPLAZA_CON_TU_API_KEY';
 
 const SUPPLIER_TABS = ['wep', 'pmi', 'air', 'upload'];
 let USER_ROLE = null;
@@ -1649,7 +1644,7 @@ function renderPMI(){
     <div class="pivot-scroll"><table class="pivot"><thead><tr>
       <th>Dispatch Ro.</th><th>Loading Date</th><th>Loading Time</th><th>Positioning Time</th><th>Packing Stage Estim.</th>
       <th>Journey Status BASC</th><th>Packing Stage Load Status</th><th>Instruction</th><th>PO</th><th>Line</th>
-      <th>Logistics Operator</th><th>Transport Operator</th><th>Booking|AWB|CRT</th><th>Container</th><th>POD</th><th>Packing</th><th>Gate-In Storage</th>
+      <th>Logistics Operator</th><th>Transport Operator</th><th>Booking|AWB|CRT</th><th>Container</th><th>POD</th><th>Packing</th><th>Gate-In Storage</th><th>Gate-In Storage Address</th>
     </tr></thead><tbody id="emb-body"></tbody></table></div>
   </div>
 
@@ -1832,7 +1827,7 @@ function renderEmbarques(){
     const recs = rndGroups[rnd];
     recs.forEach((r,i)=>{
       rows++;
-      html += `<tr>${i===0?`<td rowspan="${recs.length}" style="background:var(--surface-soft);font-weight:700;border-right:2px solid var(--blue);vertical-align:middle;text-align:center;">${rnd}</td>`:''}<td class="mono">${r.load_date||'—'}</td><td class="mono">${r.load_time||'—'}</td><td class="mono">${r.postime||'—'}</td><td class="mono">${r.pack_est||'—'}</td><td><span class="pill ${bascCl(r.basc)}" style="font-size:9px;">${r.basc||'—'}</span></td><td>${r.load_status||'—'}</td><td class="mono">${r.instruction||'—'}</td><td class="mono">${r.po||'—'}</td><td>${r.line||'—'}</td><td>${r.log_op||'—'}</td><td>${r.transp_op||'—'}</td><td class="mono">${r.booking||'—'}</td><td class="mono">${r.container||'—'}</td><td>${r.pod||'—'}</td><td>${r.packing||'—'}</td><td>${r.gatein||'—'}</td></tr>`;
+      html += `<tr>${i===0?`<td rowspan="${recs.length}" style="background:var(--surface-soft);font-weight:700;border-right:2px solid var(--blue);vertical-align:middle;text-align:center;">${rnd}</td>`:''}<td class="mono">${r.load_date||'—'}</td><td class="mono">${r.load_time||'—'}</td><td class="mono">${r.postime||'—'}</td><td class="mono">${r.pack_est||'—'}</td><td><span class="pill ${bascCl(r.basc)}" style="font-size:9px;">${r.basc||'—'}</span></td><td>${r.load_status||'—'}</td><td class="mono">${r.instruction||'—'}</td><td class="mono">${r.po||'—'}</td><td>${r.line||'—'}</td><td>${r.log_op||'—'}</td><td>${r.transp_op||'—'}</td><td class="mono">${r.booking||'—'}</td><td class="mono">${r.container||'—'}</td><td>${r.pod||'—'}</td><td>${r.packing||'—'}</td><td>${r.gatein||'—'}</td><td>${r.gatein_address||'—'}</td></tr>`;
     });
   });
   document.getElementById('emb-body').innerHTML = html || `<tr><td colspan="16" class="empty-state">Sin registros para este filtro</td></tr>`;
@@ -1848,7 +1843,7 @@ function downloadEmbarquesExcel(){
     'Packing Stage Load Status': r.load_status, 'Instruction': r.instruction, 'PO': r.po,
     'Line': r.line, 'Logistics Operator': r.log_op, 'Transport Operator': r.transp_op,
     'Booking|AWB|CRT': r.booking, 'Container': r.container, 'POD': r.pod, 'Packing': r.packing,
-    'Gate-In Storage': r.gatein, 'Pack Plan': r.pack_plan, 'Dispatch Date': r.dispatch_date, 'Mode': r.mode,
+    'Gate-In Storage': r.gatein, 'Gate-In Storage Address': r.gatein_address, 'Pack Plan': r.pack_plan, 'Dispatch Date': r.dispatch_date, 'Mode': r.mode,
   }));
   const ws = XLSX.utils.json_to_sheet(data);
   ws['!cols'] = Object.keys(data[0]).map(k=>({wch: Math.max(k.length, 14)}));
@@ -2247,6 +2242,7 @@ function renderIncidencias(){
     <button class="inc-subtab" data-tab="general" onclick="incSwitchTab('general')">🌐 General Compliance</button>
     <button class="inc-subtab" data-tab="maritimo" onclick="incSwitchTab('maritimo')">⚓ Compliance Marítimo</button>
     <button class="inc-subtab" data-tab="aereo" onclick="incSwitchTab('aereo')">✈ Compliance Aéreo</button>
+    <button class="inc-subtab" data-tab="terrestre" onclick="incSwitchTab('terrestre')">🚚 Compliance Terrestre</button>
   </div>
   <div id="incTooltip" class="fc-tooltip"></div>
   <div id="inc-content"></div>`;
@@ -2265,6 +2261,7 @@ function refreshIncidencias(){
   else if (incActiveTab==='general') { el.innerHTML = incRenderGeneral(); incWireGeneralEvents(); }
   else if (incActiveTab==='maritimo') { el.innerHTML = incRenderModo('Marítimo', 'instructions', 'marítimo'); incWireModoEvents(); }
   else if (incActiveTab==='aereo') { el.innerHTML = incRenderModo('Aéreo', 'pos', 'aéreo'); incWireModoEvents(); }
+  else if (incActiveTab==='terrestre') { el.innerHTML = incRenderModo('Terrestre', 'instructions', 'terrestre'); incWireModoEvents(); }
 }
 
 /* ---------------- RESUMEN ---------------- */
@@ -2432,6 +2429,9 @@ function incRefreshGeneralBody(){
   const aereoFclAffected = incAffectedFclByMode(rows, 'Aéreo');
   const aereoFclTotal = univ.aéreo ? (univ.aéreo.fcl_total||0) : 0;
   const aereoCompliancePct = aereoFclTotal ? (100 - pct(aereoFclAffected, aereoFclTotal)).toFixed(1) : '—';
+  const terrFclAffected = incAffectedFclByMode(rows, 'Terrestre');
+  const terrFclTotal = univ.terrestre ? (univ.terrestre.fcl_total||0) : 0;
+  const terrCompliancePct = terrFclTotal ? (100 - pct(terrFclAffected, terrFclTotal)).toFixed(1) : '—';
 
   // Incidencias por Pack Plan — barra apilada de 2 colores (cumplimiento / incumplimiento),
   // sobre TODOS los Pack Plan que existan en Horizon (no solo los que tuvieron incidencia).
@@ -2466,6 +2466,9 @@ function incRefreshGeneralBody(){
     <div class="kc" style="--acc:var(--purple)"><div class="kl">Aéreo — Universo FCL</div><div class="kv">${fmt1(aereoFclTotal)}<span class="u">FCL</span></div></div>
     <div class="kc" style="--acc:var(--bad)"><div class="kl">Aéreo — FCL con incidencia</div><div class="kv">${fmt1(aereoFclAffected)}<span class="u">FCL</span></div></div>
     <div class="kc" style="--acc:var(--ok)"><div class="kl">Compliance Aéreo % (FCL)</div><div class="kv">${aereoCompliancePct}<span class="u">%</span></div></div>
+    <div class="kc" style="--acc:var(--teal)"><div class="kl">Terrestre — Universo FCL</div><div class="kv">${fmt1(terrFclTotal)}<span class="u">FCL</span></div></div>
+    <div class="kc" style="--acc:var(--bad)"><div class="kl">Terrestre — FCL con incidencia</div><div class="kv">${fmt1(terrFclAffected)}<span class="u">FCL</span></div></div>
+    <div class="kc" style="--acc:var(--ok)"><div class="kl">Compliance Terrestre % (FCL)</div><div class="kv">${terrCompliancePct}<span class="u">%</span></div></div>
   </div>
   <div class="g2">
     <div>
@@ -2501,7 +2504,7 @@ function incRenderModo(modeName, universeKey, univKey){
   const idsConIncidencia = new Set(rows.map(r=>r.id_po));
   const incPct = totalUniverse ? pct(idsConIncidencia.size, totalUniverse) : 0;
   const compliancePct = totalUniverse!=null ? (100-incPct).toFixed(1) : '—';
-  const unitLbl = modeName==='Marítimo' ? 'Instructions' : 'PO';
+  const unitLbl = (modeName==='Marítimo' || modeName==='Terrestre') ? 'Instructions' : 'PO';
 
   const byPP = univ ? (univ.by_pack_plan||{}) : {};
   const ppKeys = Object.keys(byPP).map(Number).sort((a,b)=>a-b);
@@ -2513,6 +2516,7 @@ function incRenderModo(modeName, universeKey, univKey){
   // Curva histórica (línea) — % de incumplimiento por semana
   const W=900,H=220,pL=34,pB=24,pT=10;
   const pts = pctByPP.map((p,i)=>({x: pL + i*(W-pL-14)/Math.max(pctByPP.length-1,1), y: H-pB-(p.pct/Math.max(maxPctVal,1))*(H-pT-pB), ...p}));
+  const modeColor = modeName==='Marítimo' ? 'var(--blue)' : modeName==='Terrestre' ? 'var(--teal)' : 'var(--purple)';
   const pathOf = arr => arr.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
   const grid = [0,.5,1].map(f=>{ const y=pT+(1-f)*(H-pT-pB); return `<line x1="${pL}" y1="${y.toFixed(0)}" x2="${W-4}" y2="${y.toFixed(0)}" stroke="var(--line)" stroke-width="1"/><text x="${pL-6}" y="${(y+3).toFixed(0)}" text-anchor="end" font-size="9" fill="var(--ink-faint)" font-family="JetBrains Mono">${Math.round(maxPctVal*f)}%</text>`; }).join('');
   const xlbls = pts.map(p=>`<text x="${p.x.toFixed(0)}" y="${H-6}" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)" font-family="JetBrains Mono">S${p.pp}</text>`).join('');
@@ -2531,8 +2535,8 @@ function incRenderModo(modeName, universeKey, univKey){
     <div style="position:relative;">
       <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;height:${H}px;display:block;margin:0 auto;" preserveAspectRatio="xMidYMid meet">
         ${grid}
-        <path d="${pathOf(pts)}" fill="none" stroke="${modeName==='Marítimo'?'var(--blue)':'var(--purple)'}" stroke-width="2.2"/>
-        ${pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.4" fill="${modeName==='Marítimo'?'var(--blue)':'var(--purple)'}" stroke="var(--surface)" stroke-width="1.2" class="inc-modo-dot" data-pp="${p.pp}" data-pct="${p.pct}" data-n="${p.n}" data-tot="${p.tot}" style="cursor:pointer;"/>`).join('')}
+        <path d="${pathOf(pts)}" fill="none" stroke="${modeColor}" stroke-width="2.2"/>
+        ${pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.4" fill="${modeColor}" stroke="var(--surface)" stroke-width="1.2" class="inc-modo-dot" data-pp="${p.pp}" data-pct="${p.pct}" data-n="${p.n}" data-tot="${p.tot}" style="cursor:pointer;"/>`).join('')}
         ${xlbls}
       </svg>
     </div>
@@ -3268,7 +3272,7 @@ const PANEL_RENDERERS = {
   forecast: renderForecast, ports: renderPorts, wep: renderWEP,
   pmi: renderPMI, air: renderAir, execute: renderExecute,
   retiro: renderRetiro, packing: renderPacking, ingreso: renderIngreso,
-  // incidencias: renderIncidencias, // retirado temporalmente (ver comentario en NAV)
+  incidencias: renderIncidencias,
   upload: renderUpload,
 };
 const CHART_VIEWS = { retiro:['chRetiroAlmacen','chRetiroWeekly'], packing:['chPackingDonut','chPackingDispatch','chPackingWeekly','chPackingNaviera'], ingreso:['chIngresoAlmacen','chIngresoCarrier','chIngresoWeekly'] };

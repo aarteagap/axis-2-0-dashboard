@@ -625,7 +625,7 @@ function msdField(id, allLabel, opts, refreshFnName, labelFn){
     return `<label class="msd-item"><input type="checkbox" class="${cbClass}" value="${val}" checked onchange="msdOnItemChange('${id}','${allLabel.replace(/'/g,"\\'")}');${refreshFnName}();">${lbl}</label>`;
   }).join('');
   return `
-  <div class="msd" id="${id}">
+  <div class="msd" id="${id}" data-refresh-fn="${refreshFnName}" data-all-label="${allLabel.replace(/"/g,'&quot;')}">
     <button type="button" class="msd-btn" onclick="msdToggle('${id}')">
       <span id="${id}-label">${allLabel}</span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg>
@@ -636,6 +636,37 @@ function msdField(id, allLabel, opts, refreshFnName, labelFn){
       ${items || '<div class="empty-state" style="padding:14px;">Sin opciones</div>'}
     </div>
   </div>`;
+}
+// Recalcula solo las OPCIONES visibles de un filtro multi-select ya montado
+// (sin recrear el botón/dropdown, para no perder el estado abierto/cerrado),
+// preservando la selección previa cuando sigue siendo válida. Se usa para
+// que los filtros se comporten en cascada: las opciones de un filtro
+// reflejan el subconjunto de datos que dejan los DEMÁS filtros activos.
+function msdRebuild(id, opts, labelFn){
+  const container = document.getElementById(id);
+  const panel = document.getElementById(id+'-panel');
+  if (!container || !panel) return;
+  const refreshFnName = container.dataset.refreshFn;
+  const allLabel = container.dataset.allLabel;
+  const prevChecked = new Set(msdChecked(id));
+  const prevAll = msdAllValues(id);
+  const wasNarrowed = prevChecked.size > 0 && prevChecked.size < prevAll.length;
+  const cbClass = id + '-cb';
+  const optVals = opts.map(o=>String(o));
+  const survives = wasNarrowed && optVals.some(v=>prevChecked.has(v));
+  const useAll = !survives;
+  const items = opts.map((o,i) => {
+    const raw = optVals[i];
+    const val = raw.replace(/"/g,'&quot;');
+    const lbl = labelFn ? labelFn(o) : o;
+    const checked = useAll ? true : prevChecked.has(raw);
+    return `<label class="msd-item${checked?' checked':''}"><input type="checkbox" class="${cbClass}" value="${val}" ${checked?'checked':''} onchange="msdOnItemChange('${id}','${allLabel.replace(/'/g,"\\'")}');${refreshFnName}();">${lbl}</label>`;
+  }).join('');
+  const allChecked = useAll || optVals.every(v=>prevChecked.has(v));
+  panel.innerHTML = `<label class="msd-item msd-item-all"><input type="checkbox" ${allChecked?'checked':''} onchange="msdToggleAll('${id}', this.checked, '${allLabel.replace(/'/g,"\\'")}');${refreshFnName}();">${allLabel}</label>
+    <div class="msd-sep"></div>
+    ${items || '<div class="empty-state" style="padding:14px;">Sin opciones</div>'}`;
+  msdUpdateLabel(id, allLabel);
 }
 function msdToggle(id){
   const el = document.getElementById(id);
@@ -964,6 +995,9 @@ function renderForecast(){
   const modes = [...new Set(rows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
   const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
   const pods = [...new Set(rows.map(r=>r.pod).filter(Boolean))].sort();
+  const lines = [...new Set(rows.map(r=>r.line).filter(Boolean))].sort();
+  const transportOps = [...new Set(rows.map(r=>r.transport_operator).filter(Boolean))].sort();
+  const markets = [...new Set(rows.map(r=>r.market).filter(Boolean))].sort();
   return `
   <div id="fcTooltip" class="fc-tooltip"></div>
   <div class="card" style="margin-bottom:14px;">
@@ -985,6 +1019,9 @@ function renderForecast(){
           ${msdField('msd-fc-shipper', 'All Shippers', shippers, 'refreshForecast')}
           ${msdField('msd-fc-mode', 'All Modes', modes, 'refreshForecast', m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
           ${msdField('msd-fc-pod', 'All Destinos', pods, 'refreshForecast')}
+          ${msdField('msd-fc-line', 'All Lines', lines, 'refreshForecast')}
+          ${msdField('msd-fc-top', 'All Transport Operators', transportOps, 'refreshForecast')}
+          ${msdField('msd-fc-market', 'All Markets', markets, 'refreshForecast')}
         </div>
       </div>
       <div style="flex:1;min-width:320px;">
@@ -1027,14 +1064,42 @@ function refreshForecast(){
   const selShippers = msdFilterValues('msd-fc-shipper') || [];
   const selModes = msdFilterValues('msd-fc-mode') || [];
   const selPods = msdFilterValues('msd-fc-pod') || [];
+  const selLines = msdFilterValues('msd-fc-line') || [];
+  const selTops = msdFilterValues('msd-fc-top') || [];
+  const selMarkets = msdFilterValues('msd-fc-market') || [];
   const selWeeks = fcChecked('fc-cb-week').map(Number);
 
   let ft = rows;
   if(selShippers.length) ft = ft.filter(r=>selShippers.includes(r.shipper));
   if(selModes.length) ft = ft.filter(r=>selModes.includes(r.mode));
   if(selPods.length) ft = ft.filter(r=>selPods.includes(r.pod));
+  if(selLines.length) ft = ft.filter(r=>selLines.includes(r.line));
+  if(selTops.length) ft = ft.filter(r=>selTops.includes(r.transport_operator));
+  if(selMarkets.length) ft = ft.filter(r=>selMarkets.includes(r.market));
   const ftBeforeWeekFilter = ft; // para "Proyección 6W": siempre las últimas 6 semanas reales, sin importar qué esté tildado en el checklist de Pack Plan
   if(selWeeks.length) ft = ft.filter(r=>selWeeks.includes(r.pack_plan));
+
+  // Filtros en cascada: las opciones de CADA filtro reflejan el subconjunto de
+  // datos que dejan los DEMÁS filtros activos (no el propio) — así, si se
+  // filtra Modo=Aéreo, Destinos solo lista destinos que existen en registros
+  // aéreos.
+  const modeOrderFc = ['Marítimo','Aéreo','Terrestre'];
+  const fcCascadeExcl = (exclude) => {
+    let r = rows;
+    if (exclude!=='shipper' && selShippers.length) r = r.filter(x=>selShippers.includes(x.shipper));
+    if (exclude!=='mode' && selModes.length) r = r.filter(x=>selModes.includes(x.mode));
+    if (exclude!=='pod' && selPods.length) r = r.filter(x=>selPods.includes(x.pod));
+    if (exclude!=='line' && selLines.length) r = r.filter(x=>selLines.includes(x.line));
+    if (exclude!=='top' && selTops.length) r = r.filter(x=>selTops.includes(x.transport_operator));
+    if (exclude!=='market' && selMarkets.length) r = r.filter(x=>selMarkets.includes(x.market));
+    return r;
+  };
+  msdRebuild('msd-fc-shipper', [...new Set(fcCascadeExcl('shipper').map(r=>r.shipper).filter(Boolean))].sort());
+  msdRebuild('msd-fc-mode', [...new Set(fcCascadeExcl('mode').map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrderFc.indexOf(a)-modeOrderFc.indexOf(b)), m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m);
+  msdRebuild('msd-fc-pod', [...new Set(fcCascadeExcl('pod').map(r=>r.pod).filter(Boolean))].sort());
+  msdRebuild('msd-fc-line', [...new Set(fcCascadeExcl('line').map(r=>r.line).filter(Boolean))].sort());
+  msdRebuild('msd-fc-top', [...new Set(fcCascadeExcl('top').map(r=>r.transport_operator).filter(Boolean))].sort());
+  msdRebuild('msd-fc-market', [...new Set(fcCascadeExcl('market').map(r=>r.market).filter(Boolean))].sort());
 
   const allWeeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
   const weeks = selWeeks.length ? selWeeks.slice().sort((a,b)=>a-b) : allWeeks;
@@ -1197,6 +1262,7 @@ function renderPorts(){
   const statuses = [...new Set(rows.map(r=>r.status).filter(Boolean))].sort();
   const weeks = [...new Set(rows.map(r=>r.pack_plan))].sort((a,b)=>a-b);
   const lineas = [...new Set(rows.map(r=>r.line).filter(Boolean))].sort();
+  const transportOps = [...new Set(rows.map(r=>r.transport_operator).filter(Boolean))].sort();
   return `
   <div id="portsTooltip" class="fc-tooltip"></div>
   <div class="card" style="margin-bottom:14px;">
@@ -1218,6 +1284,7 @@ function renderPorts(){
           ${msdField('msd-ports-status', 'All Status', statuses, 'refreshPorts')}
           ${msdField('msd-ports-week', 'All Pack Plans', weeks, 'refreshPorts', w=>'S'+w)}
           ${msdField('msd-ports-line', 'All Líneas', lineas, 'refreshPorts')}
+          ${msdField('msd-ports-top', 'All Transport Operators', transportOps, 'refreshPorts')}
         </div>
       </div>
     </div>
@@ -1243,11 +1310,13 @@ function refreshPorts(){
   const selWeeksRaw = msdFilterValues('msd-ports-week');
   const selWeeks = selWeeksRaw ? selWeeksRaw.map(Number) : [];
   const selLine = msdFilterValues('msd-ports-line') || [];
+  const selTop = msdFilterValues('msd-ports-top') || [];
 
   let ft = rows;
   if (selStatus.length) ft = ft.filter(r=>selStatus.includes(r.status));
   if (selWeeks.length) ft = ft.filter(r=>selWeeks.includes(r.pack_plan));
   if (selLine.length) ft = ft.filter(r=>selLine.includes(r.line));
+  if (selTop.length) ft = ft.filter(r=>selTop.includes(r.transport_operator));
 
   document.getElementById('ports-stat').textContent = `${ft.length} de ${rows.length} registros · métrica: ${portsMetric==='fcl'?'FCL':'PO'}`;
 
@@ -1457,7 +1526,7 @@ function renderWEP(){
     <div class="wep-pill-select"><span class="wep-filter-lbl">Destino</span><select id="wep-pod-select" onchange="refreshWEP()"><option value="ALL" selected>Todos</option>${pods.map(p=>`<option value="${p.replace(/"/g,'&quot;')}">${p}</option>`).join('')}</select></div>
     <span class="sub" id="wep-linecount" style="margin-left:auto;"></span>
   </div>
-  <div class="g2">
+  <div class="g2" style="grid-template-columns:1.8fr 1fr;">
     <div class="card" style="margin-bottom:0;min-width:0;"><div class="tbl-wrap"><div class="wep-grid" id="wep-grid"></div></div></div>
     <div>
       <div class="card"><div class="ct">Carga por día · FCL</div><div id="wep-daybars" style="display:flex;gap:10px;align-items:flex-end;"></div><div class="wep-insight" id="wep-insight"></div></div>

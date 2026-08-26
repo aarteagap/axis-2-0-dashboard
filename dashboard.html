@@ -650,19 +650,35 @@ function msdRebuild(id, opts, labelFn){
   const allLabel = container.dataset.allLabel;
   const prevChecked = new Set(msdChecked(id));
   const prevAll = msdAllValues(id);
-  const wasNarrowed = prevChecked.size > 0 && prevChecked.size < prevAll.length;
   const cbClass = id + '-cb';
   const optVals = opts.map(o=>String(o));
-  const survives = wasNarrowed && optVals.some(v=>prevChecked.has(v));
-  const useAll = !survives;
+  // Un checkbox recién creado por msdField() siempre nace con TODO marcado,
+  // así que prevChecked.size===prevAll.length es el único estado "intacto,
+  // sin tocar" — ahí sí seguimos el universo nuevo tal cual (todo marcado).
+  // Si el usuario ya vació el filtro a propósito (0 marcados, para luego ir
+  // marcando de a uno) hay que RESPETAR ese vacío en vez de re-marcar todo
+  // — si no, destildar "All" nunca "se sostiene" y no se puede elegir uno solo.
+  const wasFull = prevAll.length > 0 && prevChecked.size === prevAll.length;
+  let checkedSet;
+  if (wasFull) {
+    checkedSet = new Set(optVals);
+  } else if (prevChecked.size === 0) {
+    checkedSet = new Set();
+  } else {
+    const kept = optVals.filter(v=>prevChecked.has(v));
+    // Si la cascada hizo desaparecer TODAS las opciones que tenía marcadas
+    // (ninguna sobrevive en el nuevo universo), no queda selección válida
+    // que preservar — volvemos a "todo marcado" en vez de dejarlo vacío.
+    checkedSet = kept.length ? new Set(kept) : new Set(optVals);
+  }
   const items = opts.map((o,i) => {
     const raw = optVals[i];
     const val = raw.replace(/"/g,'&quot;');
     const lbl = labelFn ? labelFn(o) : o;
-    const checked = useAll ? true : prevChecked.has(raw);
+    const checked = checkedSet.has(raw);
     return `<label class="msd-item${checked?' checked':''}"><input type="checkbox" class="${cbClass}" value="${val}" ${checked?'checked':''} onchange="msdOnItemChange('${id}','${allLabel.replace(/'/g,"\\'")}');${refreshFnName}();">${lbl}</label>`;
   }).join('');
-  const allChecked = useAll || optVals.every(v=>prevChecked.has(v));
+  const allChecked = optVals.length > 0 && optVals.every(v=>checkedSet.has(v));
   panel.innerHTML = `<label class="msd-item msd-item-all"><input type="checkbox" ${allChecked?'checked':''} onchange="msdToggleAll('${id}', this.checked, '${allLabel.replace(/'/g,"\\'")}');${refreshFnName}();">${allLabel}</label>
     <div class="msd-sep"></div>
     ${items || '<div class="empty-state" style="padding:14px;">Sin opciones</div>'}`;
@@ -2329,17 +2345,6 @@ let incMetric = 'fcl'; // 'instruction' | 'po' | 'fcl' — usado en General Comp
 
 function incCritClass(c){ return c==null ? 'inc-crit-null' : 'inc-crit-'+Math.min(5, Math.max(0, c)); }
 function incCritLabel(c){ return c==null ? '—' : ['Sin registrar','Muy Leve','Leve','Grave','Grave','Muy Grave'][Math.min(5,Math.max(0,c))] || c; }
-function incMonthKey(ddmmyyyy){
-  if (!ddmmyyyy) return null;
-  const [d,m,y] = ddmmyyyy.split('/');
-  if (!y) return null;
-  return `${y}-${String(m).padStart(2,'0')}`;
-}
-function incMonthLabel(yyyymm){
-  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-  const [y,m] = yyyymm.split('-');
-  return `${meses[+m-1]} ${y}`;
-}
 
 function renderIncidencias(){
   const rows = INCIDENCIAS || [];
@@ -2419,11 +2424,14 @@ function incRenderResumen(filteredRows){
   const modeCards = [...new Set(rows.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b))
     .map(m=>`<div class="kc" style="--acc:${m==='Marítimo'?'var(--blue)':m==='Aéreo'?'var(--purple)':'var(--teal)'}"><div class="kl">${m}</div><div class="kv">${byModeCount[m]}</div></div>`).join('');
 
-  // Incidencias por mes: TODOS los meses del Horizon (dispatch date), no solo los que tuvieron incidencia.
-  const byMonth = {};
-  rows.forEach(r=>{ const k = incMonthKey(r.dispatch_date); if(!k) return; byMonth[k]=(byMonth[k]||0)+1; });
-  const allMonths = (HORIZON_RANGE && HORIZON_RANGE.months && HORIZON_RANGE.months.length) ? HORIZON_RANGE.months.slice() : Object.keys(byMonth).sort();
-  const maxMonth = Math.max(...allMonths.map(k=>byMonth[k]||0), 1);
+  // Incidencias por Pack Plan: TODOS los Pack Plan del Horizon, no solo los
+  // que tuvieron incidencia (reemplaza "Incidencias por mes" — con solo 4-5
+  // meses el gráfico se veía casi vacío; por Pack Plan hay muchas más
+  // semanas y el gráfico se llena mejor).
+  const byPP = {};
+  rows.forEach(r=>{ if(r.pack_plan==null) return; byPP[r.pack_plan]=(byPP[r.pack_plan]||0)+1; });
+  const allPPWeeks = (HORIZON_RANGE && HORIZON_RANGE.pack_plans && HORIZON_RANGE.pack_plans.length) ? HORIZON_RANGE.pack_plans.slice() : Object.keys(byPP).map(Number).sort((a,b)=>a-b);
+  const maxPPCount = Math.max(...allPPWeeks.map(k=>byPP[k]||0), 1);
 
   // Incidencias por proveedor: muchos proveedores → barras horizontales (más legible que un donut)
   const bySupplier = {};
@@ -2460,8 +2468,8 @@ function incRenderResumen(filteredRows){
     <div class="kc" style="--acc:var(--warn)"><div class="kl">Criticidad promedio</div><div class="kv">${critAvg}<span class="u">/ 5</span></div></div>
   </div>
   <div class="card">
-    <div class="ct">Incidencias por mes <span class="sub">${allMonths.length} mes(es) desde el inicio del Pack Plan en Horizon</span></div>
-    <div class="sc-chart" style="height:170px;">${allMonths.length ? allMonths.map(k=>{ const v=byMonth[k]||0; const h=Math.max(2, calcPct(v,maxMonth)); return `<div class="sc-col" style="height:100%;"><span class="sc-val">${v||''}</span><div class="sc-bars" style="height:${h}%;"><div class="seg" style="height:100%;background:${v?'var(--bad)':'var(--line)'};"></div></div><span class="sc-lbl">${incMonthLabel(k)}</span></div>`; }).join('') : '<div class="empty-state">Sin datos</div>'}</div>
+    <div class="ct">Incidencias por Pack Plan <span class="sub">${allPPWeeks.length} semana(s) de Pack Plan en Horizon</span></div>
+    <div class="sc-chart" style="height:170px;">${allPPWeeks.length ? allPPWeeks.map(pp=>{ const v=byPP[pp]||0; const h=Math.max(2, calcPct(v,maxPPCount)); return `<div class="sc-col" style="height:100%;"><span class="sc-val">${v||''}</span><div class="sc-bars" style="height:${h}%;"><div class="seg" style="height:100%;background:${v?'var(--bad)':'var(--line)'};"></div></div><span class="sc-lbl">S${pp}</span></div>`; }).join('') : '<div class="empty-state">Sin datos</div>'}</div>
   </div>
   <div class="g2">
     <div class="card"><div class="ct">Incidencias por proveedor</div><div class="bars">${supplierEntries.length ? supplierEntries.map(([k,v])=>`<div class="br"><span class="bl">${k}</span><div class="bt"><div class="bf" style="width:${calcPct(v,maxSupplier)}%;background:var(--bad);"></div></div><span class="bv">${v}</span></div>`).join('') : '<div class="empty-state">Sin datos</div>'}</div></div>
@@ -2615,10 +2623,10 @@ function incRefreshGeneralBody(){
     <div class="kc" style="--acc:var(--ok)"><div class="kl">General Compliance %</div><div class="kv">${compliancePct}<span class="u">%</span></div><div class="kf">${fmtU(universe.total-affected.total)}/${fmtU(universe.total)} sin incidencia</div></div>
     <div class="kc" style="--acc:var(--warn)"><div class="kl">Criticidad promedio</div><div class="kv">${critAvg}<span class="u">/ 5</span></div></div>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 260px;gap:14px;align-items:start;margin-bottom:14px;">
+  <div style="display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start;margin-bottom:14px;">
     <div class="card" style="margin-bottom:0;">
       <div class="ct">Incidencias por Pack Plan <span class="sub">métrica: ${unitLbl} · cumplimiento vs. incumplimiento</span></div>
-      <div class="sc-chart" style="height:190px;">${ppStack.length ? ppStack.map(p=>{
+      <div class="sc-chart" style="height:280px;">${ppStack.length ? ppStack.map(p=>{
         const h = Math.max(2, calcPct(p.tot, maxPPTot));
         const okPct = p.tot ? (p.ok/p.tot*100).toFixed(1) : 0;
         const affPct = p.tot ? (p.aff/p.tot*100).toFixed(1) : 0;

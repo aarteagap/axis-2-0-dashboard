@@ -1287,6 +1287,13 @@ function renderForecastCurve(wrapId, weeksData, metric){
       const cx = +dot.getAttribute('cx') * scaleX, cy = +dot.getAttribute('cy') * scaleY;
       tip.style.left = (rect.left + cx + 12) + 'px';
       tip.style.top = (rect.top + cy - 10) + 'px';
+      // Los puntos de la derecha (últimas semanas) empujaban el cuadro fuera
+      // de la ventana — si no cabe a la derecha del punto, se muestra a la
+      // izquierda en su lugar.
+      const tipRect = tip.getBoundingClientRect();
+      if (tipRect.right > window.innerWidth - 8) {
+        tip.style.left = (rect.left + cx - tipRect.width - 12) + 'px';
+      }
     });
     dot.addEventListener('mouseleave', ()=>{ document.getElementById('fcTooltip').style.opacity='0'; });
   });
@@ -3124,6 +3131,14 @@ function refreshRetiro(){
     const totB = almGroups[b].STANDARD+almGroups[b].HIGH+almGroups[b].CRITICAL;
     return totB-totA;
   });
+  // Tiempo promedio de detention por almacén (mismo criterio de descarte de
+  // outliers que ya se usa para portStats más abajo), para mostrarlo junto
+  // al conteo de registros en el tooltip de la barra.
+  const almAvgDet = {};
+  almLabels.forEach(l=>{
+    const dr = rows.filter(r=>r.almacenRetiro===l && r.detGateOutH!=null && r.detGateOutH>=0 && r.detGateOutH<=72).map(r=>r.detGateOutH);
+    almAvgDet[l] = dr.length ? sum(dr)/dr.length : null;
+  });
 
   const portStats = trComplianceCritByGroup(rows, 'puertoRetiro', 'gateOutCompliance', 'detentionGateOut').map(p=>({...p, avgDet: (()=>{ const dr=rows.filter(r=>r.puertoRetiro===p.name && r.detGateOutH!=null && r.detGateOutH>=0 && r.detGateOutH<=72).map(r=>r.detGateOutH); return dr.length ? sum(dr)/dr.length : null; })() }));
   const lineStats = trComplianceCritByGroup(rows, 'naviera', 'gateOutCompliance', 'detentionGateOut');
@@ -3136,7 +3151,18 @@ function refreshRetiro(){
       {label:'High', data: almLabels.map(l=>almGroups[l].HIGH), backgroundColor: chartColor('--warn')},
       {label:'Critical', data: almLabels.map(l=>almGroups[l].CRITICAL), backgroundColor: chartColor('--bad')},
     ]},
-    options: baseChartOptions({ indexAxis:'y', scales:{ x:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{color:chartColor('--line')}}, y:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{display:false}} } }),
+    options: baseChartOptions({
+      indexAxis:'y',
+      plugins:{
+        legend:{ labels:{ color:chartColor('--ink-soft'), font:{family:'Instrument Sans', size:11} } },
+        tooltip:{ callbacks:{ footer: items=>{
+          const l = items[0].label;
+          const avg = almAvgDet[l];
+          return avg!=null ? `Tiempo promedio: ${avg.toFixed(1)}h` : 'Tiempo promedio: sin datos';
+        } } },
+      },
+      scales:{ x:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{color:chartColor('--line')}}, y:{stacked:true, ticks:{color:chartColor('--ink-faint'),font:{family:'JetBrains Mono',size:9.5}}, grid:{display:false}} },
+    }),
   });
   window.build_chRetiroWeekly = () => mountChart('chRetiroWeekly', lineConfig(wk.labels, wk.data, chartColor('--teal')));
 

@@ -55,6 +55,11 @@ FILES = {
 }
 CURRENT_FILE = f"{BASE}/7d255d3e-GAOPEX_T2627_Conceptos.xlsm"
 HORIZON_FILE = f"{BASE}/c9bf4af1-HORIZON_FORECAST_2627_V1.xlsm"
+# Base de despachos de la temporada pasada (T25-26): algunos bookings de
+# GAOPEX_T2627 corresponden a despachos tardíos de fin de T25-26 cuya factura
+# se registró recién en el período T26-27. Se usa como fuente secundaria de
+# Vía/Fecha cuando Horizon no tiene el booking (Horizon es 100% T26-27).
+BD2526_FILE = f"{BASE}/908bcae4-BD_2526.xlsx"
 
 SEASON_LABELS = {
     "T23-24": "2023-2024", "T24-25": "2024-2025",
@@ -346,14 +351,17 @@ def load_season(season):
 
 
 # ---------------------------------------------------------------------------
-# Base de despachos Horizon (HORIZON_FORECAST_2627_V1) — cruce de Booking para
-# obtener Vía (Mode) y Fecha de Despacho (Dispatch Date) de la temporada actual.
-# Solo trae Mode/Dispatch Date para despachos ya CONFIRMADOS; el resto de la
-# base es forecast/planificación a futuro y no aporta vía ni fecha real todavía.
+# Bases de despachos — cruce de Booking para obtener Vía (Mode) y Fecha de
+# Despacho (Dispatch Date). HORIZON_FORECAST_2627_V1 (hoja BD DESPACHOS) es la
+# fuente principal (100% T26-27); solo trae Mode/Dispatch Date para despachos
+# ya CONFIRMADOS, el resto es forecast/planificación a futuro y no cruza
+# todavía. BD_2526 (hoja BD PLANNING) se usa como fuente SECUNDARIA: algunos
+# bookings de GAOPEX_T2627 son despachos tardíos de fin de T25-26 cuya factura
+# se registró recién en el período T26-27 -- ahí también aparecen.
 # ---------------------------------------------------------------------------
-def load_horizon_dispatch_map():
-    wb = openpyxl.load_workbook(HORIZON_FILE, read_only=True, data_only=True)
-    ws = wb["BD DESPACHOS"]
+def load_dispatch_map(path, sheet_name):
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    ws = wb[sheet_name]
     rows_iter = ws.iter_rows(values_only=True)
     header = next(rows_iter)
     col = lambda *a: find_col(header, *a)
@@ -375,13 +383,23 @@ def load_horizon_dispatch_map():
     return dispatch_map
 
 
+def load_all_dispatch_maps():
+    horizon_map = load_dispatch_map(HORIZON_FILE, "BD DESPACHOS")
+    bd2526_map = load_dispatch_map(BD2526_FILE, "BD PLANNING")
+    n_from_bd2526_only = sum(1 for k in bd2526_map if k not in horizon_map)
+    combined = dict(bd2526_map)
+    combined.update(horizon_map)  # Horizon manda cuando el booking está en ambas
+    return combined, len(horizon_map), n_from_bd2526_only
+
+
 # ---------------------------------------------------------------------------
 # Temporada actual (GAOPEX_T2627) — clasificación OPEX en revisión, cruzada
-# con la base de despachos Horizon para obtener Vía y Fecha de Despacho.
+# con las bases de despachos Horizon (T26-27) y BD_2526 (fallback, facturas
+# tardías de T25-26) para obtener Vía y Fecha de Despacho.
 # ---------------------------------------------------------------------------
 def load_current_season():
     season = "T26-27"
-    dispatch_map = load_horizon_dispatch_map()
+    dispatch_map, n_horizon_bookings, n_bd2526_extra = load_all_dispatch_maps()
 
     wb = openpyxl.load_workbook(CURRENT_FILE, read_only=True, data_only=True)
     ws = wb["OPEX_EXPENSES_2627"]
@@ -460,7 +478,8 @@ def load_current_season():
         "n_rows_sin_clasificar": n_rows_total - n,
         "total_usd_all_rows": round(total_usd_all_rows, 2),
         "n_matched_con_via_fecha": n_matched,
-        "n_bookings_en_horizon": len(dispatch_map),
+        "n_bookings_en_horizon": n_horizon_bookings,
+        "n_bookings_solo_en_bd2526": n_bd2526_extra,
         "matched_usd": round(sum(r["usd"] for r in matched_records), 2),
         "by_concepto": [{"concepto": k, "usd": round(v["usd"], 2), "n": v["n"]}
                          for k, v in sorted(by_concepto.items(), key=lambda kv: -kv[1]["usd"])],
@@ -651,16 +670,18 @@ def main():
                 f"aprobación por el equipo de liquidación. De {current['n_rows_total']} líneas del "
                 f"archivo, solo {current['n_lineas']} ya tienen Concepto/Clasificación OPEX asignados. "
                 f"El archivo GAOPEX no trae Vía ni Fecha de Despacho por sí solo: se cruza por Booking "
-                f"contra la base de despachos Horizon (HORIZON_FORECAST_2627_V1 / hoja BD DESPACHOS), "
-                f"que solo registra Vía (Mode) y Fecha de Despacho para embarques ya CONFIRMADOS "
-                f"({current['n_bookings_en_horizon']} bookings con fecha real al día de hoy; el resto de "
-                f"Horizon es forecast/planificación a futuro y aún no aporta vía ni fecha real). Del total "
+                f"contra dos bases de despachos: Horizon (HORIZON_FORECAST_2627_V1 / hoja BD DESPACHOS, "
+                f"{current['n_bookings_en_horizon']} bookings con fecha real al día de hoy; el resto de "
+                f"Horizon es forecast a futuro y aún no aporta vía/fecha) y, como respaldo, BD_2526 "
+                f"(hoja BD PLANNING, +{current['n_bookings_solo_en_bd2526']} bookings adicionales) — "
+                f"algunos gastos de GAOPEX_T2627 corresponden a despachos tardíos de fin de T25-26 cuya "
+                f"factura recién se registró en este período, y BD_2526 sí los tiene. Del total "
                 f"clasificado, {current['n_matched_con_via_fecha']} líneas ({fmt_usd(current['matched_usd'])}) "
                 f"ya cruzaron con Vía+Fecha y se incorporan a la línea de tiempo semanal, el comparativo "
                 f"anual y la tabla de bookings junto con T23-24/T24-25/T25-26; el resto sigue solo en el "
-                f"panel 'Temporada actual' hasta que tenga booking confirmado en Horizon o clasificación "
-                f"OPEX. Actualiza ambos archivos (GAOPEX_T2627 y Horizon) y vuelve a correr el ETL para "
-                f"ampliar la cobertura del cruce."
+                f"panel 'Temporada actual' hasta que tenga booking confirmado en Horizon/BD_2526 o "
+                f"clasificación OPEX. Actualiza estos archivos y vuelve a correr el ETL para ampliar la "
+                f"cobertura del cruce."
             ),
         },
         "weekly": weekly_rows,

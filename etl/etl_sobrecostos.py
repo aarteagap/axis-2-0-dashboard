@@ -54,6 +54,7 @@ FILES = {
     "T25-26": f"{BASE}/d4d641a1-Registro_de_Gastos_T2526.xlsx",
 }
 CURRENT_FILE = f"{BASE}/7d255d3e-GAOPEX_T2627_Conceptos.xlsm"
+HORIZON_FILE = f"{BASE}/c9bf4af1-HORIZON_FORECAST_2627_V1.xlsm"
 
 SEASON_LABELS = {
     "T23-24": "2023-2024", "T24-25": "2024-2025",
@@ -345,9 +346,43 @@ def load_season(season):
 
 
 # ---------------------------------------------------------------------------
-# Temporada actual (GAOPEX_T2627) — parcial, sin Vía/Fecha de Despacho aún
+# Base de despachos Horizon (HORIZON_FORECAST_2627_V1) — cruce de Booking para
+# obtener Vía (Mode) y Fecha de Despacho (Dispatch Date) de la temporada actual.
+# Solo trae Mode/Dispatch Date para despachos ya CONFIRMADOS; el resto de la
+# base es forecast/planificación a futuro y no aporta vía ni fecha real todavía.
+# ---------------------------------------------------------------------------
+def load_horizon_dispatch_map():
+    wb = openpyxl.load_workbook(HORIZON_FILE, read_only=True, data_only=True)
+    ws = wb["BD DESPACHOS"]
+    rows_iter = ws.iter_rows(values_only=True)
+    header = next(rows_iter)
+    col = lambda *a: find_col(header, *a)
+    i_booking = col("Booking|AWB|CRT", "Booking")
+    i_mode = col("Mode")
+    i_dispatch = col("Dispatch Date")
+
+    dispatch_map = {}
+    for r in rows_iter:
+        bk = r[i_booking]
+        dispatch = r[i_dispatch] if i_dispatch is not None else None
+        if bk is None or dispatch is None:
+            continue  # sin fecha real de despacho -> aún es forecast, no se cruza
+        via = map_via(r[i_mode]) if i_mode is not None else None
+        if via not in ("Marítimo", "Aéreo"):
+            continue  # Terrestre u otro -> no genera sobrecostos / no se cruza
+        key = norm(bk)
+        dispatch_map[key] = {"via": via, "dispatch_date": dispatch}
+    return dispatch_map
+
+
+# ---------------------------------------------------------------------------
+# Temporada actual (GAOPEX_T2627) — clasificación OPEX en revisión, cruzada
+# con la base de despachos Horizon para obtener Vía y Fecha de Despacho.
 # ---------------------------------------------------------------------------
 def load_current_season():
+    season = "T26-27"
+    dispatch_map = load_horizon_dispatch_map()
+
     wb = openpyxl.load_workbook(CURRENT_FILE, read_only=True, data_only=True)
     ws = wb["OPEX_EXPENSES_2627"]
     rows_iter = ws.iter_rows(values_only=True)
@@ -359,16 +394,16 @@ def load_current_season():
     i_grupo = col("OPEX Expense Group")
     i_usd = col("Total Expense USD")
     i_booking = col("Booking")
-    i_mode = col("Mode")
 
     by_concepto = defaultdict(lambda: {"usd": 0.0, "n": 0})
     by_grupo = defaultdict(lambda: {"usd": 0.0, "n": 0})
     by_supplier = defaultdict(lambda: {"usd": 0.0, "n": 0})
     by_shipper = defaultdict(lambda: {"usd": 0.0, "n": 0})
     total_usd, n = 0.0, 0
-    n_with_mode = 0
     n_rows_total = 0
     total_usd_all_rows = 0.0
+    matched_records = []
+    n_matched = 0
 
     for r in rows_iter:
         n_rows_total += 1
@@ -380,6 +415,7 @@ def load_current_season():
         concepto = r[i_concepto] if i_concepto is not None else None
         if concepto is None:
             continue
+        concepto = str(concepto).strip()
         usd = r[i_usd] if i_usd is not None else 0
         try:
             usd = float(usd) if usd not in (None, "") else 0.0
@@ -388,11 +424,10 @@ def load_current_season():
         grupo = str(r[i_grupo]).strip() if i_grupo is not None and r[i_grupo] else "SIN CLASIFICAR"
         supplier = str(r[i_supplier]).strip() if i_supplier is not None and r[i_supplier] else "Sin especificar"
         shipper = map_shipper(r[i_shipper]) if i_shipper is not None else "Sin especificar"
-        if i_mode is not None and r[i_mode]:
-            n_with_mode += 1
+        booking_raw = r[i_booking] if i_booking is not None else None
 
-        by_concepto[str(concepto).strip()]["usd"] += usd
-        by_concepto[str(concepto).strip()]["n"] += 1
+        by_concepto[concepto]["usd"] += usd
+        by_concepto[concepto]["n"] += 1
         by_grupo[grupo]["usd"] += usd
         by_grupo[grupo]["n"] += 1
         by_supplier[supplier]["usd"] += usd
@@ -401,6 +436,19 @@ def load_current_season():
         by_shipper[shipper]["n"] += 1
         total_usd += usd
         n += 1
+
+        match = dispatch_map.get(norm(booking_raw)) if booking_raw is not None else None
+        if match:
+            n_matched += 1
+            week = to_iso_week(match["dispatch_date"])
+            cweek = to_campaign_week(match["dispatch_date"], season)
+            matched_records.append({
+                "season": season, "week": week, "cweek": cweek,
+                "via": match["via"], "shipper": shipper,
+                "concepto": concepto, "opex": grupo if grupo != "SIN CLASIFICAR" else opex_for(concepto),
+                "booking": str(booking_raw).strip(), "proveedor": supplier,
+                "usd": round(usd, 2),
+            })
 
     top_suppliers = sorted(by_supplier.items(), key=lambda kv: -kv[1]["usd"])[:20]
 
@@ -411,7 +459,9 @@ def load_current_season():
         "n_rows_total": n_rows_total,
         "n_rows_sin_clasificar": n_rows_total - n,
         "total_usd_all_rows": round(total_usd_all_rows, 2),
-        "n_con_via_asignada": n_with_mode,
+        "n_matched_con_via_fecha": n_matched,
+        "n_bookings_en_horizon": len(dispatch_map),
+        "matched_usd": round(sum(r["usd"] for r in matched_records), 2),
         "by_concepto": [{"concepto": k, "usd": round(v["usd"], 2), "n": v["n"]}
                          for k, v in sorted(by_concepto.items(), key=lambda kv: -kv[1]["usd"])],
         "by_opex": [{"opex": k, "usd": round(v["usd"], 2), "n": v["n"]}
@@ -420,6 +470,7 @@ def load_current_season():
                        for k, v in sorted(by_shipper.items(), key=lambda kv: -kv[1]["usd"])],
         "top_proveedores": [{"proveedor": k, "usd": round(v["usd"], 2), "n": v["n"]}
                             for k, v in top_suppliers],
+        "matched_records": matched_records,
     }
 
 
@@ -496,6 +547,56 @@ def main():
         top_proveedores[s] = sorted(top_proveedores[s], key=lambda x: -x["usd"])[:25]
 
     current = load_current_season()
+    matched = current["matched_records"]
+    print(f"T26-27: {len(matched)} líneas cruzadas con Vía+Fecha (de {current['n_lineas']} clasificadas), "
+          f"total USD {sum(r['usd'] for r in matched):,.0f}")
+
+    # -- funde las líneas cruzadas (Vía+Fecha via Horizon) a la agregación semanal --
+    for r in matched:
+        if r["week"] is None:
+            continue
+        key = (r["season"], r["week"], r["cweek"], r["via"], r["shipper"], r["opex"], r["concepto"])
+        weekly[key]["usd"] += r["usd"]
+        weekly[key]["n"] += 1
+    weekly_rows = [
+        {"s": s, "w": w, "cw": cw, "v": v, "ex": ex, "o": o, "c": c,
+         "usd": round(agg["usd"], 2), "n": agg["n"], "active": is_default_active(c)}
+        for (s, w, cw, v, ex, o, c), agg in weekly.items()
+    ]
+
+    # -- funde las líneas cruzadas a la agregación por booking --
+    for r in matched:
+        key = (r["season"], r["via"], r["shipper"], r["booking"])
+        b = bookings[key]
+        b["usd"] += r["usd"]
+        b["n"] += 1
+        b["opex"][r["opex"]] += r["usd"]
+        if r["proveedor"]:
+            b["proveedores"].add(r["proveedor"])
+    booking_rows = [
+        {"s": s, "v": v, "ex": ex, "bk": bk, "usd": round(agg["usd"], 2), "n": agg["n"],
+         "opex": {k: round(val, 2) for k, val in agg["opex"].items()}, "np": len(agg["proveedores"])}
+        for (s, v, ex, bk), agg in bookings.items()
+    ]
+    booking_rows.sort(key=lambda b: -b["usd"])
+    # T26-27 tiene montos pequeños (cruce parcial): asegura que no se recorten al
+    # tomar el top 3000 por USD de las temporadas cerradas (mucho mayor volumen).
+    booking_rows_out = [b for b in booking_rows if b["s"] != "T26-27"][:3000] + \
+        [b for b in booking_rows if b["s"] == "T26-27"]
+
+    # -- concepto/opex nuevos que solo aparecen en T26-27 (taxonomía propia de GAOPEX) --
+    known_concepts = {c["concepto"] for c in concept_list}
+    new_concept_totals = defaultdict(lambda: {"usd": 0.0, "n": 0, "opex": None})
+    for r in matched:
+        if r["concepto"] in known_concepts:
+            continue
+        nc = new_concept_totals[r["concepto"]]
+        nc["usd"] += r["usd"]; nc["n"] += 1; nc["opex"] = r["opex"]
+    for c, v in new_concept_totals.items():
+        concept_list.append({"concepto": c, "opex": v["opex"], "usd": round(v["usd"], 2),
+                              "n": v["n"], "defaultActive": is_default_active(c)})
+    concept_list.sort(key=lambda c: -c["usd"])
+    opex_groups_all = sorted({c["opex"] for c in concept_list})
 
     total_usd_by_season = defaultdict(float)
     n_by_season = defaultdict(int)
@@ -504,6 +605,9 @@ def main():
         total_usd_by_season[r["season"]] += r["usd"]
         n_by_season[r["season"]] += 1
         n_bookings_by_season[r["season"]].add(r["booking"])
+    total_usd_by_season["T26-27"] = sum(r["usd"] for r in matched)
+    n_by_season["T26-27"] = len(matched)
+    n_bookings_by_season["T26-27"] = {r["booking"] for r in matched}
 
     data = {
         "meta": {
@@ -514,7 +618,7 @@ def main():
             "vias": ["Marítimo", "Aéreo"],
             "exportadores": ["Hortifrut Perú S.A.C.", "Inversiones Jordie S.A.",
                               "Tal S.A. (Talsa)", "HFE Berries Perú S.A.C."],
-            "opex_groups": sorted({c["opex"] for c in concept_list}),
+            "opex_groups": opex_groups_all,
             "fx_assumptions": {**FX_ASSUMPTIONS, "note": (
                 "Tipo de cambio referencial (S/ por US$), promedio anual, usado "
                 "únicamente cuando la fila no trae 'Monto USD' calculado en la "
@@ -539,27 +643,37 @@ def main():
             "por_temporada": {
                 s: {"usd": round(total_usd_by_season[s], 2), "n_lineas": n_by_season[s],
                     "n_bookings": len(n_bookings_by_season[s])}
-                for s in ["T23-24", "T24-25", "T25-26"]
+                for s in ["T23-24", "T24-25", "T25-26", "T26-27"]
             },
             "notes": all_notes,
             "current_season_alert": (
-                "GAOPEX_T2627 (temporada 2026-2027) está en proceso de revisión y "
-                "aprobación por el equipo de liquidación. El archivo aún NO trae "
-                "Vía de expedición (columna 'Mode' vacía) ni Fecha de Despacho "
-                "('Dispatch Date'): esos campos se completarán cuando se entregue "
-                "la base de bookings para hacer el cruce. Mientras tanto, esta "
-                "temporada se muestra en un panel aparte con Proveedor, Concepto, "
-                "Clasificación OPEX y Monto USD (Total Expense USD), SIN ubicarla "
-                "en la línea de tiempo semanal ni en el filtro de Vía."
+                f"GAOPEX_T2627 (temporada 2026-2027) está en proceso de revisión y "
+                f"aprobación por el equipo de liquidación. De {current['n_rows_total']} líneas del "
+                f"archivo, solo {current['n_lineas']} ya tienen Concepto/Clasificación OPEX asignados. "
+                f"El archivo GAOPEX no trae Vía ni Fecha de Despacho por sí solo: se cruza por Booking "
+                f"contra la base de despachos Horizon (HORIZON_FORECAST_2627_V1 / hoja BD DESPACHOS), "
+                f"que solo registra Vía (Mode) y Fecha de Despacho para embarques ya CONFIRMADOS "
+                f"({current['n_bookings_en_horizon']} bookings con fecha real al día de hoy; el resto de "
+                f"Horizon es forecast/planificación a futuro y aún no aporta vía ni fecha real). Del total "
+                f"clasificado, {current['n_matched_con_via_fecha']} líneas ({fmt_usd(current['matched_usd'])}) "
+                f"ya cruzaron con Vía+Fecha y se incorporan a la línea de tiempo semanal, el comparativo "
+                f"anual y la tabla de bookings junto con T23-24/T24-25/T25-26; el resto sigue solo en el "
+                f"panel 'Temporada actual' hasta que tenga booking confirmado en Horizon o clasificación "
+                f"OPEX. Actualiza ambos archivos (GAOPEX_T2627 y Horizon) y vuelve a correr el ETL para "
+                f"ampliar la cobertura del cruce."
             ),
         },
         "weekly": weekly_rows,
         "concepts": concept_list,
-        "bookings": booking_rows[:3000],
+        "bookings": booking_rows_out,
         "top_proveedores": top_proveedores,
-        "current_season": current,
+        "current_season": {k: v for k, v in current.items() if k != "matched_records"},
     }
     return data
+
+
+def fmt_usd(v):
+    return f"${v:,.0f}"
 
 
 if __name__ == "__main__":

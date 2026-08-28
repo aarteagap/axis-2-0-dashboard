@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>COMPASS — Control de Presupuesto de Transporte · Hortifrut</title>
+<title>CORE — Control de Presupuesto de Transporte · Hortifrut</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
   :root {
@@ -131,6 +131,7 @@
   .kpi-sub { font-size: 11px; color: var(--text2); margin-top: 6px; line-height: 1.5; }
   .kpi-sub b { color: var(--text); font-weight: 600; }
   .kpi-sub .sub-red { color: var(--red-bright); font-weight: 600; } .kpi-sub .sub-green { color: var(--green-bright); font-weight: 600; }
+  .kpi-microstat { font-family: var(--mono); font-size: 9px; color: var(--text3); margin-top: 5px; letter-spacing: 0.01em; }
 
   /* trend panel */
   .trend-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; margin-top: 10px; box-shadow: var(--shadow-card); }
@@ -917,14 +918,18 @@ function computeExecutedSeries(routes, weeks) {
 // su tarifa es un promedio ponderado de la ruta —no un envío real— y esa mezcla de rutas cambia de
 // semana a semana, lo que puede hacer ver una semana proyectada como "mejor" o "peor" sin que haya
 // pasado nada real todavía. Peor/Mejor Pack Plan debe reflejar ejecución real, no proyección.
+// Peor/Mejor Pack Plan según el Target Ejecutado (US$/viaje acumulado real de esa semana, la
+// misma línea sólida del gráfico) — no según la desviación vs. Target Inicial. Peor = Target
+// Ejecutado más alto (más caro), Mejor = Target Ejecutado más bajo (más barato). Sigue limitado a
+// semanas EJECUTADAS (Confirmado), nunca a semanas Proyectadas.
 function computeWorstBestWeek(routes, weeks) {
   const series = computeExecutedSeries(routes, weeks);
   const withTrips = weeks
-    .map((w, i) => ({ pack_plan: w, fcl: series.fclWeek[i], desviacion: series.usdDelta[i], executed: series.solid[i] !== null }))
+    .map((w, i) => ({ pack_plan: w, fcl: series.fclWeek[i], desviacion: series.usdDelta[i], targetEjecutado: series.solid[i], executed: series.solid[i] !== null }))
     .filter(w => w.fcl > 0 && w.executed);
   if (!withTrips.length) return { worst: null, best: null };
-  const worst = withTrips.reduce((a, b) => (b.desviacion < a.desviacion ? b : a));
-  const best = withTrips.reduce((a, b) => (b.desviacion > a.desviacion ? b : a));
+  const worst = withTrips.reduce((a, b) => (b.targetEjecutado > a.targetEjecutado ? b : a));
+  const best = withTrips.reduce((a, b) => (b.targetEjecutado < a.targetEjecutado ? b : a));
   return { worst, best };
 }
 
@@ -941,15 +946,17 @@ function renderKPIPanel() {
   el.innerHTML = `
     <div class="kpi-card worst">
       <span class="kpi-tag worst">Peor Pack Plan (ejecutadas)</span>
-      <div class="kpi-label">Semana EJECUTADA con mayor sobrecosto</div>
+      <div class="kpi-label">Semana EJECUTADA con Target Ejecutado más alto</div>
       <div class="kpi-value red">${worst ? 'PP ' + worst.pack_plan : '—'}</div>
       <div class="kpi-sub">${worst ? `<b>${fmtNum(worst.fcl,1)} FCL</b> ejecutados · desviación <span class="sub-red">${fmtUSD(worst.desviacion)}</span>${fmtFclEquiv(worst.desviacion, tRef)}` : 'Sin semanas ejecutadas con los filtros actuales'}</div>
+      ${worst ? `<div class="kpi-microstat">Target Ejecutado: ${fmtUSD(worst.targetEjecutado, {decimals:2})}</div>` : ''}
     </div>
     <div class="kpi-card best">
       <span class="kpi-tag best">Mejor Pack Plan (ejecutadas)</span>
-      <div class="kpi-label">Semana EJECUTADA más cercana al target</div>
+      <div class="kpi-label">Semana EJECUTADA con Target Ejecutado más bajo</div>
       <div class="kpi-value ${best && best.desviacion > 0 ? 'green' : 'neutral'}">${best ? 'PP ' + best.pack_plan : '—'}</div>
       <div class="kpi-sub">${best ? `<b>${fmtNum(best.fcl,1)} FCL</b> ejecutados · desviación <span class="${best.desviacion >= 0 ? 'sub-green' : 'sub-red'}">${fmtUSD(best.desviacion)}</span>${fmtFclEquiv(best.desviacion, tRef)}` : 'Sin semanas ejecutadas con los filtros actuales'}</div>
+      ${best ? `<div class="kpi-microstat">Target Ejecutado: ${fmtUSD(best.targetEjecutado, {decimals:2})}</div>` : ''}
     </div>
     <div class="kpi-card total ${summary.desviacion < 0 ? 'neg' : 'pos'}">
       <span class="kpi-tag total">Balance</span>

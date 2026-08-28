@@ -28,47 +28,12 @@
   html, body { height: 100%; }
   body { background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; overflow: hidden; }
 
-  .shell-nav {
-    display: flex; align-items: center; gap: 4px; background: var(--bg2); border-bottom: 1px solid var(--border);
-    padding: 8px 14px; flex-shrink: 0; position: relative; z-index: 500;
-  }
-  .shell-brand { display: flex; align-items: center; gap: 8px; margin-right: 14px; flex-shrink: 0; }
-  .shell-brand .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--yellow-bright); box-shadow: 0 0 8px var(--yellow-bright); }
-  .shell-brand-text { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; color: var(--text); }
-  .shell-brand-text span { color: var(--text3); font-weight: 500; }
-  .shell-tabs { display: flex; gap: 3px; flex: 1; overflow-x: auto; }
-  .shell-tab {
-    font-family: var(--mono); font-size: 11.5px; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: none;
-    background: transparent; color: var(--text2); cursor: pointer; white-space: nowrap; transition: all .15s;
-  }
-  .shell-tab:hover { background: var(--bg3); color: var(--text); }
-  .shell-tab.active { background: var(--blue); color: #fff; }
-  .shell-badge { font-family: var(--mono); font-size: 9.5px; font-weight: 600; padding: 3px 9px; border-radius: 20px; border: 1px solid var(--border2); color: var(--text3); margin-left: 10px; flex-shrink: 0; white-space: nowrap; }
-  .shell-sync { font-family: var(--mono); font-size: 9.5px; color: var(--text3); margin-left: 8px; flex-shrink: 0; white-space: nowrap; opacity: 0; transition: opacity .3s ease; }
-  .shell-sync.show { opacity: 1; }
-
   .frame-wrap { flex: 1; min-height: 0; position: relative; }
   .view-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: none; background: var(--bg); }
   .view-frame.active { display: block; }
-
-  @media (max-width: 720px) {
-    .shell-brand-text span { display: none; }
-    .shell-badge { display: none; }
-  }
 </style>
 </head>
 <body>
-
-<div class="shell-nav">
-  <div class="shell-brand"><span class="dot"></span><span class="shell-brand-text">COMPASS <span>/ Control de Presupuesto — Transporte</span></span></div>
-  <div class="shell-tabs" id="shellTabs">
-    <button class="shell-tab active" data-view="dashboard">📊 Dashboard de presupuesto</button>
-    <button class="shell-tab" data-view="maestro">⚙️ Maestro de tarifas</button>
-    <button class="shell-tab" data-view="adjudicacion">🧾 Adjudicación de servicios</button>
-  </div>
-  <span class="shell-sync" id="shellSync">✓ Tarifa sincronizada con el Dashboard</span>
-  <span class="shell-badge">● Prototipo — Fase 1</span>
-</div>
 
 <div class="frame-wrap">
   <iframe id="frame-dashboard" class="view-frame active"></iframe>
@@ -957,10 +922,15 @@ function renderKPIPanel() {
 // =====================================================================
 // # 04b GRÁFICO SEMANAL (barras FCL + 3 líneas de tarifa objetivo)
 // =====================================================================
-if (window.ChartDataLabels) Chart.register(window.ChartDataLabels);
+if (window.Chart && window.ChartDataLabels) Chart.register(window.ChartDataLabels);
 
 let weeklyChartInstance = null;
 function renderWeeklyTrend() {
+  if (!window.Chart) {
+    const wrap = document.querySelector('.trend-wrap');
+    if (wrap && !wrap.dataset.chartWarned) { wrap.dataset.chartWarned = '1'; wrap.insertAdjacentHTML('afterbegin', '<div style="padding:14px;font-size:11px;color:var(--text3);">⚠ El gráfico no cargó (Chart.js no llegó desde el CDN — revisa tu conexión a internet). El resto del tablero funciona con normalidad.</div>'); }
+    return;
+  }
   const ctx = document.getElementById('weeklyChart');
   const tooltipEl = document.getElementById('chartTooltip');
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -2423,10 +2393,6 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
     } else if (msg.type === 'tariff-updated') {
       sharedOverrides[msg.key] = msg.value;
       broadcastOverrides();
-      var syncEl = document.getElementById('shellSync');
-      syncEl.classList.add('show');
-      clearTimeout(window.__syncTimer);
-      window.__syncTimer = setTimeout(function() { syncEl.classList.remove('show'); }, 2600);
     } else if (msg.type === 'navigate') {
       setActiveView(msg.view);
       if (msg.view === 'maestro' && msg.key) {
@@ -2439,16 +2405,7 @@ window.parent.postMessage({ type: 'ready', view: 'adjudicacion' }, '*');
     views.forEach(function(v) {
       frames[v].classList.toggle('active', v === view);
     });
-    document.querySelectorAll('.shell-tab').forEach(function(btn) {
-      btn.classList.toggle('active', btn.dataset.view === view);
-    });
   }
-
-  document.getElementById('shellTabs').addEventListener('click', function(e) {
-    var btn = e.target.closest('.shell-tab');
-    if (!btn) return;
-    setActiveView(btn.dataset.view);
-  });
 })();
 </script>
 </body>

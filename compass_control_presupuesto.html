@@ -912,9 +912,16 @@ function computeExecutedSeries(routes, weeks) {
 // =====================================================================
 // # 04 RENDER — KPIs
 // =====================================================================
+// Solo considera semanas YA EJECUTADAS (con FCL "Confirmado" en Horizon, exec.solid !== null).
+// Las semanas "Proyectadas" (línea punteada, sin transportista asignado) quedan fuera a propósito:
+// su tarifa es un promedio ponderado de la ruta —no un envío real— y esa mezcla de rutas cambia de
+// semana a semana, lo que puede hacer ver una semana proyectada como "mejor" o "peor" sin que haya
+// pasado nada real todavía. Peor/Mejor Pack Plan debe reflejar ejecución real, no proyección.
 function computeWorstBestWeek(routes, weeks) {
   const series = computeExecutedSeries(routes, weeks);
-  const withTrips = weeks.map((w, i) => ({ pack_plan: w, fcl: series.fclWeek[i], desviacion: series.usdDelta[i] })).filter(w => w.fcl > 0);
+  const withTrips = weeks
+    .map((w, i) => ({ pack_plan: w, fcl: series.fclWeek[i], desviacion: series.usdDelta[i], executed: series.solid[i] !== null }))
+    .filter(w => w.fcl > 0 && w.executed);
   if (!withTrips.length) return { worst: null, best: null };
   const worst = withTrips.reduce((a, b) => (b.desviacion < a.desviacion ? b : a));
   const best = withTrips.reduce((a, b) => (b.desviacion > a.desviacion ? b : a));
@@ -933,16 +940,16 @@ function renderKPIPanel() {
 
   el.innerHTML = `
     <div class="kpi-card worst">
-      <span class="kpi-tag worst">Peor Pack Plan</span>
-      <div class="kpi-label">Semana con mayor sobrecosto</div>
+      <span class="kpi-tag worst">Peor Pack Plan (ejecutadas)</span>
+      <div class="kpi-label">Semana EJECUTADA con mayor sobrecosto</div>
       <div class="kpi-value red">${worst ? 'PP ' + worst.pack_plan : '—'}</div>
-      <div class="kpi-sub">${worst ? `<b>${fmtNum(worst.fcl,1)} FCL</b> ejecutados · desviación <span class="sub-red">${fmtUSD(worst.desviacion)}</span>${fmtFclEquiv(worst.desviacion, tRef)}` : 'Sin datos con los filtros actuales'}</div>
+      <div class="kpi-sub">${worst ? `<b>${fmtNum(worst.fcl,1)} FCL</b> ejecutados · desviación <span class="sub-red">${fmtUSD(worst.desviacion)}</span>${fmtFclEquiv(worst.desviacion, tRef)}` : 'Sin semanas ejecutadas con los filtros actuales'}</div>
     </div>
     <div class="kpi-card best">
-      <span class="kpi-tag best">Mejor Pack Plan</span>
-      <div class="kpi-label">Semana más cercana al target</div>
+      <span class="kpi-tag best">Mejor Pack Plan (ejecutadas)</span>
+      <div class="kpi-label">Semana EJECUTADA más cercana al target</div>
       <div class="kpi-value ${best && best.desviacion > 0 ? 'green' : 'neutral'}">${best ? 'PP ' + best.pack_plan : '—'}</div>
-      <div class="kpi-sub">${best ? `<b>${fmtNum(best.fcl,1)} FCL</b> ejecutados · desviación <span class="${best.desviacion >= 0 ? 'sub-green' : 'sub-red'}">${fmtUSD(best.desviacion)}</span>${fmtFclEquiv(best.desviacion, tRef)}` : 'Sin datos con los filtros actuales'}</div>
+      <div class="kpi-sub">${best ? `<b>${fmtNum(best.fcl,1)} FCL</b> ejecutados · desviación <span class="${best.desviacion >= 0 ? 'sub-green' : 'sub-red'}">${fmtUSD(best.desviacion)}</span>${fmtFclEquiv(best.desviacion, tRef)}` : 'Sin semanas ejecutadas con los filtros actuales'}</div>
     </div>
     <div class="kpi-card total ${summary.desviacion < 0 ? 'neg' : 'pos'}">
       <span class="kpi-tag total">Balance</span>

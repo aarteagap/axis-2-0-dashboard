@@ -1,0 +1,1896 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Matriz de Planes de Emergencia · Lluvias</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0a121c; --bg-radial:#14293e; --panel:#0d1928; --panel-2:#0e1a28; --panel-3:#0a141f;
+    --border:rgba(255,255,255,.07); --border-2:rgba(255,255,255,.05);
+    --text:#e6edf5; --text-mid:#cfdcea; --text-dim:#8ba0b6; --text-faint:#6f8399; --text-ghost:#55697f; --void:#2f4258;
+    --amber:#f0b357; --amber-soft:rgba(240,179,87,.13); --amber-line:rgba(240,179,87,.3);
+    --teal:#4fd1c5; --teal-soft:rgba(79,209,197,.12);
+    --blue:#93c5fd; --blue-soft:rgba(147,197,253,.12);
+    --green:#3ddc9b; --green-soft:rgba(61,220,155,.12); --green-line:rgba(61,220,155,.3);
+    --red:#f2636b; --red-soft:rgba(242,99,107,.14); --red-line:rgba(242,99,107,.32);
+    --mono:'JetBrains Mono', monospace; --sans:'Instrument Sans', Helvetica, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  .wrap{min-height:100vh;background:radial-gradient(1200px 600px at 12% -10%, var(--bg-radial) 0%, var(--bg) 60%);padding:28px 32px 56px;}
+  .eyebrow{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--text-faint);text-transform:uppercase;}
+  .dot{width:4px;height:4px;border-radius:50%;background:#3d5471;}
+  h1{margin:0;font-size:29px;font-weight:600;letter-spacing:-.02em;line-height:1.1;}
+  .mono{font-family:var(--mono);}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;}
+  .chip{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;}
+  .chip-dot{width:6px;height:6px;border-radius:50%;}
+
+  /* # 01 HEADER */
+  .hdr{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding-bottom:20px;border-bottom:1px solid var(--border);}
+  .hdr-meta{font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:6px;}
+  .hdr-right{display:flex;align-items:center;gap:10px;}
+  .hdr-updated{font-family:var(--mono);font-size:11px;color:var(--text-ghost);text-align:right;line-height:1.5;}
+
+  /* # 02 TABS */
+  .tabnav{display:flex;align-items:center;gap:8px;margin:22px 0 0;flex-wrap:wrap;}
+  .tab-btn{display:flex;align-items:center;gap:9px;padding:10px 18px;border-radius:10px;background:var(--panel-2);border:1px solid var(--border);font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;color:var(--text-dim);cursor:pointer;transition:all .15s ease;}
+  .tab-btn .num{width:18px;height:18px;border-radius:5px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-size:10.5px;color:var(--text-ghost);}
+  .tab-btn:hover{border-color:rgba(255,255,255,.16);color:var(--text-mid);}
+  .tab-btn.active{background:linear-gradient(90deg, rgba(240,179,87,.14), rgba(240,179,87,.04));border-color:var(--amber-line);color:#fff2dc;}
+  .tab-btn.active .num{background:var(--amber);color:#2b1c05;}
+  .tab-spacer{flex:1;}
+  .tab-hint{font-family:var(--mono);font-size:10.5px;color:var(--text-ghost);}
+
+  .mode-filter{display:flex;align-items:center;gap:6px;padding:5px;border-radius:10px;background:var(--panel-2);border:1px solid var(--border);}
+  .mf-label{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--text-ghost);padding:0 4px 0 6px;}
+  .mf-btn{font-family:var(--mono);font-size:11px;letter-spacing:.02em;padding:6px 11px;border-radius:7px;color:var(--text-dim);cursor:pointer;transition:all .15s ease;}
+  .mf-btn:hover{color:var(--text-mid);}
+  .mf-btn.active{background:var(--amber);color:#241804;font-weight:600;}
+
+  .alert-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;font-size:12.5px;line-height:1.5;}
+  .alert-bar.alert-red{background:var(--red-soft);border:1px solid var(--red-line);color:#ffc2c5;}
+  .alert-bar.alert-amber{background:var(--amber-soft);border:1px solid var(--amber-line);color:#f7dfb4;}
+  .alert-bar b{color:#fff;}
+  .alert-bar .icon{font-size:15px;flex-shrink:0;}
+
+  .enfen-bar{display:flex;align-items:center;gap:14px;padding:11px 16px;border-radius:11px;margin-top:16px;background:var(--panel-2);border:1px solid var(--border);}
+  .enfen-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 3px rgba(255,255,255,.05);}
+  .enfen-label{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--text-faint);}
+  .enfen-risk{font-size:13.5px;font-weight:600;}
+  .enfen-desc{font-size:12px;color:var(--text-dim);flex:1;}
+  .enfen-source{font-family:var(--mono);font-size:9.5px;color:var(--text-ghost);white-space:nowrap;}
+
+  .view{display:none;margin-top:20px;}
+  .view.active{display:block;}
+
+  .section-title{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--text-faint);margin-bottom:14px;}
+  .card-title{font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--text);}
+  .card-sub{font-size:12px;color:var(--text-dim);line-height:1.5;}
+
+  /* ===== ANTES ===== */
+  .antes-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start;}
+  .stack{display:flex;flex-direction:column;gap:16px;}
+
+  .bridge-list{display:flex;flex-direction:column;gap:8px;}
+  .bridge-row{display:grid;grid-template-columns:44px 1fr auto auto;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;background:var(--panel-2);border:1px solid var(--border-2);transition:all .15s ease;}
+  .bridge-row.down{background:var(--red-soft);border-color:var(--red-line);}
+  .toggle{position:relative;width:38px;height:22px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);cursor:pointer;flex-shrink:0;transition:all .15s ease;}
+  .toggle::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#8ba0b6;transition:all .15s ease;}
+  .toggle.on{background:rgba(242,99,107,.28);border-color:var(--red-line);}
+  .toggle.on::after{left:18px;background:var(--red);}
+  .bridge-name{font-size:13.5px;color:var(--text);font-weight:500;}
+  .bridge-name .agro-tag{display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:8.5px; letter-spacing:.05em; padding:2px 7px; border-radius:5px; background:rgba(134,208,120,.14); color:#9fe0a0; border:1px solid rgba(134,208,120,.32); margin-left:8px; vertical-align:middle;}
+  .bridge-loc{font-family:var(--mono);font-size:10.5px;color:var(--text-faint);margin-top:2px;}
+  .bridge-alt-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:5px;}
+  .bridge-alt{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;padding:3px 8px;border-radius:5px;white-space:nowrap;}
+  .bridge-alt.yes{background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber-line);}
+  .bridge-alt.no{background:var(--red-soft);color:#ffb3b7;border:1px solid var(--red-line);}
+  .mini-toggle-row{display:flex;align-items:center;gap:6px;}
+  .mini-toggle-label{font-family:var(--mono);font-size:8px;letter-spacing:.05em;color:var(--text-faint);white-space:nowrap;}
+  .mini-toggle{position:relative;width:26px;height:15px;border-radius:999px;background:rgba(240,179,87,.28);border:1px solid var(--amber-line);cursor:pointer;flex-shrink:0;transition:all .15s ease;}
+  .mini-toggle::after{content:'';position:absolute;top:1.5px;left:12.5px;width:11px;height:11px;border-radius:50%;background:var(--amber);transition:all .15s ease;}
+  .mini-toggle.off{background:rgba(242,99,107,.22);border-color:var(--red-line);}
+  .mini-toggle.off::after{left:1.5px;background:var(--red);}
+  .bridge-status{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--text-ghost);text-align:right;min-width:64px;}
+  .bridge-row.down .bridge-status{color:var(--red);font-weight:600;}
+
+  .carrier-row{display:grid;grid-template-columns:1fr 130px 46px;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-2);}
+  .carrier-row:last-child{border-bottom:none;}
+  .carrier-name{font-size:13px;color:var(--text-mid);}
+  .carrier-name span{display:block;font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-top:1px;}
+  input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:3px;background:rgba(255,255,255,.08);outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--amber);cursor:pointer;box-shadow:0 0 0 3px rgba(240,179,87,.18);}
+  .carrier-val{font-family:var(--mono);font-size:13px;color:var(--amber);text-align:right;}
+
+  .assump-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--border-2);}
+  .assump-row:last-child{border-bottom:none;}
+  .assump-label{font-size:12.5px;color:var(--text-mid);}
+  .assump-label small{display:block;font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-top:2px;}
+  .assump-input{display:flex;align-items:center;gap:6px;}
+  .assump-input input[type=number]{width:64px;background:var(--panel-3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:var(--mono);font-size:12.5px;padding:6px 8px;text-align:right;}
+  .assump-input span{font-family:var(--mono);font-size:11px;color:var(--text-faint);}
+
+  .sim-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:16px;}
+  .sim-cell{background:var(--panel-2);padding:14px 16px;}
+  .sim-cell .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:var(--text-faint);}
+  .sim-cell .v{font-family:var(--mono);font-size:22px;font-weight:600;margin-top:6px;}
+
+  .btn-row{display:flex;gap:10px;margin-top:16px;}
+  .btn{font-family:var(--mono);font-size:12px;letter-spacing:.06em;padding:11px 18px;border-radius:9px;cursor:pointer;border:1px solid var(--border);background:var(--panel-2);color:var(--text-mid);}
+  .btn.primary{background:linear-gradient(90deg,#f0b357,#d99a3f);color:#241804;border:none;font-weight:600;}
+  .btn.primary:hover{filter:brightness(1.06);}
+  .btn:hover{border-color:rgba(255,255,255,.18);}
+  .btn:active{transform:translateY(1px);}
+
+  /* ===== DURANTE ===== */
+  .durante-grid{display:flex; flex-direction:column; gap:16px;}
+  .legend{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border);}
+  .legend-item{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;color:var(--text-dim);}
+  .legend-dot{width:8px;height:8px;border-radius:2px;}
+
+  .board{width:100%;border-collapse:collapse;}
+  .board thead th{position:sticky;top:0;background:var(--panel-3);text-align:left;padding:10px 12px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--text-faint);border-bottom:1px solid var(--border);}
+  .board tbody td{padding:10px 12px;font-size:12.5px;border-bottom:1px solid var(--border-2);vertical-align:middle;}
+  .board tbody tr:hover{background:rgba(255,255,255,.02);}
+  .board tbody tr.standby{background:rgba(120,110,150,.10); filter:saturate(.55);}
+  .board tbody tr.standby:hover{background:rgba(120,110,150,.15);}
+  .board tbody tr.standby td{color:var(--text-ghost) !important;}
+  .board tbody tr.standby .status-pill, .board tbody tr.standby .tipo-badge{opacity:.55;}
+  .sop-cell{display:flex; flex-direction:column; align-items:center; gap:4px;}
+  .sop-check{width:18px; height:18px; border-radius:5px; border:1.5px solid rgba(255,255,255,.22); background:rgba(255,255,255,.04); cursor:pointer; position:relative; flex-shrink:0;}
+  .sop-check.on{background:rgba(61,220,155,.16); border-color:var(--green-line);}
+  .sop-check.on::after{content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:var(--green); line-height:1;}
+  .sop-label{font-family:var(--mono); font-size:7.5px; letter-spacing:.04em; color:var(--text-ghost); white-space:nowrap;}
+  .standby-tag{font-family:var(--mono); font-size:8.5px; letter-spacing:.06em; padding:2px 6px; border-radius:4px; background:rgba(148,130,190,.18); color:#c9b8ea; border:1px solid rgba(148,130,190,.35); white-space:nowrap;}
+  .board .fcl{font-family:var(--mono);font-size:12px;color:var(--text-mid);}
+  .board .plant{color:var(--text);}
+  .board .plant small{display:block;font-family:var(--mono);font-size:9.5px;color:var(--text-faint);}
+  .tipo-badge{font-family:var(--mono);font-size:9px;letter-spacing:.06em;padding:3px 7px;border-radius:5px;white-space:nowrap;}
+  .tipo-retiro{background:var(--blue-soft);color:var(--blue);border:1px solid rgba(147,197,253,.25);}
+  .tipo-puerto{background:rgba(180,190,205,.1);color:#b9c6d4;border:1px solid rgba(180,190,205,.2);}
+  .tipo-fin{background:var(--green-soft);color:var(--green);border:1px solid var(--green-line);}
+  .status-pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;padding:5px 10px;border-radius:6px;font-weight:600;}
+  .status-ok{background:var(--green-soft);color:var(--green);border:1px solid var(--green-line);}
+  .status-warn{background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber-line);}
+  .status-bad{background:var(--red-soft);color:#ff9ba0;border:1px solid var(--red-line);}
+  .status-flip{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+  .flip-ok{background:var(--green);}
+  .flip-warn{background:var(--amber);}
+  .flip-bad{background:var(--red);}
+  .note-txt{font-size:11px;color:var(--text-faint);}
+
+  .map-compact{display:flex; flex-direction:column; gap:10px; margin-top:10px;}
+  .map-compact svg{width:100%; max-width:300px; height:auto; display:block; margin:0 auto;}
+  .map-side-stats{display:flex;flex-direction:column;gap:8px;}
+  .map-stat-row{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--text-mid);padding:7px 10px;border-radius:8px;background:var(--panel-2);}
+  .map-stat-row b{font-family:var(--mono);color:var(--text);}
+
+  /* ===== DESPUES ===== */
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+  .kpi-cell{background:var(--panel-2);padding:18px 20px;display:flex;flex-direction:column;gap:6px;min-height:96px;justify-content:space-between;}
+  .kpi-k{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--text-faint);}
+  .kpi-v{font-family:var(--mono);font-size:26px;font-weight:600;line-height:1;}
+  .kpi-v.amber{color:var(--amber);}
+  .kpi-v.red{color:var(--red);}
+  .kpi-v.green{color:var(--green);}
+  .kpi-sub{font-family:var(--mono);font-size:10.5px;color:var(--text-dim);}
+
+  .cost-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;}
+  .cost-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border-2);}
+  .cost-row:last-child{border-bottom:none;}
+  .cost-label{font-size:12.5px;color:var(--text-mid);}
+  .cost-label small{display:block;font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-top:2px;}
+  .cost-val{font-family:var(--mono);font-size:14px;color:var(--text);}
+  .cost-total{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;margin-top:6px;border-radius:10px;background:linear-gradient(90deg, rgba(240,179,87,.1), rgba(240,179,87,.02));border:1px solid var(--amber-line);}
+  .cost-total .l{font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;color:#f7dfb4;}
+  .cost-total .v{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--amber);}
+
+  .assumption-note{display:flex;gap:10px;padding:13px 16px;border-radius:10px;background:rgba(147,197,253,.06);border:1px solid rgba(147,197,253,.18);font-size:12px;line-height:1.55;color:#bcd3ee;margin-top:16px;}
+  .assumption-note b{color:#fff;}
+
+  .footer-note{margin-top:26px;padding-top:16px;border-top:1px solid var(--border);font-family:var(--mono);font-size:10.5px;color:var(--text-ghost);line-height:1.7;}
+  .footer-note b{color:var(--text-faint);}
+
+  /* ===== BOTON DE AJUSTES (reglas/parametros) ===== */
+  .gear-btn{width:34px;height:34px;border-radius:9px;background:var(--panel-2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-dim);transition:all .15s ease;flex-shrink:0;}
+  .gear-btn:hover{border-color:rgba(255,255,255,.18);color:var(--text);background:var(--panel-3);}
+  .gear-btn svg{width:17px;height:17px;}
+
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(4,8,13,.72);backdrop-filter:blur(2px);z-index:50;align-items:flex-start;justify-content:center;padding:48px 24px;overflow-y:auto;}
+  .modal-overlay.open{display:flex;}
+  .modal{width:100%;max-width:720px;background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+  .modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border);}
+  .modal-hdr .t{display:flex; align-items:center; gap:10px;}
+  .modal-hdr h2{margin:0;font-size:16px;font-weight:600;letter-spacing:-.01em;}
+  .modal-hdr .close{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-dim);border:1px solid var(--border);}
+  .modal-hdr .close:hover{color:#fff;border-color:rgba(255,255,255,.2);}
+  .modal-body{padding:20px 22px 24px;max-height:72vh;overflow-y:auto;}
+  .rule-section{margin-bottom:20px;}
+  .rule-section:last-child{margin-bottom:0;}
+  .rule-section .rt{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--amber);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .rule-section .rt::before{content:'';width:5px;height:5px;border-radius:1px;background:var(--amber);}
+  .rule-table{width:100%;border-collapse:collapse;margin-bottom:4px;}
+  .rule-table th{text-align:left;padding:7px 10px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--text-faint);border-bottom:1px solid var(--border);}
+  .rule-table td{padding:7px 10px;font-size:12px;color:var(--text-mid);border-bottom:1px solid var(--border-2);}
+  .rule-table td.mono-v{font-family:var(--mono);color:var(--text);}
+  .rule-list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px;}
+  .rule-list li{display:flex;gap:9px;font-size:12.5px;color:var(--text-mid);line-height:1.5;}
+  .rule-list li .b{color:var(--text-ghost);flex-shrink:0;}
+  .rule-list li b{color:var(--text);}
+  .rule-list li .tag{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;flex-shrink:0;height:fit-content;margin-top:1px;}
+  .tag-ok{background:var(--green-soft);color:var(--green);}
+  .tag-warn{background:var(--amber-soft);color:var(--amber);}
+  .tag-bad{background:var(--red-soft);color:#ffb3b7;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- # 01 HEADER -->
+  <div class="hdr">
+    <div>
+      <div class="eyebrow">
+        <span>PLAN DE CONTINGENCIA</span>
+        <span class="dot"></span>
+        <span>Riesgo climático · Fenómeno El Niño</span>
+      </div>
+      <h1>Matriz de Planes de Emergencia ante Lluvias</h1>
+      <div class="hdr-meta">Corredor Panamericana Norte · Chao / Salaverry → Paita / Callao / Chancay · Semana del 20–27 ago 2026 (datos reales)</div>
+    </div>
+    <div class="hdr-right">
+      <div class="chip" id="statusChip" style="background:rgba(61,220,155,.1); border:1px solid var(--green-line);">
+        <span class="chip-dot" style="background:var(--green);" id="statusDot"></span>
+        <span id="statusText" style="color:#8ff0c6;">SIN INCIDENCIAS SIMULADAS</span>
+      </div>
+      <div class="hdr-updated">Simulación en vivo · datos de muestra<br />mock v1 · no conectado a fuente real</div>
+      <div class="gear-btn" id="gearBtn" title="Ver reglas y parámetros de la simulación">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BARRA ENFEN: nivel de riesgo del mes en curso ===== -->
+  <div id="enfenBar" class="enfen-bar"></div>
+
+  <!-- ===== MODAL: reglas y parámetros de la simulación ===== -->
+  <div class="modal-overlay" id="rulesModal">
+    <div class="modal">
+      <div class="modal-hdr">
+        <div class="t">
+          <span class="mono" style="font-size:10px; letter-spacing:.12em; color:var(--text-faint); background:var(--panel-2); border:1px solid var(--border); padding:5px 9px; border-radius:6px;">⚙ CONFIG</span>
+          <h2>Reglas y lógica de la simulación</h2>
+        </div>
+        <div class="close" id="closeModal">✕</div>
+      </div>
+      <div class="modal-body" id="rulesBody"><!-- generado por JS --></div>
+    </div>
+  </div>
+
+  <!-- # 02 TABS -->
+  <div class="tabnav">
+    <div class="tab-btn active" data-tab="antes"><span class="num">1</span>Antes · Simulación</div>
+    <div class="tab-btn" data-tab="durante"><span class="num">2</span>Durante · Replanificación</div>
+    <div class="tab-btn" data-tab="despues"><span class="num">3</span>Después · Impacto &amp; KPIs</div>
+    <div class="tab-spacer"></div>
+    <div class="mode-filter" id="modeFilter">
+      <span class="mf-label">MODO</span>
+      <div class="mf-btn active" data-mode="Todos">Todos</div>
+      <div class="mf-btn" data-mode="Marítimo">Marítimo</div>
+      <div class="mf-btn" data-mode="Terrestre">Terrestre</div>
+      <div class="mf-btn" data-mode="Aéreo">Aéreo</div>
+    </div>
+    <div class="tab-hint">Los cambios en “Antes” recalculan “Durante” y “Después” automáticamente</div>
+  </div>
+
+  <!-- ======================= VISTA 1 · ANTES ======================= -->
+  <div class="view active" id="view-antes">
+    <div class="antes-grid">
+
+      <div class="stack">
+        <div class="panel" style="padding:18px;">
+          <div class="card-title" style="margin-bottom:4px;">Ventana de afectación</div>
+          <div class="card-sub" style="margin-bottom:14px;">Define entre qué fechas se consideran inoperativos los puentes marcados abajo. Los pedidos con fecha fuera de este rango no se recalculan.</div>
+          <div class="assump-row">
+            <div class="assump-label">Fecha inicio<br /><small>desde cuándo aplica el corte</small></div>
+            <div class="assump-input"><input type="date" id="inputDateStart" value="2026-08-20" /></div>
+          </div>
+          <div class="assump-row">
+            <div class="assump-label">Fecha fin<br /><small>hasta cuándo aplica el corte</small></div>
+            <div class="assump-input"><input type="date" id="inputDateEnd" value="2026-08-27" /></div>
+          </div>
+          <div class="assump-row">
+            <div class="assump-label">Fecha actual de la simulación<br /><small>define si un pedido ya retiró y si venció el plazo Seaboard / ventana Seatrade</small></div>
+            <div class="assump-input"><input type="date" id="inputSimDate" value="2026-08-28" /></div>
+          </div>
+        </div>
+
+        <div class="panel" style="padding:18px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+            <div class="card-title">Puentes / tramos de la Panamericana Norte</div>
+            <span class="mono" style="font-size:10.5px; color:var(--text-faint);" id="bridgeCountLabel">0 de 9 inoperativos</span>
+          </div>
+          <div class="card-sub" style="margin-bottom:14px;">Marca los puntos afectados o inoperativos por el fenómeno. El sistema recalcula automáticamente rutas alternas, cancelaciones y retornos.</div>
+          <div class="bridge-list" id="bridgeList"></div>
+        </div>
+
+        <div class="panel" style="padding:18px;">
+          <div class="card-title" style="margin-bottom:4px;">Frontera terrestre hacia Brasil</div>
+          <div class="card-sub" style="margin-bottom:14px;">Aplica a pedidos modo Terrestre (ej. Barueri). La carga baja por el mismo corredor costero hasta Callao y desde ahí se bifurca en 2 rutas completas y alternativas entre sí — si una está 100% operativa, se usa esa.</div>
+          <div id="borderRouteInter" style="margin-bottom:14px;"></div>
+          <div id="borderRouteSur"></div>
+        </div>
+
+        <div class="panel" style="padding:18px;">
+          <div class="card-title" style="margin-bottom:4px;">Contenedores / fruta en riesgo (fuera de ruta)</div>
+          <div class="card-sub" style="margin-bottom:14px;">Daño directo en campo o packing — no depende del corte de vías.</div>
+          <div class="assump-row">
+            <div class="assump-label">Contenedores cosechados con observación de calidad<br /><small>fruta con posible pérdida de calidad en packing</small></div>
+            <div class="assump-input"><input type="number" id="inputContainersRisk" min="0" max="16" value="0" /><span>FCL</span></div>
+          </div>
+          <div class="assump-row">
+            <div class="assump-label">Fruta No exportable (FCLs)<br /><small>del total observado, no vale para venta internacional — se coloca en venta nacional</small></div>
+            <div class="assump-input"><input type="number" id="inputFclNoExport" min="0" max="16" value="0" step="0.5" /><span>FCL</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="panel" style="padding:18px;">
+          <div class="card-title" style="margin-bottom:12px;">Resumen de la simulación</div>
+          <div class="sim-summary">
+            <div class="sim-cell"><div class="k">PUENTES CAÍDOS</div><div class="v" id="sumBridges" style="color:#fff;">0</div></div>
+            <div class="sim-cell"><div class="k">FCL AFECTADOS</div><div class="v" id="sumFcl" style="color:var(--amber);">0</div></div>
+            <div class="sim-cell"><div class="k">CANCELADOS</div><div class="v" id="sumCancel" style="color:var(--red);">0</div></div>
+            <div class="sim-cell"><div class="k">CON RUTA ALTERNA</div><div class="v" id="sumAlt" style="color:var(--green);">0</div></div>
+          </div>
+          <div class="btn-row">
+            <div class="btn primary" onclick="goTo('durante')">Ver replanificación →</div>
+            <div class="btn" onclick="resetSim()">Restablecer simulación</div>
+          </div>
+        </div>
+
+        <div class="panel map-panel" style="padding:16px;">
+          <div class="section-title">MAPA ESQUEMÁTICO DE CORREDORES</div>
+          <div class="map-compact">
+            <div id="mapSvgHolder"></div>
+            <div class="map-side-stats" id="mapStats"></div>
+          </div>
+        </div>
+
+        <div class="panel" style="padding:18px;">
+          <div class="card-title" style="margin-bottom:4px;">Incremento por transportista</div>
+          <div class="card-sub" style="margin-bottom:12px;">Sobrecosto esperado por desvíos, tramo adicional o disponibilidad reducida de unidades, según el campo real de Horizon "Transport Operator".</div>
+          <div id="providerList"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================= VISTA 2 · DURANTE ======================= -->
+  <div class="view" id="view-durante">
+
+    <div id="alertsBar" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;"></div>
+
+    <div class="durante-grid">
+
+      <div class="panel" style="overflow:hidden;">
+        <div class="section-title" style="padding:16px 16px 0;">PLANIFICACIÓN ACTUAL VS. RECALCULADA · TABLERO DE EMBARQUES</div>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-dot" style="background:var(--green);"></span>A tiempo</div>
+          <div class="legend-item"><span class="legend-dot" style="background:var(--amber);"></span>Ruta alterna / cambio de puerto o línea</div>
+          <div class="legend-item"><span class="legend-dot" style="background:var(--red);"></span>Cancelado / devolución / depot</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#3d5471;"></span>Finalizado</div>
+          <div class="legend-item"><span style="color:var(--red); font-size:13px;">●</span>Crítico — posible roleo a la próxima semana</div>
+        </div>
+        <div style="max-height:820px; overflow-y:auto;">
+          <table class="board">
+            <thead>
+              <tr>
+                <th>SOP</th>
+                <th>Instruction · PO</th>
+                <th>Planta</th>
+                <th>Journey Status BASC</th>
+                <th>POL</th>
+                <th>Línea · Transp. · Aduana · Log.</th>
+                <th>POD</th>
+                <th>Packing Stage Load Status</th>
+                <th>Estado recalculado</th>
+                <th>Nota operativa</th>
+              </tr>
+            </thead>
+            <tbody id="boardBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================= VISTA 3 · DESPUES ======================= -->
+  <div class="view" id="view-despues">
+
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+      <div class="section-title" style="margin-bottom:0;">INDICADORES DE IMPACTO</div>
+      <div class="btn primary" id="exportBtn" style="display:flex; align-items:center; gap:8px;">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Descargar reporte (Antes · Durante · Después)
+      </div>
+    </div>
+    <div style="margin-top:6px; margin-bottom:14px;" class="card-sub">Genera un Excel con 3 hojas: parámetros de la simulación, tablero recalculado línea por línea, e indicadores de impacto — con el estado exacto que ves ahora en pantalla.</div>
+    <div class="kpi-grid">
+      <div class="kpi-cell"><div class="kpi-k">FCL AFECTADOS</div><div class="kpi-v amber" id="kFcl">0</div><div class="kpi-sub" id="kFclSub">de 16 líneas programadas</div></div>
+      <div class="kpi-cell"><div class="kpi-k">POD AFECTADOS</div><div class="kpi-v" id="kPod">0</div><div class="kpi-sub" id="kPodSub">destinos con carga en riesgo</div></div>
+      <div class="kpi-cell"><div class="kpi-k">POL AFECTADOS</div><div class="kpi-v" id="kPol">0</div><div class="kpi-sub" id="kPolSub">puertos de carga con desvío</div></div>
+      <div class="kpi-cell"><div class="kpi-k">RETIROS CANCELADOS</div><div class="kpi-v red" id="kRetiros">0</div><div class="kpi-sub">contenedor vacío no recogido</div></div>
+
+      <div class="kpi-cell"><div class="kpi-k">TIEMPO DE VIAJE · NORMAL</div><div class="kpi-v" id="kTiempoNormal">0.0h</div><div class="kpi-sub">promedio packing → puerto</div></div>
+      <div class="kpi-cell"><div class="kpi-k">TIEMPO DE VIAJE · CON DEMORA</div><div class="kpi-v amber" id="kTiempoDemora">0.0h</div><div class="kpi-sub" id="kTiempoDelta">+0.0h vs. normal</div></div>
+      <div class="kpi-cell"><div class="kpi-k">SOBRECOSTO TOTAL ESTIMADO</div><div class="kpi-v amber" id="kSobrecosto">$0</div><div class="kpi-sub">desvío + tarifa + retorno vacío</div></div>
+      <div class="kpi-cell"><div class="kpi-k">COSTO DE OPORTUNIDAD</div><div class="kpi-v red" id="kOportunidad">$0</div><div class="kpi-sub" id="kOportunidadSub">kg de arándano no exportado</div></div>
+
+      <div class="kpi-cell"><div class="kpi-k">CRÍTICOS · ROLEO SEMANA</div><div class="kpi-v red" id="kCriticos">0</div><div class="kpi-sub">requieren reprogramar próxima semana</div></div>
+      <div class="kpi-cell"><div class="kpi-k">ASIA CANCELADOS</div><div class="kpi-v red" id="kAsia">0</div><div class="kpi-sub">sin cambio de puerto posible</div></div>
+      <div class="kpi-cell"><div class="kpi-k">RETORNO PACKING / DEVOLUCIÓN</div><div class="kpi-v amber" id="kDepotDevol">0</div><div class="kpi-sub" id="kDepotDevolSub">Hueneme / Miami sin ruta</div></div>
+      <div class="kpi-cell"><div class="kpi-k">CAMBIOS DE PUERTO / LÍNEA</div><div class="kpi-v" id="kCambios">0</div><div class="kpi-sub">reasignaciones Seaboard / Hueneme / Miami</div></div>
+    </div>
+
+    <div class="cost-grid">
+      <div class="panel" style="padding:18px;">
+        <div class="card-title" style="margin-bottom:10px;">Desglose de sobrecostos</div>
+        <div class="cost-row"><div class="cost-label">Desvío por ruta alterna · reefer<br /><small>horas extra × costo hora reefer</small></div><div class="cost-val" id="costDesvio">$0</div></div>
+        <div class="cost-row"><div class="cost-label">Desvío por ruta alterna · cambio de ruta<br /><small>horas extra × costo hora cambio de ruta</small></div><div class="cost-val" id="costCambioRuta">$0</div></div>
+        <div class="cost-row"><div class="cost-label">Incremento de tarifa de transportista<br /><small>sobre flete base de líneas activas</small></div><div class="cost-val" id="costTarifa">$0</div></div>
+        <div class="cost-row"><div class="cost-label">Retorno de contenedor vacío<br /><small>retiros cancelados sin ruta alterna</small></div><div class="cost-val" id="costRetorno">$0</div></div>
+        <div class="cost-row"><div class="cost-label">Reprogramación de técnicos (SENASA)<br /><small>por FCL reprog./cancelado, solo destinos USA/China</small></div><div class="cost-val" id="costTecnicos">$0</div></div>
+        <div class="cost-row"><div class="cost-label">Reprogramación de transporte<br /><small>por FCL reprogramado o cancelado, cualquier destino</small></div><div class="cost-val" id="costTransporteReprog">$0</div></div>
+        <div class="cost-total"><div class="l">SOBRECOSTO TOTAL</div><div class="v" id="costTotalBig">$0</div></div>
+      </div>
+
+      <div class="panel" style="padding:18px;">
+        <div class="card-title" style="margin-bottom:10px;">Desglose de costo de oportunidad</div>
+        <div class="cost-row"><div class="cost-label">Contenedores cancelados en ruta a puerto<br /><small>Net weight real (Horizon) — pérdida total, $1/kg</small></div><div class="cost-val" id="opCancel">0 kg</div></div>
+        <div class="cost-row"><div class="cost-label">Contenedores cosechados con observación de calidad<br /><small>declarados manualmente en “Antes” · pérdida total, $1/kg</small></div><div class="cost-val" id="opRiesgo">0 kg</div></div>
+        <div class="cost-total" style="margin-bottom:4px;"><div class="l">SUBTOTAL PÉRDIDA TOTAL</div><div class="v" id="opBaseTotal">$0</div></div>
+        <div class="cost-row" style="margin-top:10px;"><div class="cost-label">Fruta no exportable → venta nacional<br /><small id="opNoExportSub">FCL declarados × kg/FCL, diferencial internacional–nacional</small></div><div class="cost-val" id="opNoExport">$0</div></div>
+        <div class="cost-total" style="border-color:var(--red-line); background:linear-gradient(90deg, rgba(242,99,107,.1), rgba(242,99,107,.02)); margin-top:10px;"><div class="l" style="color:#ffb3b7;">COSTO DE OPORTUNIDAD TOTAL</div><div class="v" style="color:var(--red);" id="opTotalBig">$0</div></div>
+      </div>
+    </div>
+
+    <div class="assumption-note">
+      <span>⚠</span>
+      <div>
+        <b>Supuestos editables (pendientes de validar con Finanzas / Comercial):</b> valor fijo acordado por kg no exportado <b id="noteUsd">$1.00</b>/kg (el peso real de cada línea sale del campo "Net weight" de Horizon, no es un supuesto), costo hora de operación reefer <b id="noteReefer">$45</b>/h, costo de retorno de contenedor vacío <b id="noteRetorno">$180</b>/FCL, reprogramación de técnicos SENASA <b id="noteTecUSA">$150</b>/FCL (USA) y <b id="noteTecChina">$250</b>/FCL (China), reprogramación de transporte <b id="noteTransp">$350</b>/FCL. El kg/FCL asumido (14,000 kg) solo aplica a contenedores cosechados con observación de calidad declarados manualmente en "Antes", que no tienen PO real. Ajusta estos valores más abajo — la lógica de asignación real de sobrecostos por proveedor debe confirmarse con las áreas correspondientes antes de llevar esta matriz a producción.
+      </div>
+    </div>
+
+    <div class="panel" style="padding:18px; margin-top:16px;">
+      <div class="card-title" style="margin-bottom:12px;">Parámetros de costo (editable)</div>
+      <div class="cost-grid" style="margin-top:0;">
+        <div>
+          <div class="assump-row"><div class="assump-label">Precio arándano<br /><small>USD fijo por kg no exportado (pérdida total)</small></div><div class="assump-input"><span>$</span><input type="number" id="inputUsdKg" value="1.00" step="0.10" min="0" /><span>/kg</span></div></div>
+          <div class="assump-row"><div class="assump-label">Precio venta internacional<br /><small>referencia para fruta no exportable</small></div><div class="assump-input"><span>$</span><input type="number" id="inputUsdKgIntl" value="8.59" step="0.10" min="0" /><span>/kg</span></div></div>
+          <div class="assump-row"><div class="assump-label">Precio venta nacional<br /><small>destino de la fruta no exportable</small></div><div class="assump-input"><span>$</span><input type="number" id="inputUsdKgNac" value="6.00" step="0.10" min="0" /><span>/kg</span></div></div>
+          <div class="assump-row"><div class="assump-label">Costo hora reefer<br /><small>energía + monitoreo en desvío</small></div><div class="assump-input"><span>$</span><input type="number" id="inputReefer" value="45" step="5" min="0" /><span>/h</span></div></div>
+          <div class="assump-row"><div class="assump-label">Costo hora cambio de ruta<br /><small>adicional al reefer, por hora de demora</small></div><div class="assump-input"><span>$</span><input type="number" id="inputCambioRuta" value="75" step="5" min="0" /><span>/h</span></div></div>
+        </div>
+        <div>
+          <div class="assump-row"><div class="assump-label">Costo retorno vacío<br /><small>por contenedor no retirado</small></div><div class="assump-input"><span>$</span><input type="number" id="inputRetorno" value="180" step="10" min="0" /><span>/FCL</span></div></div>
+          <div class="assump-row"><div class="assump-label">Reprog. técnicos SENASA · USA<br /><small>por FCL reprogramado/cancelado</small></div><div class="assump-input"><span>$</span><input type="number" id="inputTecUSA" value="150" step="10" min="0" /><span>/FCL</span></div></div>
+          <div class="assump-row"><div class="assump-label">Reprog. técnicos SENASA · China<br /><small>por FCL reprogramado/cancelado</small></div><div class="assump-input"><span>$</span><input type="number" id="inputTecChina" value="250" step="10" min="0" /><span>/FCL</span></div></div>
+          <div class="assump-row"><div class="assump-label">Reprog. de transporte<br /><small>por FCL reprogramado/cancelado, cualquier destino</small></div><div class="assump-input"><span>$</span><input type="number" id="inputTransp" value="350" step="10" min="0" /><span>/FCL</span></div></div>
+        </div>
+      </div>
+      <div class="assump-row"><div class="assump-label">kg/FCL asumido<br /><small>para contenedores con observación de calidad y fruta no exportable (sin PO real)</small></div><div class="assump-input"><input type="number" id="inputKgFcl" value="14000" step="100" min="0" /><span>kg</span></div></div>
+    </div>
+
+  </div>
+
+  <div class="footer-note">
+    <b>Notas del mock:</b> campos, valores y estados de proveedor basados en la estructura real de Horizon → hoja <b>HORIZON_FORECAST</b> (PO, Instruction, FCL, Line, Transport Operator, Custom Broker, Journey Status BASC, Packing Stage Load Status, Gate-Out Stage Appointment, Container) — es la única hoja usada como input; las demás hojas del libro no alimentan esta vista. Los 18 registros de esta simulación son <b>despachos reales de Chao</b> tomados del archivo HORIZON_FORECAST_2627_V1.xlsm más reciente (ETD 20–27 ago 2026) — Salaverry no tenía despachos programados en este snapshot, pero toda su lógica de ruta/puentes queda activa en el modelo. Fletes y costos siguen siendo de muestra. Puentes, existencia de ruta alterna y horas de desvío son supuestos de prototipo, no un estudio de rutas validado. Para producción: automatizar la carga de SHIPMENTS desde la hoja HORIZON_FORECAST filtrada por fecha/Load Week, y bridgeState/BORDERS desde un maestro de tramos críticos con georreferencia validado por Tráfico/Operaciones. La lógica de sobrecostos por proveedor y el valor spot de arándano quedan pendientes de validación con Finanzas.
+  </div>
+
+</div>
+
+<script>
+/* ======================================================================
+   # DATA — mock, aislado del render
+   ====================================================================== */
+const BRIDGES = [
+  { id:'chicama',      nombre:'Puente Chicama',      ubicacion:'Km 573 · corredor norte (La Libertad)', corredor:'norte', altAvailable:true,  desvioHoras:2 },
+  { id:'jequetepeque',  nombre:'Puente Jequetepeque',  ubicacion:'Km 660 · corredor norte (La Libertad)',  corredor:'norte', altAvailable:true,  desvioHoras:4 },
+  { id:'reque',         nombre:'Puente Reque',         ubicacion:'Km 765 · corredor norte (Lambayeque)',   corredor:'norte', altAvailable:false, desvioHoras:0 },
+  { id:'motupe',        nombre:'Puente La Leche',      ubicacion:'Km 860 · corredor norte (Lambayeque)',   corredor:'norte', altAvailable:true,  desvioHoras:5 },
+  { id:'viru',          nombre:'Puente Virú',          ubicacion:'Km 512 · corredor sur (La Libertad) — también entrada/salida de Chao', corredor:'sur', altAvailable:true,  desvioHoras:3 },
+  { id:'huamanzana',    nombre:'Puente Huamanzaña',    ubicacion:'Corredor sur (La Libertad) — entre Virú y Chao, tramo crítico sin desvío posible', corredor:'sur', altAvailable:false, desvioHoras:0, fuenteAgro:true },
+  { id:'baden',         nombre:'Badén',                ubicacion:'Corredor sur (La Libertad) — justo al sur de Chao. Es un badén (cruce a nivel de quebrada), no un puente propiamente dicho', corredor:'sur', altAvailable:true, desvioHoras:2, esBaden:true, fuenteAgro:true },
+  { id:'coishco',       nombre:'Puente Coishco',       ubicacion:'Km 424 · corredor sur (Áncash, junto a Chimbote)', corredor:'sur', altAvailable:true,  desvioHoras:2 },
+  { id:'santa',         nombre:'Puente Santa',         ubicacion:'Km 431 · corredor sur (Áncash)',         corredor:'sur',   altAvailable:false, desvioHoras:0 },
+  { id:'culebras',      nombre:'Puente Culebras',      ubicacion:'Km 370 · corredor sur (Áncash, Casma)',  corredor:'sur',   altAvailable:true,  desvioHoras:3 },
+];
+// NOTA DE METODOLOGÍA: la existencia de ruta alterna y las horas de desvío por puente son
+// SUPUESTOS de muestra para este prototipo — no provienen de un estudio de rutas real.
+// Deben reemplazarse por un maestro de rutas alternas validado por el equipo de tráfico/operaciones.
+
+// Proveedores — 4 categorías presentes como campos reales en Horizon (hoja HORIZON_FORECAST):
+// "Line" (línea naviera/aérea), "Transport Operator" (transportista), "Custom Broker" (agencia de aduanas)
+// y "Logistics Operator" (operador logístico / forwarder).
+// Valores tomados directamente de la hoja HORIZON_FORECAST del libro (no de otra hoja del archivo).
+const PROVIDERS = {
+  linea: [
+    { id:'Seaboard',        nombre:'Seaboard' },
+    { id:'Seatrade',        nombre:'Seatrade' },
+    { id:'Cosco',           nombre:'Cosco' },
+    { id:'Maersk Line',     nombre:'Maersk Line' },
+    { id:'Network Shipping',nombre:'Network Shipping' },
+    { id:'Evergreen',       nombre:'Evergreen' },
+    { id:'PIL',             nombre:'PIL' },
+    { id:'LATAM',           nombre:'LATAM' },
+    { id:'Air France',      nombre:'Air France' },
+    { id:'Air Europe',      nombre:'Air Europe' },
+    { id:'Aer Caribe',      nombre:'Aer Caribe' },
+    { id:'KLM',             nombre:'KLM' },
+  ],
+  transporte: [
+    { id:'LIP',             nombre:'LIP' },
+    { id:'RVC',             nombre:'RVC' },
+    { id:'Mantilla',        nombre:'Mantilla' },
+    { id:'Maersk',          nombre:'Maersk' },
+    { id:'MILTEX',          nombre:'MILTEX' },
+    { id:'Cititrans',       nombre:'Cititrans' },
+    { id:'Costa Transport', nombre:'Costa Transport' },
+    { id:'Expert Transport',nombre:'Expert Transport' },
+    { id:'VESL',            nombre:'VESL' },
+    { id:'OSEA',            nombre:'OSEA' },
+  ],
+  aduana: [
+    { id:'LIP Aduanas', nombre:'LIP Aduanas' },
+    { id:'DSV',         nombre:'DSV' },
+    { id:'Andes',       nombre:'Andes' },
+    { id:'Hellmann',    nombre:'Hellmann' },
+    { id:'DHL',         nombre:'DHL' },
+    { id:'DPW',         nombre:'DPW' },
+    { id:'Diamond',     nombre:'Diamond' },
+    { id:'Smart Global',nombre:'Smart Global' },
+    { id:'KN',          nombre:'KN' },
+    { id:'Kuehne',      nombre:'Kuehne' },
+  ],
+  logistico: [
+    { id:'LIP',          nombre:'LIP' },
+    { id:'NWT',          nombre:'NWT' },
+    { id:'SRL',          nombre:'SRL' },
+    { id:'MILTEX',       nombre:'MILTEX' },
+    { id:'Andes',        nombre:'Andes' },
+    { id:'DHL',          nombre:'DHL' },
+    { id:'DSV',          nombre:'DSV' },
+    { id:'Diamond',      nombre:'Diamond' },
+    { id:'Hellmann',     nombre:'Hellmann' },
+    { id:'DPW',          nombre:'DPW' },
+    { id:'Smart Global', nombre:'Smart Global' },
+    { id:'KN',           nombre:'KN' },
+    { id:'Kuehne',       nombre:'Kuehne' },
+  ],
+};
+const PROVIDER_LABEL = { linea:'Línea (naviera/aérea)', transporte:'Transport Operator', aduana:'Custom Broker', logistico:'Logistics Operator' };
+
+// Rutas por PLANTA y puerto de destino — el paso por puentes depende de dónde está la planta.
+// Chao está en el área de Virú, así que cruza Puente Virú incluso yendo hacia el norte (Paita).
+// Salaverry está junto a Trujillo (al norte de Virú), así que no lo cruza yendo a Paita.
+// Corredor único real (confirmado en campo, incluye coordenadas verificadas): Paita — ... — Salaverry
+// (junto a Trujillo) — PUENTE VIRÚ (Km ~515-520, ~25-30 min al sur de Trujillo) — HUAMANZAÑA — Chao
+// (Km 495, al sur de Virú y Huamanzaña) — BADÉN (Km ~-8.609°S, al sur de Chao) — Santa — Coishco —
+// Culebras — Callao/Chancay. Virú y Huamanzaña están ENTRE Salaverry y Chao (Chao los cruza yendo al
+// norte a Paita; Salaverry los cruza yendo al sur a Callao). El Badén está AL SUR de Chao, así que es
+// al revés: Chao lo cruza yendo al sur a Callao, y Salaverry también lo cruza yendo al sur (pasa por
+// el área de Chao camino a Callao) — pero ninguna de las dos plantas lo cruza yendo hacia Paita.
+const RUTA_BRIDGES = {
+  'Chao': {
+    'Paita':  ['viru','huamanzana','chicama','jequetepeque','reque','motupe'],
+    'Callao': ['baden','santa','coishco','culebras'],
+  },
+  'Salaverry': {
+    'Paita':  ['chicama','jequetepeque','reque','motupe'],
+    'Callao': ['viru','huamanzana','baden','santa','coishco','culebras'],
+  },
+};
+// Texto de referencia para el panel de reglas: qué combinaciones planta→puerto usan cada puente.
+const BRIDGE_USED_BY = {
+  viru:      'Chao → Paita · Salaverry → Callao',
+  huamanzana:'Chao → Paita · Salaverry → Callao',
+  chicama:   'Chao → Paita · Salaverry → Paita',
+  jequetepeque: 'Chao → Paita · Salaverry → Paita',
+  reque:     'Chao → Paita · Salaverry → Paita',
+  motupe:    'Chao → Paita · Salaverry → Paita',
+  baden:     'Chao → Callao · Salaverry → Callao',
+  santa:     'Chao → Callao · Salaverry → Callao',
+  coishco:   'Chao → Callao · Salaverry → Callao',
+  culebras:  'Chao → Callao · Salaverry → Callao',
+};
+// Tiempo de viaje transporte pesado (horas), por planta de origen y puerto de destino.
+const CORREDOR_HORAS = {
+  'Chao':      { 'Paita': 13, 'Callao': 14 },
+  'Salaverry': { 'Paita': 12, 'Callao': 15 },
+};
+
+// PODs que solo pueden embarcarse por Chancay/Callao (no se permite cambio de puerto).
+const ASIA_PODS = ['Shanghai','Kaohsiung','Shenzhen','Singapur'];
+// Puertos de embarque habilitados para intercambio Seaboard (marítimo).
+const PUERTOS_SWAP = ['Callao','Paita'];
+// Fechas de referencia — semana simulada con datos reales de Horizon (despachos con ETD 20–27 ago 2026,
+// actualizado con el archivo HORIZON_FORECAST_2627_V1.xlsm más reciente). Incluye Mié previo para ventana Seatrade.
+const WEEK = {
+  MIE: new Date('2026-08-19'), JUE: new Date('2026-08-20'), VIE: new Date('2026-08-21'),
+  SAB: new Date('2026-08-22'), DOM: new Date('2026-08-23'), LUN: new Date('2026-08-24'), MAR: new Date('2026-08-25'),
+  JUE2: new Date('2026-08-27'), // jueves de la semana siguiente, usado por algunos despachos con ETD más lejana
+};
+const SEABOARD_DEADLINE = { 'Callao': WEEK.VIE, 'Paita': WEEK.LUN }; // último día para retirar
+
+// Ruta terrestre internacional hacia Brasil — solo aplica a mode:'Terrestre'. La carga baja por el
+// MISMO corredor costero hasta Callao (usa RUTA_BRIDGES.Callao, igual que un despacho marítimo) y desde
+// ahí continúa al sur hasta bifurcarse en 2 rutas completas y alternativas entre sí para cruzar a Brasil:
+//   · INTEROCEÁNICA: Iñapari → Epitacolândia (cruce directo, Madre de Dios / Acre)
+//   · SUR: Tacna-Santa Rosa → Paso de Jama → Santo Tomé → São Borja (rodeo por Chile/Argentina, mucho más largo)
+// Si una de las dos rutas completas está 100% operativa, el despacho pasa por ahí. Si ambas tienen al
+// menos un punto cortado, el despacho terrestre a Brasil queda sin ruta.
+const BORDERS = [
+  { id:'inapari',          nombre:'Iñapari',              ruta:'interoceanica', pais:'Perú / Brasil (Acre)' },
+  { id:'epitacolandia',    nombre:'Epitacolândia',        ruta:'interoceanica', pais:'Brasil (Acre)' },
+  { id:'tacna_santarosa',  nombre:'Tacna – Santa Rosa',   ruta:'sur', pais:'Perú / Chile' },
+  { id:'paso_jama',        nombre:'Paso de Jama',         ruta:'sur', pais:'Chile / Argentina' },
+  { id:'santo_tome',       nombre:'Santo Tomé',           ruta:'sur', pais:'Argentina (Corrientes)' },
+  { id:'sao_borja',        nombre:'São Borja',            ruta:'sur', pais:'Argentina / Brasil (Río Grande do Sul)' },
+];
+const RUTA_LABEL = { interoceanica:'Ruta Interoceánica', sur:'Ruta Sur (Chile–Argentina)' };
+const DESVIO_RUTA_SUR = 48; // horas adicionales de usar la Ruta Sur como alterna de la Interoceánica (supuesto, rodeo mucho más largo)
+
+// Cronograma oficial de riesgo ENFEN — Fenómeno El Niño 2026–2027 (Fuente: ENFEN, Comunicado N° 07-2025 / SENAMHI, NOAA, OMM).
+const ENFEN_SCHEDULE = [
+  { ym:'2026-07', label:'Julio 2026',     risk:'MEDIO',       color:'#eab308', desc:'Mar más cálido de lo normal, primeras alteraciones en la pesca.' },
+  { ym:'2026-08', label:'Agosto 2026',    risk:'MEDIO-ALTO',  color:'#f0a637', desc:'Incremento de la temperatura del aire y del mar.' },
+  { ym:'2026-09', label:'Setiembre 2026', risk:'ALTO',        color:'#f0743a', desc:'Mayor probabilidad de lluvias en la costa norte.' },
+  { ym:'2026-10', label:'Octubre 2026',   risk:'ALTO',        color:'#f0743a', desc:'Lluvias más frecuentes, activación de quebradas en zonas vulnerables.' },
+  { ym:'2026-11', label:'Noviembre 2026', risk:'MUY ALTO',    color:'#e6484f', desc:'Inundaciones localizadas, impactos en agricultura y pesca.' },
+  { ym:'2026-12', label:'Diciembre 2026', risk:'MUY ALTO',    color:'#e6484f', desc:'Inicio del verano con lluvias intensas en la costa norte.' },
+  { ym:'2027-01', label:'Enero 2027',     risk:'MUY ALTO',    color:'#e6484f', desc:'Uno de los meses de mayor riesgo de desbordes e inundaciones.' },
+  { ym:'2027-02', label:'Febrero 2027',   risk:'MÁXIMO',      color:'#b91c1c', desc:'Históricamente el mes de mayor impacto si el evento es fuerte.' },
+  { ym:'2027-03', label:'Marzo 2027',     risk:'MUY ALTO',    color:'#e6484f', desc:'Persisten lluvias intensas y huaicos en zonas expuestas.' },
+  { ym:'2027-04', label:'Abril 2027',     risk:'MEDIO',       color:'#eab308', desc:'Disminución gradual de la intensidad del fenómeno.' },
+];
+
+// tipo interno agrupa el vocabulario real de Journey Status BASC:
+// 'retiro' => RETIRO PENDIENTE / RETIRO EN PROCESO | 'ruta_puerto' => RUTA PACKING / PACKING / RUTA A PUERTO | 'finalizado' => FINALIZADO
+// mode: 'Marítimo' | 'Terrestre' | 'Aéreo'  ·  linea = campo "Line" (solo aplica a Marítimo/Aéreo)
+// carrier = campo "Transport Operator"  ·  broker = campo "Custom Broker"  ·  logistico = campo "Logistics Operator"
+// fcl = campo "FCL" (puede ser fraccional)  ·  netWeight = campo "Net weight" (kg, fijo — no es un supuesto editable)
+// cargado = campo "Packing Stage Load Status" ('CARGADO'/'NO CARGADO') — relevante para Aéreo, que no retira contenedor (usa Thermoking).
+// Para Aéreo, "pol" representa el punto de embarque único: Callao (aeropuerto Jorge Chávez, Lima).
+//
+// DATOS REALES (HORIZON_FORECAST, actualizado): en este snapshot Salaverry no tiene despachos programados
+// (0 filas con Packing="Salaverry" en el archivo). Se mantiene toda la lógica de ruta/puentes de Salaverry
+// en el modelo — si en el futuro hay despachos reales de esa planta, funcionan automáticamente — pero los
+// 18 envíos de esta simulación son todos de Chao, con campos reales tomados directamente del Excel (PO,
+// Instruction, FCL, POL, POD, Line, Transport Operator, Custom Broker, Logistics Operator, Net weight,
+// SENASA Attention, T.R. Time, Assigned T.R., ETD). Confirmado con el usuario: "Del Monte" y "Network
+// Shipping" son la misma naviera — Port Hueneme ahora se registra como "Network Shipping".
+const SHIPMENTS = [
+  { id:'FCL-1', po:'PO00000051817', instruction:'RH-0426', planta:'Chao', pol:'Paita',  tipo:'ruta_puerto', mode:'Marítimo', linea:'Seaboard',        shipper:'Hortifrut Perú', carrier:'VESL',            broker:'LIP Aduanas', logistico:'NWT',    pod:'Miami',        flete:1980, fcl:1,   netWeight:16128,   fecha:WEEK.JUE,  senasa:'SENASA', trTime:'16:30', trAssigned:'Josman Hernan Galvez Garcia' },
+  { id:'FCL-2', po:'PO00000051930', instruction:'RH-0480', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Marítimo', linea:'Evergreen',       shipper:'Hortifrut Perú', carrier:'Cititrans',       broker:'LIP Aduanas', logistico:'NWT',    pod:'Kaohsiung',    flete:2550, fcl:1,   netWeight:14688,   fecha:WEEK.JUE,  senasa:'PA' },
+  { id:'FCL-3', po:'S/PO (por asignar)', instruction:'RH-0499', planta:'Chao', pol:'Paita', tipo:'retiro',  mode:'Marítimo', linea:'Seaboard',        shipper:'Hortifrut Perú', carrier:'LIP',             broker:'LIP Aduanas', logistico:'NWT',    pod:'Philadelphia', flete:1950, fcl:1,   netWeight:12150,   fecha:WEEK.JUE,  trTime:'13:30' },
+  { id:'FCL-4', po:'PO00000051577', instruction:'RH-0250', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Marítimo', linea:'Cosco',           shipper:'Hortifrut Perú', carrier:'LIP',             broker:'LIP Aduanas', logistico:'NWT',    pod:'San Antonio',  flete:2400, fcl:1,   netWeight:12150,   fecha:WEEK.VIE,  senasa:'PA', trTime:'14:30', trAssigned:'Jhonatan Zapata' },
+  { id:'FCL-5', po:'PO00000052054, PO00000052062', instruction:'RH-0542', planta:'Chao', pol:'Paita',  tipo:'ruta_puerto', mode:'Marítimo', linea:'Maersk Line',     shipper:'Hortifrut Perú', carrier:'LIP',             broker:'LIP Aduanas', logistico:'NWT',    pod:'Algeciras',    flete:2700, fcl:1,   netWeight:20779.2, fecha:WEEK.SAB, senasa:'PA' },
+  { id:'FCL-6', po:'PO00000052059', instruction:'RH-0550', planta:'Chao', pol:'Paita',  tipo:'ruta_puerto', mode:'Marítimo', linea:'Seatrade',        shipper:'Hortifrut Perú', carrier:'Expert Transport',broker:'LIP Aduanas', logistico:'SRL',    pod:'Dover',        flete:2200, fcl:1,   netWeight:12000,   fecha:WEEK.DOM,  senasa:'PA' },
+  { id:'FCL-7', po:'S/PO (por asignar)', instruction:'RH-0553', planta:'Chao', pol:'Paita', tipo:'retiro',  mode:'Marítimo', linea:'Seatrade',        shipper:'Hortifrut Perú', carrier:'LIP',             broker:'LIP Aduanas', logistico:'SRL',    pod:'Vlissingen',   flete:2100, fcl:1,   netWeight:12150,   fecha:WEEK.DOM,  senasa:'PA' },
+  { id:'FCL-8', po:'PO00000051953', instruction:'RH-0490', planta:'Chao', pol:'Paita',  tipo:'ruta_puerto', mode:'Marítimo', linea:'Network Shipping',shipper:'Hortifrut Perú', carrier:'Expert Transport',broker:'LIP Aduanas', logistico:'NWT',    pod:'Port Hueneme', flete:2050, fcl:1,   netWeight:12240,   fecha:WEEK.LUN,  senasa:'SENASA', trTime:'14:30', trAssigned:'Richar Alberto Huasasquiche Bravo' },
+  { id:'FCL-9', po:'S/PO (por asignar)', instruction:'RH-0537', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Marítimo', linea:'Evergreen',       shipper:'Hortifrut Perú', carrier:'VESL',            broker:'LIP Aduanas', logistico:'NWT',    pod:'Shenzhen',     flete:2650, fcl:1,   netWeight:12150,   fecha:WEEK.JUE2, senasa:'PA', trTime:'11:30' },
+  { id:'FCL-10',po:'PO00000052134', instruction:'RH-0546', planta:'Chao', pol:'Callao', tipo:'finalizado',  mode:'Marítimo', linea:'Evergreen',       shipper:'Hortifrut Perú', carrier:'Cititrans',       broker:'LIP Aduanas', logistico:'NWT',    pod:'Shenzhen',     flete:2650, fcl:1,   netWeight:11700,   fecha:WEEK.JUE2, senasa:'PA', trTime:'13:30', trAssigned:'Brian Romero' },
+
+  { id:'FCL-11',po:'PO00000051998, PO00000051999', instruction:'RH-0528', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Aer Caribe', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'DPW',      logistico:'DPW',      pod:'Bogota',    flete:2200, fcl:1, netWeight:12150, fecha:WEEK.JUE, cargado:true,  senasa:'PA' },
+  { id:'FCL-12',po:'PO00000051996, PO00000051997, PO00000052000', instruction:'RH-0530', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'LATAM', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'Kuehne', logistico:'Kuehne', pod:'Guarulhos', flete:2500, fcl:1, netWeight:12150, fecha:WEEK.SAB, cargado:true,  senasa:'PA' },
+  { id:'FCL-13',po:'PO00000052102, PO00000052103', instruction:'RH-0571', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Aer Caribe', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'DPW',      logistico:'DPW',      pod:'Bogota',    flete:2200, fcl:1, netWeight:12150, fecha:WEEK.LUN, cargado:true,  senasa:'PA' },
+  { id:'FCL-14',po:'PO00000052098, PO00000052100', instruction:'RH-0532', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Aer Caribe', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'DPW',      logistico:'DPW',      pod:'Bogota',    flete:2200, fcl:1, netWeight:12150, fecha:WEEK.JUE2,cargado:false, senasa:'PA' },
+
+  { id:'FCL-15',po:'PO00000051408', instruction:'RH-0138', planta:'Chao', pol:'Callao', tipo:'retiro',      mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'MILTEX', broker:'LIP Aduanas', logistico:'MILTEX', pod:'Barueri', flete:2000, fcl:1, netWeight:12150, fecha:WEEK.VIE, senasa:'SENASA' },
+  { id:'FCL-16',po:'PO00000051496', instruction:'RH-0169', planta:'Chao', pol:'Callao', tipo:'retiro',      mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'MILTEX', broker:'LIP Aduanas', logistico:'MILTEX', pod:'Barueri', flete:2000, fcl:1, netWeight:12150, fecha:WEEK.DOM },
+  { id:'FCL-17',po:'PO00000051712', instruction:'RH-0358', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'LIP',    broker:'LIP Aduanas', logistico:'LIP',    pod:'Barueri', flete:2000, fcl:1, netWeight:12150, fecha:WEEK.LUN, senasa:'SENASA' },
+  { id:'FCL-18',po:'PO00000050872', instruction:'RH-0009', planta:'Chao', pol:'Callao', tipo:'finalizado',  mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'MILTEX', broker:'LIP Aduanas', logistico:'MILTEX', pod:'Barueri', flete:2000, fcl:1, netWeight:12150, fecha:WEEK.MIE, senasa:'SENASA' },
+];
+// Para el flujo 'retiro', la cita de retiro se asume el mismo día declarado en 'fecha'.
+// Líneas sin PO asignado en Horizon (campo vacío) se marcan "S/PO (por asignar)" en vez de inventar un código.
+
+// Región del POD, usada solo para el sobrecosto de reprogramación de técnicos (USA / China).
+const POD_REGION = {
+  'Miami':'USA', 'Port Hueneme':'USA', 'Port Hueneme (CN)':'USA', 'Philadelphia':'USA', 'Philadelphia (CN)':'USA', 'Houston':'USA', 'San Antonio':'USA',
+  'Shanghai':'China', 'Shenzhen':'China', 'Shenzhen (HK)':'China', 'Hong Kong':'China',
+};
+
+/* ======================================================================
+   # STATE
+   ====================================================================== */
+const state = {
+  bridges: Object.fromEntries(BRIDGES.map(b => [b.id, false])), // caido true/false
+  altOverride: Object.fromEntries(BRIDGES.filter(b => b.altAvailable).map(b => [b.id, true])), // ruta alterna disponible (default true), doble check manual
+  sopApproval: Object.fromEntries(SHIPMENTS.map(s => [s.id, true])), // aprobación SOP por línea (default true) — si se desmarca, pasa a "stand by"
+  borders: Object.fromEntries(BORDERS.map(b => [b.id, false])), // ruta terrestre internacional cortada true/false
+  providerIncrease: {
+    transporte: Object.fromEntries(PROVIDERS.transporte.map(p => [p.id, 0])),
+  },
+  containersAtRisk: 0,
+  fclNoExport: 0, // FCL del total observado que no son exportables — van a venta nacional
+  usdKg: 1.00, // valor fijo acordado: $1 por kg de arándano no exportado (pérdida total)
+  usdKgInternacional: 8.59, // precio de venta internacional por kg, editable
+  usdKgNacional: 6.00,      // precio de venta nacional por kg, editable
+  costoHoraReefer: 45,
+  costoHoraCambioRuta: 75, // costo adicional por hora de demora en cambios de ruta (aparte del reefer)
+  costoRetornoVacio: 180,
+  costoTecnicoUSA: 150,     // reprogramación de técnicos, por FCL reprogramado/cancelado con destino USA
+  costoTecnicoChina: 250,   // reprogramación de técnicos, por FCL reprogramado/cancelado con destino China
+  costoTransporteReprog: 350, // reprogramación de transporte, por FCL reprogramado/cancelado (cualquier destino)
+  kgPerFcl: 14000, // solo se usa para contenedores en riesgo declarados manualmente (no son PO reales con Net weight)
+  dateStart: new Date('2026-08-20'),
+  dateEnd: new Date('2026-08-27'),
+  simDate: new Date('2026-08-28'),
+  modeFilter: 'Todos', // 'Todos' | 'Marítimo' | 'Terrestre' | 'Aéreo'
+};
+
+/* ======================================================================
+   # CALC — funciones puras, separadas del render
+   ====================================================================== */
+function sameOrAfter(a,b){ return a.getTime() >= b.getTime(); }
+function inRange(d, start, end){ return d.getTime() >= start.getTime() && d.getTime() <= end.getTime(); }
+function weekday(d){ return d.getDay(); } // 0=Dom..6=Sáb
+
+// Doble check: la ruta alterna de un puente solo cuenta como disponible si el puente TIENE
+// alterna en su diseño (b.altAvailable) Y además no fue desactivada manualmente en "Antes"
+// (para el caso en que la ruta alterna también esté afectada por el fenómeno).
+function altEffective(bridgeId){
+  const b = BRIDGES.find(x => x.id === bridgeId);
+  if(!b.altAvailable) return false;
+  return state.altOverride[bridgeId] !== false;
+}
+
+function bridgeCheck(planta, pol){
+  const ids = RUTA_BRIDGES[planta][pol];
+  const afectados = ids.filter(id => state.bridges[id]);
+  const bloqueado = afectados.some(id => !altEffective(id));
+  const conAlterna = afectados.filter(id => altEffective(id));
+  const desvio = conAlterna.length ? Math.max(...conAlterna.map(id => BRIDGES.find(b=>b.id===id).desvioHoras)) : 0;
+  return { afectado: afectados.length > 0, bloqueado, desvio };
+}
+
+// Evalúa las 2 rutas completas hacia Brasil (Interoceánica y Sur) como alternativas entre sí.
+// Cada ruta se considera operativa solo si TODOS sus puntos de cruce están operativos.
+function rutaBrasilCheck(){
+  const puntosDe = ruta => BORDERS.filter(b => b.ruta === ruta).map(b => b.id);
+  const operativa = ruta => puntosDe(ruta).every(id => !state.borders[id]);
+  const interOK = operativa('interoceanica');
+  const surOK = operativa('sur');
+  if(interOK) return { afectado:false, bloqueado:false, desvio:0, rutaUsada:'interoceanica' };
+  if(surOK) return { afectado:true, bloqueado:false, desvio:DESVIO_RUTA_SUR, rutaUsada:'sur' };
+  return { afectado:true, bloqueado:true, desvio:0, rutaUsada:null };
+}
+
+// Fallback universal cuando no hay ruta a ningún puerto disponible.
+function sinRutaFallback(shipment, yaRetirado){
+  if(shipment.tipo === 'ruta_puerto'){
+    return { status:'RETORNA A PACKING · DEPOT', level:'warn', delay:0, nota:'Contenedor ya cargado sin ruta disponible — retorna al depot de planta (mismo packing, con tomas de corriente para reefer)', flip:'flip-warn', depot:true };
+  }
+  if(yaRetirado){
+    return { status:'DEVOLUCIÓN DE CONTENEDOR', level:'bad', delay:0, nota:'Ya retiró el contenedor pero aún no carga — sin ruta, se devuelve vacío', flip:'flip-bad', devolucion:true };
+  }
+  return { status:'RETIRO CANCELADO', level:'bad', delay:0, nota:'Sin ruta a ningún puerto disponible', flip:'flip-bad' };
+}
+
+function getShipmentResult(shipment){
+  const base = { pol:shipment.pol, linea:shipment.linea, cambioPuerto:false, cambioLinea:false, rolled:false, depot:false, devolucion:false, esAsia:ASIA_PODS.includes(shipment.pod) };
+
+  if(shipment.tipo === 'finalizado'){
+    return { ...base, status:'FINALIZADO', level:'ok', delay:0, nota:'Entregado antes del evento', flip:'flip-ok' };
+  }
+
+  // 0. Ventana de fechas declarada en "Antes": si la línea no cae dentro, no se recalcula.
+  if(!inRange(shipment.fecha, state.dateStart, state.dateEnd)){
+    return { ...base, status: shipment.tipo==='retiro' ? 'RETIRO A TIEMPO':'A TIEMPO', level:'ok', delay:0, nota:'Fuera de la ventana de afectación declarada', flip:'flip-ok' };
+  }
+
+  // Aéreo: no retira contenedor — usa Thermoking para cargar en planta y va a Callao (Jorge Chávez) a dejar la fruta.
+  // Único punto de entrega: Callao. Si no hay ruta: ya cargado → retorna a packing a descargar; aún no cargó → se cancela sin cargar.
+  if(shipment.mode === 'Aéreo'){
+    const checkAir = bridgeCheck(shipment.planta, 'Callao');
+    if(!checkAir.afectado){
+      return { ...base, pol:'Callao', status:'A TIEMPO', level:'ok', delay:0, nota:'Sin afectación en ruta hacia Callao (Jorge Chávez)', flip:'flip-ok' };
+    }
+    if(!checkAir.bloqueado){
+      return { ...base, pol:'Callao', status:'RUTA ALTERNA', level:'warn', delay:checkAir.desvio, nota:`Thermoking con desvío hacia Callao (+${checkAir.desvio}h)`, flip:'flip-warn' };
+    }
+    // sin ruta a Callao
+    if(shipment.cargado){
+      return { ...base, pol:'Callao', status:'RETORNA A PACKING', level:'bad', delay:0, nota:'Thermoking ya cargado sin ruta a Callao — retorna a planta a descargar la fruta', flip:'flip-bad', devolucion:true, rolled:true };
+    }
+    return { ...base, pol:'Callao', status:'CANCELADO · NO CARGA', level:'bad', delay:0, nota:'Sin ruta a Callao y aún no cargó en planta — se cancela el despacho aéreo', flip:'flip-bad', rolled:true };
+  }
+
+  // Terrestre a Brasil: baja por el MISMO corredor costero hasta Callao (usa los mismos puentes que un
+  // despacho marítimo hacia Callao) y desde ahí se bifurca en 2 rutas alternas completas hacia la frontera.
+  if(shipment.mode === 'Terrestre'){
+    const checkCorredor = bridgeCheck(shipment.planta, 'Callao');
+    if(checkCorredor.bloqueado){
+      // Sin ruta ni siquiera hasta Callao — no llega a la bifurcación hacia Brasil.
+      return { ...base, pol:'Callao', ...sinRutaFallback(shipment, shipment.tipo!=='retiro' || sameOrAfter(state.simDate, shipment.fecha)), nota:'Sin ruta hasta Callao — no llega a la bifurcación hacia la frontera con Brasil', rolled:true };
+    }
+    const checkF = rutaBrasilCheck();
+    const desvioTotal = checkCorredor.desvio + checkF.desvio;
+    if(!checkCorredor.afectado && !checkF.afectado){
+      return { ...base, status:'A TIEMPO', level:'ok', delay:0, nota:'Sin afectación hasta Callao ni en la frontera con Brasil (Ruta Interoceánica operativa)', flip:'flip-ok' };
+    }
+    if(!checkF.bloqueado){
+      const rutaTxt = checkF.rutaUsada === 'sur' ? RUTA_LABEL.sur : RUTA_LABEL.interoceanica;
+      return { ...base, status:'RUTA ALTERNA', level:'warn', delay:desvioTotal, nota:`Hacia Callao y cruce a Brasil por ${rutaTxt}${desvioTotal?` (+${desvioTotal}h)`:''}`, flip:'flip-warn' };
+    }
+    return { ...base, ...sinRutaFallback(shipment, shipment.tipo!=='retiro' || sameOrAfter(state.simDate, shipment.fecha)), nota:'Ninguna de las 2 rutas a Brasil está operativa (Interoceánica y Sur ambas cortadas)', rolled:true };
+  }
+
+  const yaRetirado = shipment.tipo !== 'retiro' || sameOrAfter(state.simDate, shipment.fecha);
+  const wd = weekday(state.simDate);
+  const esMieJueVie = wd === 3 || wd === 4 || wd === 5; // Mié/Jue/Vie
+
+  // --- 1. Reglas específicas por POD: Port Hueneme / Miami ---
+  if(shipment.pod === 'Port Hueneme' || shipment.pod === 'Miami'){
+    const check1 = bridgeCheck(shipment.planta, shipment.pol);
+    if(!check1.bloqueado && !check1.afectado){
+      return { ...base, status:'A TIEMPO', level:'ok', delay:0, nota:`Vía ${shipment.linea} por ${shipment.pol} sin afectación`, flip:'flip-ok' };
+    }
+    if(!check1.bloqueado && check1.afectado){
+      return { ...base, status:'RUTA ALTERNA', level:'warn', delay:check1.desvio, nota:`Desvío por ruta alterna en ${shipment.pol} (+${check1.desvio}h)`, flip:'flip-warn' };
+    }
+    // bloqueado sin alterna en su puerto original -> intenta cambio a Callao + Maersk (si aún no retira / aún puede redirigirse)
+    if(shipment.tipo === 'finalizado'){ /* no llega aquí, ya filtrado arriba */ }
+    if(!yaRetirado || shipment.tipo === 'ruta_puerto'){
+      const nuevoPol = 'Callao';
+      const check2 = bridgeCheck(shipment.planta, nuevoPol);
+      if(!check2.bloqueado){
+        return {
+          ...base, pol:nuevoPol, linea:'Maersk Line', cambioPuerto:(nuevoPol!==shipment.pol), cambioLinea:true,
+          status: shipment.tipo==='retiro' ? 'RETIRO REASIGNADO' : 'REASIGNADO',
+          level:'warn', delay:check2.desvio,
+          nota:`${shipment.pod}: ${shipment.linea} por ${shipment.pol} sin ruta → cambia a Maersk Line por Callao${check2.desvio?` (+${check2.desvio}h)`:''}`,
+          flip:'flip-warn'
+        };
+      }
+      // tampoco hay ruta por Callao: fallback universal
+      return { ...base, pol:nuevoPol, linea:'Maersk Line', cambioPuerto:true, cambioLinea:true, ...sinRutaFallback(shipment, yaRetirado), rolled:true };
+    }
+    // ya retiró y no se puede reasignar limpiamente
+    return { ...base, ...sinRutaFallback(shipment, yaRetirado), rolled:true };
+  }
+
+  // --- 2. Naves a Asia: fijas a Chancay/Callao, sin cambio de puerto ---
+  if(base.esAsia){
+    const check = bridgeCheck(shipment.planta, shipment.pol);
+    if(!check.afectado){
+      return { ...base, status: shipment.tipo==='retiro' ? 'RETIRO A TIEMPO':'A TIEMPO', level:'ok', delay:0, nota:'Sin afectación — embarque fijo por Chancay/Callao', flip:'flip-ok' };
+    }
+    if(!check.bloqueado){
+      return { ...base, status: shipment.tipo==='retiro' ? 'RETIRO CON DESVÍO':'RUTA ALTERNA', level:'warn', delay:check.desvio, nota:`Ruta alterna hacia Chancay/Callao (+${check.desvio}h) — no se permite cambio de puerto para Asia`, flip:'flip-warn' };
+    }
+    return { ...base, ...sinRutaFallback(shipment, yaRetirado), nota:'Sin ruta a Chancay/Callao — Asia no admite cambio de puerto', rolled:true };
+  }
+
+  // --- 3. Línea Seaboard: cambia de puerto (Callao<->Paita), cancela solo si no hay ruta a ninguno; respeta plazo de retiro ---
+  if(shipment.linea === 'Seaboard'){
+    const deadline = SEABOARD_DEADLINE[shipment.pol];
+    if(!yaRetirado && !sameOrAfter(deadline, state.simDate)){
+      return { ...base, status:'RETIRO CANCELADO', level:'bad', delay:0, nota:`Seaboard: plazo de retiro vencido por ${shipment.pol} (límite ${shipment.pol==='Callao'?'viernes':'lunes'})`, flip:'flip-bad', rolled:true };
+    }
+    const checkA = bridgeCheck(shipment.planta, shipment.pol);
+    if(!checkA.bloqueado){
+      const lvl = checkA.afectado ? 'warn' : 'ok';
+      return { ...base, status: lvl==='ok' ? (shipment.tipo==='retiro'?'RETIRO A TIEMPO':'A TIEMPO') : (shipment.tipo==='retiro'?'RETIRO CON DESVÍO':'RUTA ALTERNA'), level:lvl, delay:checkA.desvio, nota: lvl==='ok' ? 'Sin afectación en ruta' : `Ruta alterna por ${shipment.pol} (+${checkA.desvio}h)`, flip: lvl==='ok'?'flip-ok':'flip-warn' };
+    }
+    // puerto original bloqueado sin alterna -> intenta el otro puerto Seaboard
+    const otroPol = shipment.pol === 'Callao' ? 'Paita' : 'Callao';
+    const deadlineOtro = SEABOARD_DEADLINE[otroPol];
+    if(!yaRetirado && !sameOrAfter(deadlineOtro, state.simDate)){
+      return { ...base, ...sinRutaFallback(shipment, yaRetirado), nota:`Seaboard: ${shipment.pol} cortado y plazo de ${otroPol} ya vencido`, rolled:true };
+    }
+    const checkB = bridgeCheck(shipment.planta, otroPol);
+    if(!checkB.bloqueado){
+      return {
+        ...base, pol:otroPol, cambioPuerto:true,
+        status: shipment.tipo==='retiro' ? 'RETIRO REASIGNADO' : 'CAMBIO DE PUERTO',
+        level:'warn', delay:checkB.desvio,
+        nota:`Seaboard: ${shipment.pol} sin ruta → embarque reasignado a ${otroPol}${checkB.desvio?` (+${checkB.desvio}h)`:''}`,
+        flip:'flip-warn'
+      };
+    }
+    return { ...base, ...sinRutaFallback(shipment, yaRetirado), nota:'Seaboard: sin ruta a Callao ni Paita', rolled:true };
+  }
+
+  // --- 4. Línea Seatrade: suspende retiros miércoles a viernes si el pedido aún no retira ---
+  if(shipment.linea === 'Seatrade'){
+    if(esMieJueVie && !yaRetirado){
+      return { ...base, status:'RETIRO CANCELADO', level:'bad', delay:0, nota:'Seatrade suspende retiros de miércoles a viernes por lluvias — pedido aún no retiraba', flip:'flip-bad', rolled:true };
+    }
+    const check = bridgeCheck(shipment.planta, shipment.pol);
+    if(!check.afectado){
+      return { ...base, status: shipment.tipo==='retiro' ? 'RETIRO A TIEMPO':'A TIEMPO', level:'ok', delay:0, nota:'Sin afectación en ruta', flip:'flip-ok' };
+    }
+    if(!check.bloqueado){
+      return { ...base, status: shipment.tipo==='retiro' ? 'RETIRO CON DESVÍO':'RUTA ALTERNA', level:'warn', delay:check.desvio, nota:`Desvío por ruta alterna (+${check.desvio}h) — Seatrade no cambia de puerto`, flip:'flip-warn' };
+    }
+    return { ...base, ...sinRutaFallback(shipment, yaRetirado), nota:'Seatrade no cambia de puerto — sin ruta disponible', rolled:true };
+  }
+
+  // --- 5. Resto de líneas (Maersk, Cosco, etc.): lógica estándar de corredor único, sin cambio de puerto ---
+  const check = bridgeCheck(shipment.planta, shipment.pol);
+  if(!check.afectado){
+    return { ...base, status: shipment.tipo==='retiro' ? 'RETIRO A TIEMPO':'A TIEMPO', level:'ok', delay:0, nota:'Sin afectación en ruta', flip:'flip-ok' };
+  }
+  if(!check.bloqueado){
+    return { ...base, status: shipment.tipo==='retiro' ? 'RETIRO CON DESVÍO':'RUTA ALTERNA', level:'warn', delay:check.desvio, nota:`Desvío por vía alterna (+${check.desvio}h de tránsito)`, flip:'flip-warn' };
+  }
+  return { ...base, ...sinRutaFallback(shipment, yaRetirado), rolled:true };
+}
+
+function sumFcl(list){
+  return list.reduce((acc,x) => acc + (x.s.fcl || 0), 0);
+}
+function sumNetWeight(list){
+  return list.reduce((acc,x) => acc + (x.s.netWeight || 0), 0);
+}
+function providerIncPct(s){
+  return state.providerIncrease.transporte[s.carrier] || 0; // solo Transport Operator
+}
+
+// Regla SENASA: solo aplica a pedidos de planta Chao cuando el Puente Virú está inoperativo.
+// Se basa en el campo real "SENASA Attention" (valores reales: 'PA' | 'SENASA').
+function senasaAlertFor(s){
+  if(s.planta !== 'Chao' || !state.bridges.viru || !s.senasa) return null;
+  if(s.senasa === 'PA') return 'Cambiar por inspector local';
+  if(s.senasa === 'SENASA'){
+    const wd = weekday(state.simDate); // JS: 0=Dom, 6=Sáb
+    if(wd === 6 || wd === 0 || wd === 1) return 'Validar cambio a SENASA de Trujillo'; // Sáb–Lun
+  }
+  return null;
+}
+
+// Regla T.R. (Thermo Reefer): un registro en el campo real "T.R. Time" indica que el contenedor
+// tiene cold treatment programado y, por tanto, un técnico reefer asignado ("Assigned T.R.").
+// Si la línea se ve afectada por la caída de un puente en su ruta (Callao o Paita), hay que
+// validar dónde queda físicamente el técnico ya asignado.
+function trAlertFor(s, r){
+  if(s.mode !== 'Marítimo' || !s.trTime) return null;
+  const check = bridgeCheck(s.planta, s.pol);
+  if(!check.afectado) return null;
+  return `Validar ubicación de T.R. · ${s.trAssigned || 'técnico no asignado'}`;
+}
+
+function computeAll(){
+  const visibles = state.modeFilter === 'Todos' ? SHIPMENTS : SHIPMENTS.filter(s => s.mode === state.modeFilter);
+  const results = visibles.map(s => {
+    const r = getShipmentResult(s);
+    return { s, r, senasaAlert: senasaAlertFor(s), trAlert: trAlertFor(s, r) };
+  });
+
+  const activos = results.filter(x => x.r.level !== 'bad' && x.s.tipo !== 'finalizado');
+  const afectados = results.filter(x => x.r.level !== 'ok');
+  const cancelados = results.filter(x => x.r.level === 'bad');
+  const conAlterna = results.filter(x => x.r.level === 'warn');
+  const retirosCancelados = results.filter(x => x.s.tipo === 'retiro' && x.r.level === 'bad');
+  const rutaPuertoCancelados = results.filter(x => (x.s.tipo === 'ruta_puerto') && x.r.level === 'bad');
+  const senasaAlertas = results.filter(x => x.senasaAlert);
+  const trAlertas = results.filter(x => x.trAlert);
+
+  // Contenedores afectados = suma del campo FCL (por PO), no cantidad de líneas.
+  const fclAfectados = sumFcl(afectados);
+  const fclCancelados = sumFcl(cancelados);
+  const fclConAlterna = sumFcl(conAlterna);
+  const fclRetirosCancelados = sumFcl(retirosCancelados);
+
+  const podsAfectados = new Set(afectados.map(x => x.s.pod)).size;
+  const polsAfectados = new Set(afectados.map(x => x.r.pol)).size;
+
+  // tiempos
+  const noFinalizados = visibles.filter(s => s.tipo !== 'finalizado');
+  const tiempoNormal = noFinalizados.length ? noFinalizados.reduce((acc,s)=>acc+CORREDOR_HORAS[s.planta][s.pol],0) / noFinalizados.length : 0;
+  const activosConHoras = results.filter(x => x.s.tipo !== 'finalizado' && x.r.level !== 'bad');
+  const tiempoConDemora = activosConHoras.length
+    ? activosConHoras.reduce((acc,x)=>acc + CORREDOR_HORAS[x.s.planta][x.r.pol] + x.r.delay, 0) / activosConHoras.length
+    : tiempoNormal;
+
+  // sobrecostos
+  const costDesvio = conAlterna.reduce((acc,x)=>acc + x.r.delay * state.costoHoraReefer, 0);
+  const costCambioRuta = conAlterna.reduce((acc,x)=>acc + x.r.delay * state.costoHoraCambioRuta, 0);
+  const costTarifa = activos.reduce((acc,x)=>acc + x.s.flete * (providerIncPct(x.s)/100), 0);
+  const costRetorno = fclRetirosCancelados * state.costoRetornoVacio;
+  // Reprogramación de técnicos: por cada FCL reprogramado o cancelado, solo si el POD tiene región definida (USA/China).
+  const costTecnicos = afectados.reduce((acc,x) => {
+    const region = POD_REGION[x.s.pod];
+    if(region === 'USA') return acc + x.s.fcl * state.costoTecnicoUSA;
+    if(region === 'China') return acc + x.s.fcl * state.costoTecnicoChina;
+    return acc;
+  }, 0);
+  // Reprogramación de transporte: por cada FCL reprogramado o cancelado, cualquier destino.
+  const costTransporteReprog = fclAfectados * state.costoTransporteReprog;
+  const costTotal = costDesvio + costCambioRuta + costTarifa + costRetorno + costTecnicos + costTransporteReprog;
+
+  // costo de oportunidad — $1 fijo por kg no exportado (pérdida total), usando el campo real "Net weight".
+  // Los contenedores en riesgo declarados manualmente no tienen PO real, así que sí usan el kg/FCL asumido.
+  const kgCancelRuta = sumNetWeight(rutaPuertoCancelados);
+  const kgRiesgo = state.containersAtRisk * state.kgPerFcl;
+  const kgTotal = kgCancelRuta + kgRiesgo;
+  const costoOportunidadBase = kgTotal * state.usdKg;
+  // Fruta no exportable: no es pérdida total — se vende en el mercado nacional en vez del internacional.
+  // El costo de oportunidad es solo la DIFERENCIA de precio entre ambos mercados.
+  const kgNoExport = state.fclNoExport * state.kgPerFcl;
+  const diferencialPrecio = Math.max(0, state.usdKgInternacional - state.usdKgNacional);
+  const costoNoExportable = kgNoExport * diferencialPrecio;
+  const costoOportunidad = costoOportunidadBase + costoNoExportable;
+
+  // alertas / contadores nuevos
+  const criticos = results.filter(x => x.r.rolled).length;
+  const asiaCancelados = results.filter(x => x.r.esAsia && x.r.level === 'bad').length;
+  const depotConectados = results.filter(x => x.r.depot).length;
+  const devoluciones = results.filter(x => x.r.devolucion).length;
+  const cambiosPuertoLinea = results.filter(x => x.r.cambioPuerto || x.r.cambioLinea).length;
+
+  return {
+    visibles, results, afectados, cancelados, conAlterna, retirosCancelados, rutaPuertoCancelados, senasaAlertas, trAlertas,
+    fclAfectados, fclCancelados, fclConAlterna, fclRetirosCancelados,
+    podsAfectados, polsAfectados, tiempoNormal, tiempoConDemora,
+    costDesvio, costCambioRuta, costTarifa, costRetorno, costTecnicos, costTransporteReprog, costTotal,
+    kgCancelRuta, kgRiesgo, kgTotal, kgNoExport, diferencialPrecio, costoNoExportable, costoOportunidadBase, costoOportunidad,
+    bridgesCaidos: BRIDGES.filter(b => state.bridges[b.id]).length,
+    criticos, asiaCancelados, depotConectados, devoluciones, cambiosPuertoLinea,
+  };
+}
+
+/* ======================================================================
+   # RENDER — una función por sección visual
+   ====================================================================== */
+function renderBridgePanel(){
+  const list = document.getElementById('bridgeList');
+  list.innerHTML = BRIDGES.map(b => {
+    const caido = state.bridges[b.id];
+    const altOn = b.altAvailable ? (state.altOverride[b.id] !== false) : false;
+    const showMiniToggle = b.altAvailable && caido; // solo relevante cuando el puente está inoperativo
+    const altBadge = !b.altAvailable
+      ? `<div class="bridge-alt no">SIN ALTERNA</div>`
+      : (altOn ? `<div class="bridge-alt yes">ALTERNA +${b.desvioHoras}H</div>` : `<div class="bridge-alt no">ALTERNA DESACTIVADA</div>`);
+    const miniToggle = showMiniToggle ? `
+      <div class="mini-toggle-row">
+        <span class="mini-toggle-label">ALTERNA OK</span>
+        <div class="mini-toggle ${altOn?'':'off'}" data-altbridge="${b.id}" title="Desactivar si la ruta alterna también está afectada"></div>
+      </div>` : '';
+    return `
+    <div class="bridge-row ${caido?'down':''}">
+      <div class="toggle ${caido?'on':''}" data-bridge="${b.id}"></div>
+      <div>
+        <div class="bridge-name">${b.nombre}${b.fuenteAgro ? `<span class="agro-tag" title="Punto señalado por el área de Operaciones Agrícolas">🌾 RUTA AGRO</span>` : ''}</div>
+        <div class="bridge-loc">${b.ubicacion}</div>
+      </div>
+      <div class="bridge-alt-wrap">
+        ${miniToggle}
+        ${altBadge}
+      </div>
+      <div class="bridge-status">${caido ? 'INOPERATIVO' : 'OPERATIVO'}</div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.toggle').forEach(t => t.addEventListener('click', () => {
+    const id = t.dataset.bridge;
+    state.bridges[id] = !state.bridges[id];
+    renderAll();
+  }));
+  list.querySelectorAll('.mini-toggle').forEach(t => t.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = t.dataset.altbridge;
+    state.altOverride[id] = state.altOverride[id] === false ? true : false;
+    renderAll();
+  }));
+  document.getElementById('bridgeCountLabel').textContent = `${BRIDGES.filter(b=>state.bridges[b.id]).length} de ${BRIDGES.length} inoperativos`;
+}
+
+function renderBorderPanel(){
+  const check = rutaBrasilCheck();
+  const renderRuta = (rutaId, holderId, tituloRuta) => {
+    const puntos = BORDERS.filter(b => b.ruta === rutaId);
+    const rutaOperativa = puntos.every(b => !state.borders[b.id]);
+    const el = document.getElementById(holderId);
+    el.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <span class="mono" style="font-size:9.5px; letter-spacing:.1em; color:var(--text-faint);">${tituloRuta.toUpperCase()}</span>
+        <span class="mono" style="font-size:9.5px; font-weight:700; color:${rutaOperativa ? 'var(--green)' : (check.rutaUsada===rutaId ? 'var(--amber)' : 'var(--red)')};">${rutaOperativa ? 'RUTA OPERATIVA' : 'RUTA CORTADA'}</span>
+      </div>
+      <div class="bridge-list">
+        ${puntos.map(b => {
+          const caido = state.borders[b.id];
+          return `
+          <div class="bridge-row ${caido?'down':''}">
+            <div class="toggle ${caido?'on':''}" data-border="${b.id}"></div>
+            <div>
+              <div class="bridge-name">${b.nombre}</div>
+              <div class="bridge-loc">${b.pais}</div>
+            </div>
+            <div></div>
+            <div class="bridge-status">${caido ? 'INOPERATIVO' : 'OPERATIVO'}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  };
+  renderRuta('interoceanica', 'borderRouteInter', RUTA_LABEL.interoceanica);
+  renderRuta('sur', 'borderRouteSur', RUTA_LABEL.sur + ` · alterna, +${DESVIO_RUTA_SUR}h`);
+  document.querySelectorAll('#borderRouteInter .toggle, #borderRouteSur .toggle').forEach(t => t.addEventListener('click', () => {
+    const id = t.dataset.border;
+    state.borders[id] = !state.borders[id];
+    renderAll();
+  }));
+}
+
+function renderEnfenBar(){
+  const el = document.getElementById('enfenBar');
+  const today = new Date();
+  const ym = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+  let entry = ENFEN_SCHEDULE.find(e => e.ym === ym);
+  if(!entry){
+    entry = today < new Date(ENFEN_SCHEDULE[0].ym+'-01') ? ENFEN_SCHEDULE[0] : ENFEN_SCHEDULE[ENFEN_SCHEDULE.length-1];
+  }
+  el.innerHTML = `
+    <span class="enfen-dot" style="background:${entry.color};"></span>
+    <span class="enfen-label">ENFEN · ${entry.label.toUpperCase()}</span>
+    <span class="enfen-risk" style="color:${entry.color};">RIESGO ${entry.risk}</span>
+    <span class="enfen-desc">${entry.desc}</span>
+    <span class="enfen-source">Cronograma El Niño 2026–2027 · ENFEN / SENAMHI / NOAA / OMM</span>
+  `;
+}
+
+function slug(s){ return String(s).replace(/[^a-zA-Z0-9]/g,'_'); }
+
+function renderProviderPanel(){
+  const el = document.getElementById('providerList');
+  const cats = ['transporte'];
+  el.innerHTML = cats.map(cat => `
+    <div>
+      ${PROVIDERS[cat].map(p => `
+        <div class="carrier-row">
+          <div class="carrier-name">${p.nombre}<span>${PROVIDER_LABEL[cat]}</span></div>
+          <input type="range" min="0" max="60" step="5" value="${state.providerIncrease[cat][p.id]}" data-cat="${cat}" data-provider="${slug(p.id)}" data-providerid="${p.id}" />
+          <div class="carrier-val" id="provVal-${cat}-${slug(p.id)}">+${state.providerIncrease[cat][p.id]}%</div>
+        </div>`).join('')}
+    </div>`).join('');
+  el.querySelectorAll('input[type=range]').forEach(inp => inp.addEventListener('input', () => {
+    const cat = inp.dataset.cat, id = inp.dataset.providerid, key = slug(id);
+    state.providerIncrease[cat][id] = Number(inp.value);
+    document.getElementById(`provVal-${cat}-${key}`).textContent = `+${inp.value}%`;
+    renderAll();
+  }));
+}
+
+function renderSimSummary(calc){
+  document.getElementById('sumBridges').textContent = calc.bridgesCaidos;
+  document.getElementById('sumFcl').textContent = calc.fclAfectados;
+  document.getElementById('sumCancel').textContent = calc.fclCancelados;
+  document.getElementById('sumAlt').textContent = calc.fclConAlterna;
+
+  const chip = document.getElementById('statusChip');
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  if(calc.bridgesCaidos === 0){
+    chip.style.background='rgba(61,220,155,.1)'; chip.style.borderColor='var(--green-line)';
+    dot.style.background='var(--green)'; txt.style.color='#8ff0c6'; txt.textContent='SIN INCIDENCIAS SIMULADAS';
+  } else if(calc.cancelados.length > 0){
+    chip.style.background='rgba(242,99,107,.1)'; chip.style.borderColor='var(--red-line)';
+    dot.style.background='var(--red)'; txt.style.color='#ffb3b7'; txt.textContent='ALERTA ACTIVA · CANCELACIONES EN CURSO';
+  } else {
+    chip.style.background='rgba(240,179,87,.1)'; chip.style.borderColor='var(--amber-line)';
+    dot.style.background='var(--amber)'; txt.style.color='#f7dfb4'; txt.textContent='SIMULACIÓN ACTIVA · RUTAS ALTERNAS';
+  }
+}
+
+// Vocabulario real del campo "Journey Status BASC" en HORIZON_FORECAST:
+// RETIRO PENDIENTE, RETIRO EN PROCESO, RUTA PACKING, PACKING, RUTA A PUERTO, FINALIZADO.
+function journeyStatusBasc(s, retirado){
+  if(s.mode === 'Aéreo') return s.tipo === 'finalizado' ? 'FINALIZADO' : (s.cargado ? 'RUTA A PUERTO' : 'PACKING');
+  if(s.tipo === 'finalizado') return 'FINALIZADO';
+  if(s.tipo === 'ruta_puerto') return 'RUTA A PUERTO';
+  return retirado ? 'RETIRO EN PROCESO' : 'RETIRO PENDIENTE';
+}
+function packingLoadStatus(s){
+  if(s.mode === 'Aéreo') return s.cargado ? 'CARGADO' : 'NO CARGADO';
+  return (s.tipo === 'ruta_puerto' || s.tipo === 'finalizado') ? 'CARGADO' : 'NO CARGADO';
+}
+
+function renderBoard(calc){
+  const body = document.getElementById('boardBody');
+  const statusClass = { ok:'status-ok', warn:'status-warn', bad:'status-bad' };
+
+  body.innerHTML = calc.results.map(({s,r,senasaAlert,trAlert}) => {
+    const polBase = s.mode === 'Aéreo' ? 'Callao (Lima)' : (s.mode === 'Terrestre' ? `${s.pol} → Brasil` : s.pol);
+    const polTxt = r.cambioPuerto ? `<s style="color:var(--text-ghost);">${s.pol}</s> → <b style="color:var(--amber);">${r.pol}</b>` : polBase;
+    const lineaTxt = r.cambioLinea ? `<s style="color:var(--text-ghost);">${s.linea||'—'}</s> → <b style="color:var(--amber);">${r.linea}</b>` : (s.linea||(s.mode==='Aéreo'?'Aéreo':(s.mode==='Terrestre'?'Terrestre':'—')));
+    const retirado = s.tipo !== 'retiro' || sameOrAfter(state.simDate, s.fecha);
+    const jsb = journeyStatusBasc(s, retirado);
+    const jsbClass = jsb === 'FINALIZADO' ? 'tipo-fin' : (jsb === 'RUTA A PUERTO' ? 'tipo-puerto' : 'tipo-retiro');
+    const load = packingLoadStatus(s);
+    const sopOn = state.sopApproval[s.id] !== false;
+    let notaTxt = r.nota;
+    if(!sopOn) notaTxt = `<span class="standby-tag">STAND BY</span> ${notaTxt}`;
+    if(senasaAlert) notaTxt += ` <span style="color:var(--amber); font-weight:600;">· SENASA: ${senasaAlert}</span>`;
+    if(trAlert) notaTxt += ` <span style="color:var(--teal); font-weight:600;">· ${trAlert}</span>`;
+    const poList = s.po.split(',').map(p=>p.trim());
+    const poDisplay = poList.length > 1
+      ? `<span title="${poList.join(' · ')}">${poList[0]} <span style="color:var(--amber);">+${poList.length-1} PO${poList.length>2?'s':''}</span></span>`
+      : s.po;
+    return `
+    <tr class="${sopOn ? '' : 'standby'}">
+      <td><div class="sop-cell"><div class="sop-check ${sopOn?'on':''}" data-sop="${s.id}" title="Aprobación SOP — desmarcar pasa la línea a Stand By"></div><span class="sop-label">${sopOn?'OK':'STAND BY'}</span></div></td>
+      <td class="fcl">${s.instruction} ${r.rolled ? '<span title="Crítico — posible roleo a la próxima semana" style="color:var(--red);">●</span>' : ''}<br /><span class="mono" style="font-size:9.5px; color:var(--text-faint); font-weight:400;">${poDisplay} · ${s.fcl} FCL</span></td>
+      <td class="plant">${s.planta}<small>${s.shipper}</small></td>
+      <td><span class="tipo-badge ${jsbClass}">${jsb}</span></td>
+      <td class="mono" style="color:var(--text-mid); font-size:11.5px;">${polTxt}</td>
+      <td style="color:var(--text-dim); font-size:11.5px;">${lineaTxt}<br /><span class="mono" style="font-size:9px; color:var(--text-faint);">${s.carrier} · ${s.broker} · ${s.logistico}</span></td>
+      <td class="mono" style="color:var(--text-mid); font-size:12px;">${s.pod}${r.esAsia?' <span style=\"color:var(--teal);\">ASIA</span>':''}</td>
+      <td><span class="status-pill ${load==='CARGADO'?'status-ok':'status-warn'}"><span class="status-flip ${load==='CARGADO'?'flip-ok':'flip-warn'}"></span>${load}</span></td>
+      <td><span class="status-pill ${statusClass[r.level]}"><span class="status-flip ${r.flip}"></span>${r.status}${r.delay?` · +${r.delay}h`:''}</span></td>
+      <td class="note-txt">${notaTxt}</td>
+    </tr>`;
+  }).join('');
+  body.querySelectorAll('.sop-check').forEach(chk => chk.addEventListener('click', () => {
+    const id = chk.dataset.sop;
+    state.sopApproval[id] = state.sopApproval[id] === false ? true : false;
+    renderBoard(computeAll());
+  }));
+}
+
+function renderMapStats(calc){
+  const el = document.getElementById('mapStats');
+  const bridgesDown = BRIDGES.filter(b => state.bridges[b.id]);
+  if(bridgesDown.length === 0){
+    el.innerHTML = `<div class="map-stat-row"><span>Sin tramos afectados</span><b style="color:var(--green);">·</b></div>`;
+    return;
+  }
+  el.innerHTML = bridgesDown.map(b => `
+    <div class="map-stat-row">
+      <span>${b.nombre}</span>
+      <b style="color:${b.altAvailable?'var(--amber)':'var(--red)'};">${b.altAvailable ? `ALTERNA +${b.desvioHoras}h` : 'SIN PASO'}</b>
+    </div>`).join('');
+}
+
+function bridgeVisual(id){
+  const down = state.bridges[id];
+  const b = BRIDGES.find(x=>x.id===id);
+  if(!down) return { stroke:'#4a6c8f', dash:'0', label:'OK', labelColor:'#4a6c8f', xmark:false };
+  if(altEffective(id)) return { stroke:'#f0b357', dash:'6,4', label:`+${b.desvioHoras}H`, labelColor:'#f0b357', xmark:true };
+  return { stroke:'#f2636b', dash:'2,4', label:'CORTADO', labelColor:'#f2636b', xmark:true };
+}
+
+function renderMap(){
+  // Corredor único real: PAITA (norte) — La Leche — Reque — Jequetepeque — Chicama — SALAVERRY (planta) —
+  // VIRÚ — HUAMANZAÑA — CHAO (planta) — BADÉN — Santa — Coishco — Culebras — CALLAO/CHANCAY (sur).
+  // Salaverry está junto a Trujillo, al norte del Puente Virú; Chao (Km 495) está al sur de Virú y Huamanzaña
+  // (el puente Virú real está en el Km ~515-520, ~25-30 min al sur de Trujillo). El Badén está justo al sur
+  // de Chao (coordenadas verificadas). Por eso Chao cruza Virú/Huamanzaña yendo al norte (Paita) y el Badén
+  // yendo al sur (Callao); Salaverry cruza los tres yendo al sur (Callao) — nunca al revés.
+  const v = id => bridgeVisual(id);
+  const vMotupe = v('motupe'), vReque = v('reque'), vJeque = v('jequetepeque'), vChicama = v('chicama');
+  const vViru = v('viru'), vHuaman = v('huamanzana'), vBaden = v('baden'), vSanta = v('santa'), vCoishco = v('coishco'), vCulebras = v('culebras');
+
+  const checkAir = bridgeCheck('Chao', 'Callao');
+  const aereoColor = !checkAir.afectado ? '#3ddc9b' : (!checkAir.bloqueado ? '#f0b357' : '#f2636b');
+  const aereoLabel = !checkAir.afectado ? 'OPERATIVA' : (!checkAir.bloqueado ? `DESVÍO +${checkAir.desvio}H` : 'SIN RUTA A CALLAO');
+
+  const rutaBrasil = rutaBrasilCheck();
+  const fronteraColor = !rutaBrasil.afectado ? '#3ddc9b' : (!rutaBrasil.bloqueado ? '#f0b357' : '#f2636b');
+  const fronteraLabel = !rutaBrasil.afectado ? 'OPERATIVA (Interoceánica)' : (!rutaBrasil.bloqueado ? `POR RUTA SUR +${rutaBrasil.desvio}H` : 'SIN RUTA A BRASIL');
+
+  // Nodos del corredor, de norte (Paita) a sur (Callao), con x alterno para un trazo tipo carretera sinuosa.
+  const N = [
+    { x:200, y:56,  type:'port',   id:'paita',      label:'PAITA' },
+    { x:130, y:128, type:'bridge', v:vMotupe,   label:'LA LECHE' },
+    { x:260, y:200, type:'bridge', v:vReque,    label:'REQUE' },
+    { x:140, y:272, type:'bridge', v:vJeque,    label:'JEQUETEPEQUE' },
+    { x:250, y:344, type:'bridge', v:vChicama,  label:'CHICAMA' },
+    { x:170, y:416, type:'plant',  id:'salaverry',  label:'SALAVERRY', sub:'planta · junto a Trujillo' },
+    { x:250, y:488, type:'bridge', v:vViru,     label:'VIRÚ', note:'Km ~515-520' },
+    { x:140, y:558, type:'bridge', v:vHuaman,   label:'HUAMANZAÑA', note:'crítico', agro:true },
+    { x:170, y:628, type:'plant',  id:'chao',       label:'CHAO', sub:'planta · Km 495' },
+    { x:255, y:698, type:'bridge', v:vBaden,    label:'BADÉN', note:'no es puente', agro:true },
+    { x:140, y:770, type:'bridge', v:vSanta,    label:'SANTA' },
+    { x:250, y:842, type:'bridge', v:vCoishco,  label:'COISHCO' },
+    { x:150, y:914, type:'bridge', v:vCulebras, label:'CULEBRAS' },
+    { x:200, y:986, type:'port',   id:'callao',     label:'CALLAO' },
+  ];
+
+  const segs = [];
+  for(let i=0;i<N.length-1;i++){
+    const a = N[i], b = N[i+1];
+    const col = b.type === 'bridge' ? b.v : { stroke:'#3d5471', dash:'0' };
+    segs.push(`<path d="M${a.x},${a.y} C${a.x},${(a.y+b.y)/2} ${b.x},${(a.y+b.y)/2} ${b.x},${b.y}" fill="none" stroke="${col.stroke}" stroke-width="4" stroke-dasharray="${col.dash}" stroke-linecap="round"/>`);
+  }
+
+  const nodeMarks = N.map(n => {
+    if(n.type === 'bridge'){
+      return chip(n.x, n.y, n.label, n.v, n.note, n.agro);
+    }
+    if(n.type === 'plant'){
+      return `
+        <circle cx="${n.x}" cy="${n.y}" r="15" fill="#0e1a28" stroke="#f0b357" stroke-width="3"/>
+        <text x="${n.x}" y="${n.y+5}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="13" fill="#f0b357" font-weight="700">P</text>
+        <text x="${n.x + (n.x<190?-24:24)}" y="${n.y-20}" text-anchor="${n.x<190?'end':'start'}" font-family="JetBrains Mono, monospace" font-size="13" font-weight="700" fill="#fff">${n.label}</text>
+        <text x="${n.x + (n.x<190?-24:24)}" y="${n.y-6}" text-anchor="${n.x<190?'end':'start'}" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#8ba0b6">${n.sub}</text>
+      `;
+    }
+    // port
+    const isCallao = n.id === 'callao';
+    const portColor = isCallao ? '#4fd1c5' : '#93c5fd';
+    return `
+      <circle cx="${n.x}" cy="${n.y}" r="16" fill="#0e1a28" stroke="${portColor}" stroke-width="3"/>
+      <text x="${n.x}" y="${n.y+6}" text-anchor="middle" font-size="15" fill="${portColor}">⚓</text>
+      <text x="${n.x}" y="${n.y - 24}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="15" font-weight="700" fill="#fff">${n.label}</text>
+      ${isCallao ? `<text x="${n.x}" y="${n.y + 34}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#6f8399">+ Chancay (mismo corredor, fijo Asia)</text>` : ''}
+    `;
+  }).join('');
+
+  const callaoNode = N[N.length-1];
+  const chancayBranch = `
+    <path d="M${callaoNode.x},${callaoNode.y} C${callaoNode.x+55},${callaoNode.y+8} ${callaoNode.x+70},${callaoNode.y-30} ${callaoNode.x+78},${callaoNode.y-45}" fill="none" stroke="${N[N.length-2].v.stroke}" stroke-width="3" stroke-dasharray="${N[N.length-2].v.dash}" stroke-linecap="round"/>
+    <circle cx="${callaoNode.x+82}" cy="${callaoNode.y-50}" r="11" fill="#0e1a28" stroke="#4fd1c5" stroke-width="2.5"/>
+    <text x="${callaoNode.x+82}" y="${callaoNode.y-46}" text-anchor="middle" font-size="10" fill="#4fd1c5">⚓</text>
+    <text x="${callaoNode.x+82}" y="${callaoNode.y-64}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" font-weight="700" fill="#cfdcea">CHANCAY</text>
+  `;
+
+  const svg = `
+  <svg viewBox="0 0 340 1232" xmlns="http://www.w3.org/2000/svg">
+    <text x="170" y="18" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1.5" fill="#6f8399">CORREDOR PANAMERICANA NORTE · PAITA → CALLAO</text>
+    ${segs.join('')}
+    ${chancayBranch}
+    ${nodeMarks}
+
+    <!-- aéreo / terrestre -->
+    <g transform="translate(10,1026)">
+      <rect x="0" y="0" width="320" height="62" rx="12" fill="#0e1a28" stroke="rgba(255,255,255,.07)"/>
+      <circle cx="20" cy="20" r="6" fill="${aereoColor}"/>
+      <text x="36" y="18" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#cfdcea">AÉREO → Callao (Jorge Chávez)</text>
+      <text x="36" y="30" font-family="JetBrains Mono, monospace" font-size="8" fill="${aereoColor}">Cruza el mismo corredor sur (Chao→Callao): ${aereoLabel}</text>
+      <circle cx="20" cy="46" r="6" fill="${fronteraColor}"/>
+      <text x="36" y="44" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#cfdcea">TERRESTRE → Callao y sigue al sur hasta la frontera con Brasil</text>
+      <text x="36" y="56" font-family="JetBrains Mono, monospace" font-size="8" fill="${fronteraColor}">${fronteraLabel}</text>
+    </g>
+
+    <!-- leyenda -->
+    <g transform="translate(10,1100)">
+      <rect x="0" y="0" width="320" height="122" rx="12" fill="#0e1a28" stroke="rgba(255,255,255,.07)"/>
+      <text x="16" y="22" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1" fill="#6f8399">LEYENDA</text>
+      <line x1="16" y1="38" x2="40" y2="38" stroke="#4a6c8f" stroke-width="4"/>
+      <text x="48" y="41" font-family="JetBrains Mono, monospace" font-size="9" fill="#cfdcea">Tramo operativo</text>
+      <line x1="16" y1="56" x2="40" y2="56" stroke="#f0b357" stroke-width="4" stroke-dasharray="6,4"/>
+      <text x="48" y="59" font-family="JetBrains Mono, monospace" font-size="9" fill="#cfdcea">Ruta alterna / desvío</text>
+      <line x1="16" y1="74" x2="40" y2="74" stroke="#f2636b" stroke-width="4" stroke-dasharray="2,4"/>
+      <text x="48" y="77" font-family="JetBrains Mono, monospace" font-size="9" fill="#cfdcea">Inoperativo, sin alterna — corte total del corredor</text>
+      <circle cx="28" cy="90" r="8" fill="#0e1a28" stroke="#f0b357" stroke-width="2.5"/>
+      <text x="28" y="93" text-anchor="middle" font-size="8" fill="#f0b357" font-weight="700">P</text>
+      <text x="48" y="93" font-family="JetBrains Mono, monospace" font-size="9" fill="#cfdcea">Planta packing</text>
+      <circle cx="28" cy="110" r="8" fill="none" stroke="#86d078" stroke-width="1.6" stroke-dasharray="3,3"/>
+      <text x="48" y="113" font-family="JetBrains Mono, monospace" font-size="9" fill="#cfdcea">🌾 Ruta agro — señalada por Operaciones Agrícolas</text>
+    </g>
+  </svg>`;
+  document.getElementById('mapSvgHolder').innerHTML = svg;
+}
+
+function chip(cx, cy, label, v, note, agro){
+  const xmark = v.xmark ? `<line x1="${cx-7}" y1="${cy-7}" x2="${cx+7}" y2="${cy+7}" stroke="${v.stroke}" stroke-width="2.5"/>
+      <line x1="${cx-7}" y1="${cy+7}" x2="${cx+7}" y2="${cy-7}" stroke="${v.stroke}" stroke-width="2.5"/>` : '';
+  const rightSide = cx >= 190;
+  const tx = cx + (rightSide ? 18 : -18);
+  const anchor = rightSide ? 'start' : 'end';
+  const agroRing = agro ? `<circle cx="${cx}" cy="${cy}" r="16" fill="none" stroke="#86d078" stroke-width="1.6" stroke-dasharray="3,3"/>` : '';
+  const agroTag = agro ? `<text x="${tx}" y="${cy + (note?31:22)}" text-anchor="${anchor}" font-family="JetBrains Mono, monospace" font-size="7" font-weight="700" fill="#86d078">🌾 RUTA AGRO</text>` : '';
+  return `
+    ${agroRing}
+    <circle cx="${cx}" cy="${cy}" r="11" fill="#0a141f" stroke="${v.stroke}" stroke-width="2.5"/>
+    ${xmark}
+    <text x="${tx}" y="${cy-2}" text-anchor="${anchor}" font-family="JetBrains Mono, monospace" font-size="10" font-weight="600" fill="#cfdcea">${label}</text>
+    ${note ? `<text x="${tx}" y="${cy+9}" text-anchor="${anchor}" font-family="JetBrains Mono, monospace" font-size="7.5" fill="#6f8399">${note}</text>` : ''}
+    ${v.label !== 'OK' ? `<text x="${tx}" y="${cy + (note?20:11)}" text-anchor="${anchor}" font-family="JetBrains Mono, monospace" font-size="8" font-weight="700" fill="${v.labelColor}">${v.label}</text>` : ''}
+    ${agroTag}
+  `;
+}
+
+function renderKpis(calc){
+  const totalFcl = sumFcl(calc.results);
+  document.getElementById('kFcl').textContent = calc.fclAfectados.toLocaleString('en-US');
+  document.getElementById('kFclSub').textContent = `de ${totalFcl.toLocaleString('en-US')} FCL programados (Σ campo FCL)${state.modeFilter!=='Todos' ? ' · '+state.modeFilter : ''}`;
+  document.getElementById('kPod').textContent = calc.podsAfectados;
+  document.getElementById('kPol').textContent = calc.polsAfectados;
+  document.getElementById('kRetiros').textContent = calc.fclRetirosCancelados.toLocaleString('en-US');
+
+  document.getElementById('kTiempoNormal').textContent = calc.tiempoNormal.toFixed(1)+'h';
+  document.getElementById('kTiempoDemora').textContent = calc.tiempoConDemora.toFixed(1)+'h';
+  const delta = calc.tiempoConDemora - calc.tiempoNormal;
+  document.getElementById('kTiempoDelta').textContent = `${delta>=0?'+':''}${delta.toFixed(1)}h vs. normal`;
+
+  document.getElementById('kSobrecosto').textContent = '$'+Math.round(calc.costTotal).toLocaleString('en-US');
+  document.getElementById('kOportunidad').textContent = '$'+Math.round(calc.costoOportunidad).toLocaleString('en-US');
+  document.getElementById('kOportunidadSub').textContent = `${Math.round(calc.kgTotal).toLocaleString('en-US')} kg pérdida total + ${state.fclNoExport} FCL a venta nacional`;
+
+  document.getElementById('kCriticos').textContent = calc.criticos;
+  document.getElementById('kAsia').textContent = calc.asiaCancelados;
+  document.getElementById('kDepotDevol').textContent = calc.depotConectados + calc.devoluciones;
+  document.getElementById('kDepotDevolSub').textContent = `${calc.depotConectados} retornan a packing (depot) · ${calc.devoluciones} devueltos`;
+  document.getElementById('kCambios').textContent = calc.cambiosPuertoLinea;
+
+  document.getElementById('costDesvio').textContent = '$'+Math.round(calc.costDesvio).toLocaleString('en-US');
+  document.getElementById('costCambioRuta').textContent = '$'+Math.round(calc.costCambioRuta).toLocaleString('en-US');
+  document.getElementById('costTarifa').textContent = '$'+Math.round(calc.costTarifa).toLocaleString('en-US');
+  document.getElementById('costRetorno').textContent = '$'+Math.round(calc.costRetorno).toLocaleString('en-US');
+  document.getElementById('costTecnicos').textContent = '$'+Math.round(calc.costTecnicos).toLocaleString('en-US');
+  document.getElementById('costTransporteReprog').textContent = '$'+Math.round(calc.costTransporteReprog).toLocaleString('en-US');
+  document.getElementById('costTotalBig').textContent = '$'+Math.round(calc.costTotal).toLocaleString('en-US');
+
+  document.getElementById('opCancel').textContent = Math.round(calc.kgCancelRuta).toLocaleString('en-US')+' kg';
+  document.getElementById('opRiesgo').textContent = Math.round(calc.kgRiesgo).toLocaleString('en-US')+' kg';
+  document.getElementById('opBaseTotal').textContent = '$'+Math.round(calc.costoOportunidadBase).toLocaleString('en-US');
+  document.getElementById('opNoExport').textContent = '$'+Math.round(calc.costoNoExportable).toLocaleString('en-US');
+  document.getElementById('opNoExportSub').textContent = `${state.fclNoExport} FCL × ${fmtInt(state.kgPerFcl)} kg/FCL × ($${state.usdKgInternacional.toFixed(2)} − $${state.usdKgNacional.toFixed(2)}) = ${Math.round(calc.kgNoExport).toLocaleString('en-US')} kg`;
+  document.getElementById('opTotalBig').textContent = '$'+Math.round(calc.costoOportunidad).toLocaleString('en-US');
+
+  document.getElementById('noteUsd').textContent = '$'+state.usdKg.toFixed(2);
+  document.getElementById('noteReefer').textContent = '$'+state.costoHoraReefer;
+  document.getElementById('noteRetorno').textContent = '$'+state.costoRetornoVacio;
+  document.getElementById('noteTecUSA').textContent = '$'+state.costoTecnicoUSA;
+  document.getElementById('noteTecChina').textContent = '$'+state.costoTecnicoChina;
+  document.getElementById('noteTransp').textContent = '$'+state.costoTransporteReprog;
+}
+function fmtInt(n){ return Number(n).toLocaleString('en-US'); }
+
+function renderRules(){
+  const el = document.getElementById('rulesBody');
+  const fmt = n => Number(n).toLocaleString('en-US');
+  const fmtDate = d => d.toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' });
+
+  el.innerHTML = `
+    <div class="rule-section">
+      <div class="rt">METODOLOGÍA Y ORIGEN DE LOS DATOS</div>
+      <ul class="rule-list">
+        <li><span class="b">·</span>Esta matriz usa exclusivamente los campos reales de <b>Horizon (hoja HORIZON_FORECAST)</b>: PO, Instruction, FCL, Line, Transport Operator, Custom Broker, Journey Status BASC, Packing Stage Load Status, Gate-Out Stage Appointment, Container. Las demás hojas del libro no son input de esta vista.</li>
+        <li><span class="b">·</span><b>Puentes, existencia de ruta alterna y horas de desvío son SUPUESTOS de muestra</b> para validar la lógica del prototipo — no provienen de un estudio real de rutas. Deben reemplazarse por un maestro de rutas alternas validado por Tráfico/Operaciones antes de producción.</li>
+        <li><span class="b">·</span>Contenedores/PO, transportistas, líneas y agencias de aduana mostrados son datos de muestra con los mismos valores que existen hoy en Horizon, para que la estructura sea 1:1 con la base real.</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">CRONOGRAMA DE RIESGO ENFEN · EL NIÑO 2026–2027</div>
+      <table class="rule-table">
+        <thead><tr><th>Mes</th><th>Nivel</th><th>Impacto esperado</th></tr></thead>
+        <tbody>
+          ${ENFEN_SCHEDULE.map(e => `<tr><td>${e.label}</td><td class="mono-v" style="color:${e.color};">${e.risk}</td><td style="font-size:11px;">${e.desc}</td></tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="card-sub" style="margin-top:8px; color:var(--text-ghost);">Fuente: ENFEN — Comunicado Oficial N° 07-2025, SENAMHI, NOAA, OMM. Periodo: julio 2026 – abril 2027. El nivel mostrado en la barra superior corresponde al mes calendario actual del navegador.</div>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">VENTANA DE AFECTACIÓN Y FECHA DE SIMULACIÓN</div>
+      <ul class="rule-list">
+        <li><span class="b">·</span>Puentes marcados como inoperativos solo afectan pedidos con fecha de despacho entre <b>${fmtDate(state.dateStart)}</b> y <b>${fmtDate(state.dateEnd)}</b>. Fuera de ese rango, la línea queda “A TIEMPO” sin recalcular.</li>
+        <li><span class="b">·</span>Fecha actual de la simulación: <b>${fmtDate(state.simDate)}</b>. Se usa para saber si un pedido “ya retiró” (fecha de cita ≤ fecha actual) y para evaluar los plazos de Seaboard y la ventana de Seatrade.</li>
+        <li><span class="b">·</span>Filtro de modalidad activo: <b>${state.modeFilter}</b>. Solo se recalculan y cuentan las líneas de esa modalidad; las demás no aparecen en el tablero, mapa ni KPIs.</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">MODOS AÉREO Y TERRESTRE</div>
+      <ul class="rule-list">
+        <li><span class="tag tag-warn">AÉREO</span>No retira contenedor: usa <b>Thermoking</b> para cargar la fruta directamente en planta (packing) y viaja a <b>Callao (Jorge Chávez)</b> para diferentes vuelos. Sí cruza el corredor sur (Virú/Santa) — si queda sin ruta a Callao: <b>ya cargado</b> → “RETORNA A PACKING” a descargar la fruta; <b>aún no cargó</b> → “CANCELADO · NO CARGA”, simplemente no despacha. El estado de carga se lee del campo real <b>“Packing Stage Load Status”</b> (CARGADO / NO CARGADO).</li>
+        <li><span class="tag tag-warn">TERRESTRE</span>Baja por el <b>mismo corredor costero hasta Callao</b> (los mismos puentes que un despacho marítimo hacia Callao) y desde ahí se bifurca en <b>2 rutas alternativas completas</b> hacia Brasil: <b>Interoceánica</b> (Iñapari → Epitacolândia) y <b>Sur</b> (Tacna-Santa Rosa → Paso de Jama → Santo Tomé → São Borja, +48h de rodeo). Si al menos una está 100% operativa (todos sus puntos), el despacho pasa por ahí; si ambas tienen algún punto cortado, no hay ruta a Brasil. Se controla en “Frontera terrestre hacia Brasil” dentro de “Antes”.</li>
+        <li><span class="b">·</span>Cada una de las 6 fronteras (Iñapari, Epitacolândia, Tacna-Santa Rosa, Paso de Jama, Santo Tomé, São Borja) se activa/desactiva de forma independiente. Una ruta completa solo cuenta como operativa si <b>todos</b> sus puntos lo están.</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">TIEMPOS DE VIAJE · TRANSPORTE PESADO</div>
+      <table class="rule-table">
+        <thead><tr><th>Planta origen</th><th>Puerto destino</th><th>Tiempo normal</th></tr></thead>
+        <tbody>
+          <tr><td>Chao</td><td>Paita</td><td class="mono-v">13 h</td></tr>
+          <tr><td>Chao</td><td>Callao</td><td class="mono-v">14 h</td></tr>
+          <tr><td>Salaverry</td><td>Paita</td><td class="mono-v">12 h</td></tr>
+          <tr><td>Salaverry</td><td>Callao</td><td class="mono-v">15 h</td></tr>
+        </tbody>
+      </table>
+      <ul class="rule-list">
+        <li><span class="b">·</span>El “Tiempo de viaje · normal” de Después promedia estos valores según la planta/POL de cada línea activa.</li>
+        <li><span class="b">·</span>El “Tiempo con demora” usa el POL final (tras cambio de puerto, si aplica) y suma el desvío en horas al tiempo normal de esa línea, promediando solo las líneas no canceladas.</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">PUENTES / TRAMOS CRÍTICOS</div>
+      <table class="rule-table">
+        <thead><tr><th>Punto</th><th>Usado por</th><th>Si cae</th></tr></thead>
+        <tbody>
+          ${BRIDGES.map(b => `<tr><td>${b.nombre}</td><td style="font-size:11px;">${BRIDGE_USED_BY[b.id]}</td><td class="mono-v" style="color:${b.altAvailable ? 'var(--amber)' : 'var(--red)'};">${b.altAvailable ? `Ruta alterna, +${b.desvioHoras}h` : 'Sin alterna, corte total'}</td></tr>`).join('')}
+        </tbody>
+      </table>
+      <ul class="rule-list">
+        <li><span class="b">·</span>El paso por puentes depende de la <b>planta de origen</b>, no solo del puerto destino. Geografía real confirmada: Salaverry está junto a Trujillo, <b>al norte</b> del Puente Virú (Km ~515-520, ~25-30 min al sur de Trujillo); Chao (Km 495) está <b>al sur</b> del puente. Por eso Chao cruza Virú y Huamanzaña yendo al norte (Paita), y Salaverry los cruza yendo al sur (Callao) — nunca en el sentido contrario, porque cada planta ya está de un lado distinto de ese tramo.</li>
+        <li><span class="b">·</span><b>Puente Huamanzaña</b>: está entre Virú y Chao (al sur de Virú, al norte de Chao) — es un tramo crítico del corredor sur sin ruta alterna, con la misma lógica direccional que Virú.</li>
+        <li><span class="b">·</span><b>Badén</b> (coordenadas verificadas: -8.609°S): está justo al sur de Chao, entre la planta y Puente Santa. No es un puente propiamente dicho sino un badén (cruce a nivel de quebrada). Por su ubicación, Chao lo cruza yendo al sur (Callao) y Salaverry también lo cruza yendo al sur (de paso hacia Callao) — ninguna de las dos plantas lo cruza yendo hacia Paita.</li>
+        <li><span class="b">·</span><b>🌾 Ruta agro:</b> Huamanzaña y el Badén están marcados con esta etiqueta porque fueron señalados específicamente por el área de <b>Operaciones Agrícolas</b> como puntos a considerar en esta matriz — a diferencia de los demás tramos, que provienen de la Panamericana Norte oficial (MTC).</li>
+        <li><span class="b">·</span><b>Doble check de ruta alterna:</b> cuando un puente con alterna queda inoperativo, aparece un mini-interruptor “ALTERNA OK” (activo por defecto). Si esa ruta alterna también está afectada por el fenómeno, se puede desactivar manualmente — el puente pasa a comportarse como si no tuviera alterna (“SIN RUTA”) hasta que se reactive.</li>
+        <li><span class="tag tag-ok">A TIEMPO</span>Ningún puente de la ruta de esa línea está marcado como inoperativo (o la línea está fuera de la ventana de fechas).</li>
+        <li><span class="tag tag-warn">RUTA ALTERNA</span>Al menos un puente inoperativo en la ruta, con su alterna activa (doble check en “OK”) → se suma la mayor demora entre los afectados.</li>
+        <li><span class="tag tag-bad">SIN RUTA</span>Al menos un puente inoperativo sin alterna, o con su alterna desactivada manualmente → aplica cambio de puerto/línea si la naviera lo permite; si ninguna alternativa existe, aplica el fallback según el estado físico del contenedor (ver abajo).</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">CAMPO "JOURNEY STATUS BASC" — VOCABULARIO REAL (HORIZON_FORECAST)</div>
+      <table class="rule-table">
+        <thead><tr><th>Valor real en Horizon</th><th>Cómo lo usa esta matriz</th></tr></thead>
+        <tbody>
+          <tr><td class="mono-v">RETIRO PENDIENTE</td><td>Aún no llega la cita de retiro del contenedor vacío en puerto.</td></tr>
+          <tr><td class="mono-v">RETIRO EN PROCESO</td><td>Ya venció/llegó la cita — se asume unidad ya retirando o retirado.</td></tr>
+          <tr><td class="mono-v">RUTA PACKING</td><td>Contenedor retirado, en camino a planta a cargar (agrupado como "retiro" para el cálculo de rutas).</td></tr>
+          <tr><td class="mono-v">PACKING</td><td>Cargando en planta (agrupado como "retiro" para el cálculo de rutas — aún no sale a puerto).</td></tr>
+          <tr><td class="mono-v">RUTA A PUERTO</td><td>Contenedor cargado en camino al puerto o aeropuerto.</td></tr>
+          <tr><td class="mono-v">FINALIZADO</td><td>Entregado — no se recalcula.</td></tr>
+        </tbody>
+      </table>
+      <div class="card-sub" style="margin-top:8px; color:var(--text-ghost);">Para simplificar el cálculo de rutas, esta matriz agrupa RETIRO PENDIENTE/RETIRO EN PROCESO/RUTA PACKING/PACKING en un mismo bucket interno ("aún no despachado a puerto"), y muestra el valor real específico en la columna del tablero.</div>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">FALLBACK SEGÚN ESTADO FÍSICO DEL CONTENEDOR (sin ruta a ningún puerto)</div>
+      <ul class="rule-list">
+        <li><span class="tag tag-warn">RUTA A PUERTO</span>Contenedor ya cargado, en camino al puerto → <b>“RETORNA A PACKING · DEPOT”</b>: no se busca un depot externo — vuelve al depot de la propia planta (packing), que también tiene tomas de corriente para conectar el reefer.</li>
+        <li><span class="tag tag-bad">RETIRO EN PROCESO</span>La unidad ya recogió el contenedor vacío pero aún no llega a cargar en planta → <b>“DEVOLUCIÓN DE CONTENEDOR”</b>: se devuelve el contenedor vacío.</li>
+        <li><span class="tag tag-bad">RETIRO PENDIENTE</span>La unidad todavía no llega al puerto a recoger el contenedor → <b>“RETIRO CANCELADO”</b>, simplemente no se despacha.</li>
+        <li><span class="b">·</span>El paso de RETIRO PENDIENTE a RETIRO EN PROCESO se determina comparando la fecha de cita de retiro (campo real <b>“Gate-Out Stage Appointment”</b>) contra la fecha actual de la simulación — de forma equivalente a validar si el pedido ya tiene número asignado en el campo real <b>“Container”</b>.</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">REGLAS POR LÍNEA (campo real “Line”, solo pedidos marítimos)</div>
+      <ul class="rule-list">
+        <li><span class="tag tag-warn">SEABOARD</span>Cambia de puerto de embarque (Callao ⇄ Paita) si el original queda bloqueado sin alterna. Solo cancela si tampoco hay ruta al otro puerto. Además, el retiro debe completarse antes del <b>viernes por Callao</b> o el <b>lunes por Paita</b> — si el plazo vence sin retirar, se cancela igual.</li>
+        <li><span class="tag tag-bad">SEATRADE</span>Suspende retiros entre <b>miércoles y viernes</b> para todo pedido que aún no haya retirado, independientemente del estado de los puentes. Fuera de esa ventana, sigue la lógica estándar de corredor único (no cambia de puerto).</li>
+        <li><span class="tag tag-ok">ASIA (Shanghai, Kaohsiung, Shenzhen, Singapur)</span>Fijas a Chancay/Callao — nunca cambian a Paita. Si Callao queda sin ruta y sin alterna, se cancelan y disparan la alerta de “Asia cancelados”.</li>
+        <li><span class="b">·</span>Otras líneas (Maersk, Cosco, etc.) sin regla especial usan la lógica estándar de corredor único: ruta alterna si existe, o el fallback según estado físico si no.</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">REGLAS ESPECIALES POR DESTINO</div>
+      <ul class="rule-list">
+        <li><span class="tag tag-warn">PORT HUENEME</span>Se trabaja por defecto con línea <b>Network Shipping</b> vía <b>Paita</b> (equivalente comercial de "Del Monte", misma naviera). Si hay puentes afectados y el pedido aún no retira, cambia a retiro por <b>Callao</b> con <b>Maersk Line</b> (cambio de puerto y de línea).</li>
+        <li><span class="tag tag-warn">MIAMI</span>Se trabaja por defecto con <b>Seaboard</b>. Si hay un problema de ruta, cambia a <b>Maersk Line</b> por <b>Callao</b>.</li>
+        <li><span class="b">·</span>Si ni siquiera Callao tiene ruta disponible, ambos destinos caen en el fallback según estado físico del contenedor (depot si ya cargó, devolución si ya retiró, cancelado si no ha retirado).</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">REGLA SENASA · SOLO PLANTA CHAO + PUENTE VIRÚ</div>
+      <ul class="rule-list">
+        <li><span class="b">·</span>Se basa en el campo real <b>“SENASA Attention”</b> (valores reales en Horizon: <span class="mono-v">PA</span> / <span class="mono-v">SENASA</span>), y solo se evalúa cuando la planta es <b>Chao</b> y el <b>Puente Virú</b> está marcado como inoperativo.</li>
+        <li><span class="tag tag-warn">SENASA Attention = PA</span>Alerta: <b>“Cambiar por inspector local”</b>.</li>
+        <li><span class="tag tag-warn">SENASA Attention = SENASA</span>Si la fecha actual de la simulación cae entre <b>sábado y lunes</b>, alerta: <b>“Validar cambio a SENASA de Trujillo”</b>. Fuera de esa ventana no se dispara.</li>
+        <li><span class="b">·</span>Esta alerta es informativa/operativa — no cambia el estado logístico de la línea (a tiempo / ruta alterna / cancelado), se muestra junto a la nota del tablero y se resume en un banner en “Durante”.</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">AGRUPACIÓN DE PO POR INSTRUCTION (SOLO AÉREO)</div>
+      <ul class="rule-list">
+        <li><span class="b">·</span>En despachos aéreos, <b>1 Instruction = 1 camión Thermoking</b>, que suele llevar <b>varios PO combinados</b> hasta sumar ~1 FCL (dato real de Horizon: es común ver 2-3 PO de 0.2–0.5 FCL bajo la misma Instruction). El tablero agrupa esos PO en una sola línea por Instruction — se ve el primer PO + “+N PO” con el detalle completo al pasar el cursor.</li>
+        <li><span class="b">·</span>El marítimo casi no tiene este patrón (87 Instructions reales de Chao, solo 2 con más de un PO) — ahí 1 Instruction ≈ 1 contenedor ≈ 1 PO, por eso no se agrupa igual.</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">REGLA T.R. (COLD TREATMENT) · TÉCNICO REEFER</div>
+      <ul class="rule-list">
+        <li><span class="b">·</span>Se basa en los campos reales <b>“T.R. Time”</b> (hora registrada = cold treatment programado) y <b>“Assigned T.R.”</b> (nombre del técnico reefer asignado).</li>
+        <li><span class="b">·</span>Si el PO tiene un registro en “T.R. Time” y la línea se ve afectada porque un puente de su ruta queda inoperativo (Callao o Paita), se agrega la nota: <b>“Validar ubicación de T.R. · [nombre del técnico]”</b>, junto a la nota operativa de esa línea en el tablero.</li>
+        <li><span class="b">·</span>Solo aplica a pedidos marítimos (el cold treatment con técnico reefer es propio de contenedores, no de Thermoking aéreo ni terrestre).</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">APROBACIÓN SOP POR LÍNEA (tablero de “Durante”)</div>
+      <ul class="rule-list">
+        <li><span class="b">·</span>Cada línea del tablero tiene un check de <b>Aprobación SOP</b>, marcado por defecto. Es una marca operativa manual — no depende de ningún campo de Horizon ni cambia el cálculo de rutas/costos.</li>
+        <li><span class="b">·</span>Si se desmarca, la línea pasa a <b>“STAND BY”</b>: la fila se oscurece/desatura visualmente en el tablero, y aparece la etiqueta “STAND BY” al inicio de su nota operativa — para señalar que esa línea está pendiente de validación antes de ejecutar la acción recalculada.</li>
+        <li><span class="b">·</span>El estado de aprobación se incluye como columna en el reporte descargable (hoja “Durante”).</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">CONTADORES Y ALERTAS</div>
+      <ul class="rule-list">
+        <li><span class="b">·</span><b>FCL afectados</b> = suma del campo <b>FCL</b> (no cantidad de líneas/PO) de todas las líneas con estado distinto de “A TIEMPO”. El FCL puede ser fraccional (ej. 0.5, 0.2), tal como está en Horizon.</li>
+        <li><span class="b">·</span><b>Críticos · roleo de semana</b> = líneas que terminan sin ruta viable pese a los intentos de cambio de puerto/línea — candidatas a reprogramarse para la siguiente semana de despacho.</li>
+        <li><span class="b">·</span><b>Alerta Asia cancelados</b> = se activa cuando algún pedido con destino Asia queda cancelado por no poder cambiar de puerto.</li>
+        <li><span class="b">·</span><b>Depot / Devolución</b> = conteo combinado de líneas (marítimas de Hueneme/Miami, y aéreas ya cargadas) conectadas a depot/packing, y contenedores devueltos vacíos.</li>
+        <li><span class="b">·</span><b>Cambios de puerto/línea</b> = total de líneas reasignadas por las reglas de Seaboard, Hueneme o Miami.</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">DESCARGA DE REPORTE (BOTÓN EN “DESPUÉS”)</div>
+      <ul class="rule-list">
+        <li><span class="b">·</span>El botón “Descargar reporte” genera un archivo <b>.xlsx</b> con 3 hojas — <b>Antes</b> (parámetros de la simulación), <b>Durante</b> (tablero recalculado línea por línea) y <b>Después</b> (KPIs y desgloses de costo) — con el estado exacto que está en pantalla al momento de presionarlo.</li>
+        <li><span class="b">·</span>Se genera 100% en el navegador (librería SheetJS vía CDN), sin enviar datos a ningún servidor.</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">PROVEEDORES E INCREMENTO DE TARIFA (campo real de Horizon)</div>
+      <ul class="rule-list">
+        <li><span class="b">·</span><b>Transport Operator</b> (transportista, único proveedor con incremento editable): ${PROVIDERS.transporte.map(p=>p.nombre).join(', ')}.</li>
+        <li><span class="b">·</span>Los campos <b>Line</b>, <b>Custom Broker</b> y <b>Logistics Operator</b> se siguen mostrando en el tablero de “Durante” (son campos reales de Horizon usados para la lógica de ruta/línea naviera), pero ya no tienen incremento de tarifa editable — solo Transport Operator.</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">FÓRMULAS DE SOBRECOSTO (valores actuales)</div>
+      <ul class="rule-list">
+        <li><span class="b">·</span><b>Desvío por ruta alterna · reefer</b> = Σ (horas de desvío de cada línea con ruta alterna) × costo hora reefer ($${fmt(state.costoHoraReefer)}/h)</li>
+        <li><span class="b">·</span><b>Desvío por ruta alterna · cambio de ruta</b> = Σ (horas de desvío de cada línea con ruta alterna) × costo hora cambio de ruta ($${fmt(state.costoHoraCambioRuta)}/h) — costo adicional e independiente del anterior.</li>
+        <li><span class="b">·</span><b>Incremento de tarifa</b> = Σ (flete base de cada línea activa × % de incremento del Transport Operator asignado en “Antes”)</li>
+        <li><span class="b">·</span><b>Retorno de contenedor vacío</b> = Σ FCL de retiros cancelados × $${fmt(state.costoRetornoVacio)}/FCL</li>
+        <li><span class="b">·</span><b>Reprogramación de técnicos (SENASA)</b> = Σ FCL de líneas reprogramadas/canceladas con POD en <b>USA</b> (Miami, Port Hueneme, Philadelphia) × $${fmt(state.costoTecnicoUSA)}/FCL, más las de POD en <b>China</b> (Shanghai, Shenzhen) × $${fmt(state.costoTecnicoChina)}/FCL. Otros destinos no tienen este cargo definido aún.</li>
+        <li><span class="b">·</span><b>Reprogramación de transporte</b> = Σ FCL de todas las líneas reprogramadas o canceladas (cualquier destino) × $${fmt(state.costoTransporteReprog)}/FCL</li>
+        <li><span class="b">·</span><b>Sobrecosto total</b> = suma de los seis componentes anteriores</li>
+      </ul>
+    </div>
+
+    <div class="rule-section">
+      <div class="rt">FÓRMULAS DE COSTO DE OPORTUNIDAD (valores actuales)</div>
+      <ul class="rule-list">
+        <li><span class="b">·</span><b>PARTE 1 — Pérdida total ($${state.usdKg.toFixed(2)}/kg fijo):</b> aplica a fruta que simplemente no se despacha.</li>
+        <li><span class="b">·</span><b>Kg cancelados en ruta a puerto</b> = Σ del campo real <b>“Net weight”</b> de las líneas “ruta a puerto” canceladas (incluye aéreo ya cargado que retorna a packing) — es un dato fijo de cada PO, no una estimación.</li>
+        <li><span class="b">·</span><b>Kg en contenedores cosechados con observación de calidad</b> = contenedores declarados manualmente en “Antes” (sin PO real) × ${fmt(state.kgPerFcl)} kg/FCL asumido.</li>
+        <li><span class="b">·</span><b>Subtotal pérdida total</b> = (Kg cancelados + Kg con observación) × $${state.usdKg.toFixed(2)}/kg.</li>
+        <li><span class="b">·</span><b>PARTE 2 — Fruta no exportable, venta nacional (diferencial de precio):</b> esta fruta no se pierde, se vende en el mercado nacional en vez del internacional. El costo de oportunidad es solo la diferencia entre ambos precios.</li>
+        <li><span class="b">·</span><b>Kg fruta no exportable</b> = FCL declarados en “Antes” × ${fmt(state.kgPerFcl)} kg/FCL asumido.</li>
+        <li><span class="b">·</span><b>Costo por fruta no exportable</b> = Kg fruta no exportable × ($${state.usdKgInternacional.toFixed(2)}/kg internacional − $${state.usdKgNacional.toFixed(2)}/kg nacional).</li>
+        <li><span class="b">·</span><b>Costo de oportunidad total</b> = Subtotal pérdida total + Costo por fruta no exportable.</li>
+      </ul>
+      <div class="card-sub" style="margin-top:10px; color:var(--text-ghost);">Precio por kg (pérdida total), precios internacional/nacional, costo hora reefer, costo hora cambio de ruta y costo de retorno son editables en la pestaña “Después” → Parámetros de costo. El kg/FCL asumido solo aplica a los contenedores cosechados con observación de calidad y la fruta no exportable declarados manualmente, ya que los pedidos reales usan su “Net weight” real de Horizon.</div>
+    </div>
+  `;
+}
+
+function renderAlerts(calc){
+  const el = document.getElementById('alertsBar');
+  const alerts = [];
+  if(calc.criticos > 0){
+    alerts.push(`<div class="alert-bar alert-red"><span class="icon">▲</span><div><b>${calc.criticos} embarque${calc.criticos>1?'s':''} crítico${calc.criticos>1?'s':''}</b> — sin ruta viable en la ventana declarada, candidatos a roleo a la próxima semana de despacho.</div></div>`);
+  }
+  if(calc.asiaCancelados > 0){
+    alerts.push(`<div class="alert-bar alert-red"><span class="icon">⚠</span><div><b>${calc.asiaCancelados} embarque${calc.asiaCancelados>1?'s':''} a Asia cancelado${calc.asiaCancelados>1?'s':''}</b> — Chancay/Callao sin ruta y sin posibilidad de cambio de puerto para destinos asiáticos.</div></div>`);
+  }
+  if((calc.depotConectados + calc.devoluciones) > 0){
+    alerts.push(`<div class="alert-bar alert-amber"><span class="icon">⚑</span><div><b>Port Hueneme / Miami sin ruta:</b> ${calc.depotConectados} contenedor${calc.depotConectados===1?'':'es'} cargado${calc.depotConectados===1?'':'s'} retorna${calc.depotConectados===1?'':'n'} a packing (depot de planta), ${calc.devoluciones} unidad${calc.devoluciones===1?'':'es'} retirada${calc.devoluciones===1?'':'s'} en devolución de contenedor vacío.</div></div>`);
+  }
+  if(calc.cambiosPuertoLinea > 0){
+    alerts.push(`<div class="alert-bar alert-amber"><span class="icon">⇄</span><div><b>${calc.cambiosPuertoLinea} línea${calc.cambiosPuertoLinea>1?'s':''}</b> con cambio de puerto y/o línea naviera (Seaboard, Hueneme, Miami) aplicado por la simulación.</div></div>`);
+  }
+  if(calc.senasaAlertas.length > 0){
+    const paCount = calc.senasaAlertas.filter(x=>x.senasaAlert==='Cambiar por inspector local').length;
+    const trujilloCount = calc.senasaAlertas.filter(x=>x.senasaAlert==='Validar cambio a SENASA de Trujillo').length;
+    const parts = [];
+    if(paCount) parts.push(`${paCount} cambiar a inspector local (PA)`);
+    if(trujilloCount) parts.push(`${trujilloCount} validar cambio a SENASA Trujillo (Sáb–Lun)`);
+    alerts.push(`<div class="alert-bar alert-amber"><span class="icon">🌱</span><div><b>Puente Virú inoperativo — Chao, atención SENASA:</b> ${parts.join(' · ')}.</div></div>`);
+  }
+  if(calc.trAlertas.length > 0){
+    const nombres = [...new Set(calc.trAlertas.map(x=>x.s.trAssigned).filter(Boolean))];
+    alerts.push(`<div class="alert-bar alert-amber"><span class="icon">❄</span><div><b>${calc.trAlertas.length} contenedor${calc.trAlertas.length>1?'es':''} con cold treatment (T.R.)</b> en ruta afectada por puente inoperativo — validar ubicación de técnico: ${nombres.join(', ')}.</div></div>`);
+  }
+  el.innerHTML = alerts.length ? alerts.join('') : `<div class="alert-bar alert-amber" style="background:var(--panel-2); border-color:var(--border); color:var(--text-dim);"><span class="icon">·</span><div>Sin alertas activas para el filtro y ventana actuales.</div></div>`;
+}
+
+function renderAll(){
+  const calc = computeAll();
+  renderBridgePanel();
+  renderBorderPanel();
+  renderEnfenBar();
+  renderProviderPanel();
+  renderSimSummary(calc);
+  renderBoard(calc);
+  renderMap();
+  renderMapStats(calc);
+  renderKpis(calc);
+  renderAlerts(calc);
+  renderRules();
+}
+
+/* ======================================================================
+   # EXPORTAR — descarga de las 3 vistas (Antes / Durante / Después) en un solo Excel
+   ====================================================================== */
+function fmtDateShort(d){
+  return d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+function buildSheetAntes(calc){
+  const rows = [
+    ['MATRIZ DE PLANES DE EMERGENCIA ANTE LLUVIAS — VISTA 1: ANTES (SIMULACIÓN)'],
+    ['Generado', new Date().toLocaleString('es-PE')],
+    [],
+    ['VENTANA DE AFECTACIÓN Y SIMULACIÓN'],
+    ['Fecha inicio', fmtDateShort(state.dateStart)],
+    ['Fecha fin', fmtDateShort(state.dateEnd)],
+    ['Fecha actual de la simulación', fmtDateShort(state.simDate)],
+    ['Filtro de modalidad', state.modeFilter],
+    [],
+    ['PUENTES', 'Estado', 'Ruta alterna (diseño)', 'Alterna activa (doble check)', 'Desvío (h)'],
+    ...BRIDGES.map(b => [b.nombre, state.bridges[b.id] ? 'INOPERATIVO' : 'OPERATIVO', b.altAvailable ? 'SÍ' : 'NO', b.altAvailable ? (altEffective(b.id) ? 'SÍ' : 'DESACTIVADA MANUALMENTE') : 'N/A', b.desvioHoras]),
+    [],
+    ['FRONTERA TERRESTRE HACIA BRASIL', 'Ruta', 'País', 'Estado'],
+    ...BORDERS.map(b => [b.nombre, RUTA_LABEL[b.ruta], b.pais, state.borders[b.id] ? 'INOPERATIVO' : 'OPERATIVO']),
+    ['Ruta usada actualmente', (function(){ const c=rutaBrasilCheck(); return c.bloqueado ? 'NINGUNA — sin ruta a Brasil' : (c.rutaUsada==='sur' ? `${RUTA_LABEL.sur} (+${c.desvio}h)` : RUTA_LABEL.interoceanica); })()],
+    [],
+    ['INCREMENTO POR TRANSPORTISTA', '% incremento'],
+    ...PROVIDERS.transporte.filter(p => state.providerIncrease.transporte[p.id] > 0)
+      .map(p => [p.nombre, state.providerIncrease.transporte[p.id] + '%']),
+    [],
+    ['CONTENEDORES COSECHADOS CON OBSERVACIÓN DE CALIDAD (declarados)', state.containersAtRisk],
+    ['FRUTA NO EXPORTABLE (FCL, venta nacional)', state.fclNoExport],
+    [],
+    ['PARÁMETROS DE COSTO'],
+    ['Precio arándano fijo, pérdida total ($/kg)', state.usdKg],
+    ['Precio venta internacional ($/kg)', state.usdKgInternacional],
+    ['Precio venta nacional ($/kg)', state.usdKgNacional],
+    ['Costo hora reefer ($/h)', state.costoHoraReefer],
+    ['Costo hora cambio de ruta ($/h)', state.costoHoraCambioRuta],
+    ['Costo retorno contenedor vacío ($/FCL)', state.costoRetornoVacio],
+    ['Reprogramación técnicos SENASA · USA ($/FCL)', state.costoTecnicoUSA],
+    ['Reprogramación técnicos SENASA · China ($/FCL)', state.costoTecnicoChina],
+    ['Reprogramación de transporte ($/FCL)', state.costoTransporteReprog],
+    ['kg/FCL asumido (contenedores con observación / fruta no exportable)', state.kgPerFcl],
+  ];
+  return XLSX.utils.aoa_to_sheet(rows);
+}
+
+function buildSheetDurante(calc){
+  const header = ['Aprobación SOP','Instruction','PO','FCL','Planta','Journey Status BASC','POL original','POL final','Línea original','Línea final','Transport Operator','Custom Broker','Logistics Operator','POD','Packing Stage Load Status','Estado recalculado','Demora (h)','Nota operativa','Alerta SENASA','Alerta T.R.','Crítico (roleo)'];
+  const rows = calc.results.map(({s,r,senasaAlert,trAlert}) => {
+    const retirado = s.tipo !== 'retiro' || sameOrAfter(state.simDate, s.fecha);
+    const jsb = journeyStatusBasc(s, retirado);
+    const load = packingLoadStatus(s);
+    const sopOn = state.sopApproval[s.id] !== false;
+    return [
+      sopOn ? 'OK' : 'STAND BY', s.instruction, s.po, s.fcl, s.planta, jsb, s.pol, r.pol, s.linea||'', r.linea||s.linea||'',
+      s.carrier, s.broker, s.logistico, s.pod, load, r.status, r.delay, r.nota,
+      senasaAlert||'', trAlert||'', r.rolled ? 'SÍ' : 'NO'
+    ];
+  });
+  return XLSX.utils.aoa_to_sheet([header, ...rows]);
+}
+
+function buildSheetDespues(calc){
+  const rows = [
+    ['MATRIZ DE PLANES DE EMERGENCIA ANTE LLUVIAS — VISTA 3: DESPUÉS (KPIs)'],
+    [],
+    ['INDICADOR','VALOR'],
+    ['FCL afectados (Σ campo FCL)', calc.fclAfectados],
+    ['POD afectados', calc.podsAfectados],
+    ['POL afectados', calc.polsAfectados],
+    ['Retiros cancelados (Σ FCL)', calc.fclRetirosCancelados],
+    ['Tiempo de viaje normal (h)', calc.tiempoNormal.toFixed(1)],
+    ['Tiempo de viaje con demora (h)', calc.tiempoConDemora.toFixed(1)],
+    ['Críticos · roleo de semana', calc.criticos],
+    ['Asia cancelados', calc.asiaCancelados],
+    ['Retorno a packing (depot)', calc.depotConectados],
+    ['Devoluciones de contenedor vacío', calc.devoluciones],
+    ['Cambios de puerto / línea', calc.cambiosPuertoLinea],
+    [],
+    ['DESGLOSE DE SOBRECOSTOS ($)'],
+    ['Desvío por ruta alterna · reefer', Math.round(calc.costDesvio)],
+    ['Desvío por ruta alterna · cambio de ruta', Math.round(calc.costCambioRuta)],
+    ['Incremento de tarifa (transportista)', Math.round(calc.costTarifa)],
+    ['Retorno de contenedor vacío', Math.round(calc.costRetorno)],
+    ['Reprogramación de técnicos (SENASA)', Math.round(calc.costTecnicos)],
+    ['Reprogramación de transporte', Math.round(calc.costTransporteReprog)],
+    ['SOBRECOSTO TOTAL', Math.round(calc.costTotal)],
+    [],
+    ['DESGLOSE DE COSTO DE OPORTUNIDAD'],
+    ['Kg cancelados en ruta a puerto (Net weight real)', Math.round(calc.kgCancelRuta)],
+    ['Kg en contenedores con observación de calidad', Math.round(calc.kgRiesgo)],
+    ['Subtotal pérdida total ($, a $'+state.usdKg.toFixed(2)+'/kg)', Math.round(calc.costoOportunidadBase)],
+    ['FCL fruta no exportable', state.fclNoExport],
+    ['Kg fruta no exportable', Math.round(calc.kgNoExport)],
+    ['Diferencial precio internacional-nacional ($/kg)', calc.diferencialPrecio.toFixed(2)],
+    ['Costo por fruta no exportable ($)', Math.round(calc.costoNoExportable)],
+    ['COSTO DE OPORTUNIDAD TOTAL ($)', Math.round(calc.costoOportunidad)],
+  ];
+  return XLSX.utils.aoa_to_sheet(rows);
+}
+
+function exportReport(){
+  if(typeof XLSX === 'undefined'){
+    alert('No se pudo cargar la librería de exportación (XLSX). Verifica tu conexión a internet e inténtalo de nuevo.');
+    return;
+  }
+  const calc = computeAll();
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, buildSheetAntes(calc), 'Antes');
+  XLSX.utils.book_append_sheet(wb, buildSheetDurante(calc), 'Durante');
+  XLSX.utils.book_append_sheet(wb, buildSheetDespues(calc), 'Despues');
+  const stamp = new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+  XLSX.writeFile(wb, `matriz-emergencia-lluvias_${stamp}.xlsx`);
+}
+
+/* ======================================================================
+   # EVENTOS — tabs, inputs de supuestos, reset
+   ====================================================================== */
+function goTo(tab){
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === `view-${tab}`));
+}
+document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => goTo(btn.dataset.tab)));
+document.getElementById('exportBtn').addEventListener('click', exportReport);
+
+function resetSim(){
+  BRIDGES.forEach(b => state.bridges[b.id] = false);
+  BRIDGES.filter(b => b.altAvailable).forEach(b => state.altOverride[b.id] = true);
+  BORDERS.forEach(b => state.borders[b.id] = false);
+  ['transporte'].forEach(cat => PROVIDERS[cat].forEach(p => state.providerIncrease[cat][p.id] = 0));
+  state.containersAtRisk = 0;
+  state.fclNoExport = 0;
+  state.dateStart = new Date('2026-08-20');
+  state.dateEnd = new Date('2026-08-27');
+  state.simDate = new Date('2026-08-28');
+  state.modeFilter = 'Todos';
+  document.getElementById('inputContainersRisk').value = 0;
+  document.getElementById('inputFclNoExport').value = 0;
+  document.getElementById('inputDateStart').value = '2026-08-20';
+  document.getElementById('inputDateEnd').value = '2026-08-27';
+  document.getElementById('inputSimDate').value = '2026-08-28';
+  document.querySelectorAll('.mf-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'Todos'));
+  renderAll();
+}
+
+document.getElementById('inputContainersRisk').addEventListener('input', e => { state.containersAtRisk = Number(e.target.value)||0; renderAll(); });
+document.getElementById('inputFclNoExport').addEventListener('input', e => { state.fclNoExport = Number(e.target.value)||0; renderAll(); });
+document.getElementById('inputUsdKg').addEventListener('input', e => { state.usdKg = Number(e.target.value)||0; renderAll(); });
+document.getElementById('inputReefer').addEventListener('input', e => { state.costoHoraReefer = Number(e.target.value)||0; renderAll(); });
+document.getElementById('inputCambioRuta').addEventListener('input', e => { state.costoHoraCambioRuta = Number(e.target.value)||0; renderAll(); });
+document.getElementById('inputUsdKgIntl').addEventListener('input', e => { state.usdKgInternacional = Number(e.target.value)||0; renderAll(); });
+document.getElementById('inputUsdKgNac').addEventListener('input', e => { state.usdKgNacional = Number(e.target.value)||0; renderAll(); });
+document.getElementById('inputRetorno').addEventListener('input', e => { state.costoRetornoVacio = Number(e.target.value)||0; renderAll(); });
+document.getElementById('inputTecUSA').addEventListener('input', e => { state.costoTecnicoUSA = Number(e.target.value)||0; renderAll(); });
+document.getElementById('inputTecChina').addEventListener('input', e => { state.costoTecnicoChina = Number(e.target.value)||0; renderAll(); });
+document.getElementById('inputTransp').addEventListener('input', e => { state.costoTransporteReprog = Number(e.target.value)||0; renderAll(); });
+document.getElementById('inputKgFcl').addEventListener('input', e => { state.kgPerFcl = Number(e.target.value)||0; renderAll(); });
+
+document.getElementById('inputDateStart').addEventListener('change', e => { state.dateStart = new Date(e.target.value); renderAll(); });
+document.getElementById('inputDateEnd').addEventListener('change', e => { state.dateEnd = new Date(e.target.value); renderAll(); });
+document.getElementById('inputSimDate').addEventListener('change', e => { state.simDate = new Date(e.target.value); renderAll(); });
+
+document.querySelectorAll('.mf-btn').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('.mf-btn').forEach(b => b.classList.toggle('active', b === btn));
+  state.modeFilter = btn.dataset.mode;
+  renderAll();
+}));
+
+document.getElementById('gearBtn').addEventListener('click', () => document.getElementById('rulesModal').classList.add('open'));
+document.getElementById('closeModal').addEventListener('click', () => document.getElementById('rulesModal').classList.remove('open'));
+document.getElementById('rulesModal').addEventListener('click', e => { if(e.target.id === 'rulesModal') e.target.classList.remove('open'); });
+
+/* ======================================================================
+   # INIT
+   ====================================================================== */
+renderAll();
+</script>
+</body>
+</html>

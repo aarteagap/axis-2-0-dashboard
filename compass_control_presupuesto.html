@@ -982,6 +982,7 @@ function renderWeeklyTrend() {
     },
     options: {
       responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 34 } },
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
@@ -992,7 +993,7 @@ function renderWeeklyTrend() {
       },
       scales: {
         x: { ticks: { color: chartPalette.tick, font: { family: 'Inter', size: 9, weight: '600' } }, grid: { color: chartPalette.grid }, border: { display: false } },
-        y: { position: 'left', min: 0, ticks: { stepSize: 200, color: chartPalette.tick, font: { family: 'Inter', size: 9 }, callback: (v) => '$' + v.toLocaleString('en-US') }, grid: { color: chartPalette.grid }, border: { display: false }, title: { display: true, text: 'US$ / viaje (Target)', color: chartPalette.tick, font: { family: 'Inter', size: 9, weight: '600' } } },
+        y: { position: 'left', min: 0, grace: '10%', ticks: { stepSize: 200, color: chartPalette.tick, font: { family: 'Inter', size: 9 }, callback: (v) => '$' + v.toLocaleString('en-US') }, grid: { color: chartPalette.grid }, border: { display: false }, title: { display: true, text: 'US$ / viaje (Target)', color: chartPalette.tick, font: { family: 'Inter', size: 9, weight: '600' } } },
         y1: { position: 'right', ticks: { color: chartPalette.tick, font: { family: 'Inter', size: 9 } }, grid: { display: false }, border: { display: false }, title: { display: true, text: 'FCL contenedores', color: chartPalette.tick, font: { family: 'Inter', size: 9, weight: '600' } } },
       },
     },
@@ -1949,6 +1950,7 @@ window.parent.postMessage({ type: 'ready', view: 'maestro' }, '*');
         <div class="topbar-sub">Presupuesto adjudicado vs. ejecutado por proveedor y ubicación</div>
       </div>
       <div class="topbar-right">
+        <a class="header-btn" href="presupuesto_transporte_dashboard_v2.html">← Volver al Dashboard</a>
         <div class="theme-switch">
           <span class="theme-switch-label">🌙</span>
           <button class="ios-toggle" id="themeToggle"><span class="knob"></span></button>
@@ -1987,7 +1989,8 @@ window.parent.postMessage({ type: 'ready', view: 'maestro' }, '*');
 // OP. LOGISTICO, GEST. DOCUMENTAL, GEST. SENASA) cruzado con
 // HORIZON_FORECAST (Mode=Marítimo, Status=Confirmado).
 // =====================================================================
-const DATA = {"aduana": {"label": "Ag. Aduana", "icon": "🛃", "loc_kind": "POL", "rows": [{"proveedor": "CITIADUANAS SOCIEDAD ANONIMA CERRADA", "ubicacion": "PAITA", "servicio": "Comisión de Aduanas - PAITA", "tarifa_inicial": 43.0, "presupuesto_total": 9860.76, "viajes_estimados": 229.32, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "LIP ADUANAS S.A.", "ubicacion": "CALLAO", "servicio": "Comisión de Aduanas - CALLAO", "tarifa_inicial": 43.0, "presupuesto_total": 27778.0, "viajes_estimados": 646.0, "fcl_ejecutado": 63.0, "presupuesto_ejecutado": 2709.0, "sin_presupuesto": false}, {"proveedor": "LIP ADUANAS S.A.", "ubicacion": "CHANCAY", "servicio": "Comisión de Aduanas - CHANCAY", "tarifa_inicial": 43.0, "presupuesto_total": 9073.0, "viajes_estimados": 211.0, "fcl_ejecutado": 58.0, "presupuesto_ejecutado": 2494.0, "sin_presupuesto": false}, {"proveedor": "LIP ADUANAS S.A.", "ubicacion": "PAITA", "servicio": "Comisión de Aduanas - PAITA", "tarifa_inicial": 43.0, "presupuesto_total": 72312.24, "viajes_estimados": 1681.68, "fcl_ejecutado": 133.0, "presupuesto_ejecutado": 5719.0, "sin_presupuesto": false}], "unmatched_codes": {}}, "oplog": {"label": "Op. Logístico", "icon": "🚛", "loc_kind": "POL", "rows": [{"proveedor": "DP WORLD LOGISTICS S.R.L.", "ubicacion": "CALLAO", "servicio": "Handling - CALLAO", "tarifa_inicial": 55.0, "presupuesto_total": 19541.5, "viajes_estimados": 355.3, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "DP WORLD LOGISTICS S.R.L.", "ubicacion": "CHANCAY", "servicio": "Handling - CHANCAY", "tarifa_inicial": 65.0, "presupuesto_total": 7543.25, "viajes_estimados": 116.05, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "DP WORLD LOGISTICS S.R.L.", "ubicacion": "PAITA", "servicio": "Handling - PAITA", "tarifa_inicial": 55.0, "presupuesto_total": 21021.0, "viajes_estimados": 382.2, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "MAERSK LOGISTICS & SERVICES PERU S.A.", "ubicacion": "PAITA", "servicio": "Handling - PAITA", "tarifa_inicial": 65.0, "presupuesto_total": 18632.25, "viajes_estimados": 286.65, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "NEW TRANSPORT S.A", "ubicacion": "CALLAO", "servicio": "Handling - CALLAO", "tarifa_inicial": 60.0, "presupuesto_total": 17442.0, "viajes_estimados": 290.7, "fcl_ejecutado": 63.0, "presupuesto_ejecutado": 3780.0, "sin_presupuesto": false}, {"proveedor": "NEW TRANSPORT S.A", "ubicacion": "CHANCAY", "servicio": "Handling - CHANCAY", "tarifa_inicial": 60.0, "presupuesto_total": 5697.0, "viajes_estimados": 94.95, "fcl_ejecutado": 58.0, "presupuesto_ejecutado": 3480.0, "sin_presupuesto": false}, {"proveedor": "NEW TRANSPORT S.A", "ubicacion": "PAITA", "servicio": "Handling - PAITA", "tarifa_inicial": 60.0, "presupuesto_total": 34398.0, "viajes_estimados": 573.3, "fcl_ejecutado": 114.0, "presupuesto_ejecutado": 6840.0, "sin_presupuesto": false}, {"proveedor": "SPECIALIZED REEFER LOGIST", "ubicacion": "PAITA", "servicio": "Handling - PAITA", "tarifa_inicial": 80.0, "presupuesto_total": 53520.0, "viajes_estimados": 669.0, "fcl_ejecutado": 36.0, "presupuesto_ejecutado": 2880.0, "sin_presupuesto": false}], "unmatched_codes": {}}, "docum": {"label": "Gest. Documental", "icon": "📄", "loc_kind": "Packing", "rows": [{"proveedor": "Despachos Aduaneros Chavimochic SAC", "ubicacion": "CHAO", "servicio": "GESTION DOCUMENTARIA - CHAO", "tarifa_inicial": 22.0, "presupuesto_total": 3889.6, "viajes_estimados": 176.8, "fcl_ejecutado": 38.0, "presupuesto_ejecutado": 836.0, "sin_presupuesto": false}, {"proveedor": "Despachos Aduaneros Chavimochic SAC", "ubicacion": "SALAVERRY", "servicio": "GESTION DOCUMENTARIA - P. SALAVERRY", "tarifa_inicial": 22.0, "presupuesto_total": 4180.0, "viajes_estimados": 190.0, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "SPECIALIZED REEFER LOGIST", "ubicacion": "CHAO", "servicio": "GESTION DOCUMENTARIA - CHAO", "tarifa_inicial": 9.0, "presupuesto_total": 6364.8, "viajes_estimados": 707.2, "fcl_ejecutado": 149.5, "presupuesto_ejecutado": 1345.5, "sin_presupuesto": false}, {"proveedor": "SPECIALIZED REEFER LOGIST", "ubicacion": "OLMOS", "servicio": "GESTION DOCUMENTARIA - P. OLMOS", "tarifa_inicial": 9.0, "presupuesto_total": 2106.0, "viajes_estimados": 234.0, "fcl_ejecutado": 16.5, "presupuesto_ejecutado": 148.5, "sin_presupuesto": false}, {"proveedor": "SPECIALIZED REEFER LOGIST", "ubicacion": "SALAVERRY", "servicio": "GESTION DOCUMENTARIA - P. SALAVERRY", "tarifa_inicial": 9.0, "presupuesto_total": 6840.0, "viajes_estimados": 760.0, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}], "unmatched_codes": {"NWT": 50}}, "senasa": {"label": "Gest. SENASA", "icon": "🌱", "loc_kind": "Packing", "rows": [{"proveedor": "SPECIALIZED REEFER LOGISTICS S.A.C.", "ubicacion": "CHAO", "servicio": "GESTION SENASA - CHAO", "tarifa_inicial": 13.0, "presupuesto_total": 11492.0, "viajes_estimados": 884.0, "fcl_ejecutado": 244.5, "presupuesto_ejecutado": 3178.5, "sin_presupuesto": false}, {"proveedor": "SPECIALIZED REEFER LOGISTICS S.A.C.", "ubicacion": "SALAVERRY", "servicio": "GESTION SENASA - SALAVERRY", "tarifa_inicial": 13.0, "presupuesto_total": 12350.0, "viajes_estimados": 950.0, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "SPECIALIZED REEFER LOGISTICS S.A.C.", "ubicacion": "OLMOS", "servicio": "Gest. SENASA - OLMOS (sin presupuesto)", "tarifa_inicial": 0.0, "presupuesto_total": 0.0, "viajes_estimados": 0.0, "fcl_ejecutado": 19.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": true}], "unmatched_codes": {"HFEB": 9}}};
+const DATA = {"aduana": {"label": "Ag. Aduana", "icon": "🛃", "loc_kind": "POL", "rows": [{"proveedor": "CITIADUANAS SOCIEDAD ANONIMA CERRADA", "ubicacion": "PAITA", "servicio": "Comisión de Aduanas - PAITA", "tarifa_inicial": 43.0, "presupuesto_total": 9860.76, "viajes_estimados": 229.32, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "LIP ADUANAS S.A.", "ubicacion": "CALLAO", "servicio": "Comisión de Aduanas - CALLAO", "tarifa_inicial": 43.0, "presupuesto_total": 27778.0, "viajes_estimados": 646.0, "fcl_ejecutado": 63.0, "presupuesto_ejecutado": 2709.0, "sin_presupuesto": false}, {"proveedor": "LIP ADUANAS S.A.", "ubicacion": "CHANCAY", "servicio": "Comisión de Aduanas - CHANCAY", "tarifa_inicial": 43.0, "presupuesto_total": 9073.0, "viajes_estimados": 211.0, "fcl_ejecutado": 58.0, "presupuesto_ejecutado": 2494.0, "sin_presupuesto": false}, {"proveedor": "LIP ADUANAS S.A.", "ubicacion": "PAITA", "servicio": "Comisión de Aduanas - PAITA", "tarifa_inicial": 43.0, "presupuesto_total": 72312.24, "viajes_estimados": 1681.68, "fcl_ejecutado": 133.0, "presupuesto_ejecutado": 5719.0, "sin_presupuesto": false}], "unmatched_codes": {}}, "oplog": {"label": "Op. Logístico", "icon": "🚛", "loc_kind": "POL", "rows": [{"proveedor": "DP WORLD LOGISTICS S.R.L.", "ubicacion": "CALLAO", "servicio": "Handling - CALLAO", "tarifa_inicial": 55.0, "presupuesto_total": 19541.5, "viajes_estimados": 355.3, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "DP WORLD LOGISTICS S.R.L.", "ubicacion": "CHANCAY", "servicio": "Handling - CHANCAY", "tarifa_inicial": 65.0, "presupuesto_total": 7543.25, "viajes_estimados": 116.05, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "DP WORLD LOGISTICS S.R.L.", "ubicacion": "PAITA", "servicio": "Handling - PAITA", "tarifa_inicial": 55.0, "presupuesto_total": 21021.0, "viajes_estimados": 382.2, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "MAERSK LOGISTICS & SERVICES PERU S.A.", "ubicacion": "PAITA", "servicio": "Handling - PAITA", "tarifa_inicial": 65.0, "presupuesto_total": 18632.25, "viajes_estimados": 286.65, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "NEW TRANSPORT S.A", "ubicacion": "CALLAO", "servicio": "Handling - CALLAO", "tarifa_inicial": 60.0, "presupuesto_total": 17442.0, "viajes_estimados": 290.7, "fcl_ejecutado": 63.0, "presupuesto_ejecutado": 3780.0, "sin_presupuesto": false}, {"proveedor": "NEW TRANSPORT S.A", "ubicacion": "CHANCAY", "servicio": "Handling - CHANCAY", "tarifa_inicial": 60.0, "presupuesto_total": 5697.0, "viajes_estimados": 94.95, "fcl_ejecutado": 58.0, "presupuesto_ejecutado": 3480.0, "sin_presupuesto": false}, {"proveedor": "NEW TRANSPORT S.A", "ubicacion": "PAITA", "servicio": "Handling - PAITA", "tarifa_inicial": 60.0, "presupuesto_total": 34398.0, "viajes_estimados": 573.3, "fcl_ejecutado": 114.0, "presupuesto_ejecutado": 6840.0, "sin_presupuesto": false}, {"proveedor": "SPECIALIZED REEFER LOGIST", "ubicacion": "PAITA", "servicio": "Handling - PAITA", "tarifa_inicial": 80.0, "presupuesto_total": 53520.0, "viajes_estimados": 669.0, "fcl_ejecutado": 36.0, "presupuesto_ejecutado": 2880.0, "sin_presupuesto": false}], "unmatched_codes": {}}, "docum": {"label": "Gest. Documental", "icon": "📄", "loc_kind": "Packing", "rows": [{"proveedor": "Despachos Aduaneros Chavimochic SAC", "ubicacion": "CHAO", "servicio": "GESTION DOCUMENTARIA - CHAO", "tarifa_inicial": 22.0, "presupuesto_total": 3889.6, "viajes_estimados": 176.8, "fcl_ejecutado": 38.0, "presupuesto_ejecutado": 836.0, "sin_presupuesto": false}, {"proveedor": "Despachos Aduaneros Chavimochic SAC", "ubicacion": "SALAVERRY", "servicio": "GESTION DOCUMENTARIA - P. SALAVERRY", "tarifa_inicial": 22.0, "presupuesto_total": 4180.0, "viajes_estimados": 190.0, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "SPECIALIZED REEFER LOGIST", "ubicacion": "CHAO", "servicio": "GESTION DOCUMENTARIA - CHAO", "tarifa_inicial": 9.0, "presupuesto_total": 6364.8, "viajes_estimados": 707.2, "fcl_ejecutado": 149.5, "presupuesto_ejecutado": 1345.5, "sin_presupuesto": false}, {"proveedor": "SPECIALIZED REEFER LOGIST", "ubicacion": "OLMOS", "servicio": "GESTION DOCUMENTARIA - P. OLMOS", "tarifa_inicial": 9.0, "presupuesto_total": 2106.0, "viajes_estimados": 234.0, "fcl_ejecutado": 16.5, "presupuesto_ejecutado": 148.5, "sin_presupuesto": false}, {"proveedor": "SPECIALIZED REEFER LOGIST", "ubicacion": "SALAVERRY", "servicio": "GESTION DOCUMENTARIA - P. SALAVERRY", "tarifa_inicial": 9.0, "presupuesto_total": 6840.0, "viajes_estimados": 760.0, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}], "unmatched_codes": {"NWT": 50}}, "senasa": {"label": "Gest. SENASA", "icon": "🌱", "loc_kind": "Packing", "rows": [{"proveedor": "SPECIALIZED REEFER LOGISTICS S.A.C.", "ubicacion": "CHAO", "servicio": "GESTION SENASA - CHAO", "tarifa_inicial": 13.0, "presupuesto_total": 11492.0, "viajes_estimados": 884.0, "fcl_ejecutado": 244.5, "presupuesto_ejecutado": 3178.5, "sin_presupuesto": false}, {"proveedor": "SPECIALIZED REEFER LOGISTICS S.A.C.", "ubicacion": "SALAVERRY", "servicio": "GESTION SENASA - SALAVERRY", "tarifa_inicial": 13.0, "presupuesto_total": 12350.0, "viajes_estimados": 950.0, "fcl_ejecutado": 0.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": false}, {"proveedor": "SPECIALIZED REEFER LOGISTICS S.A.C.", "ubicacion": "OLMOS", "servicio": "Gest. SENASA - OLMOS (sin presupuesto)", "tarifa_inicial": 0.0, "presupuesto_total": 0.0, "viajes_estimados": 0.0, "fcl_ejecutado": 19.0, "presupuesto_ejecutado": 0.0, "sin_presupuesto": true}], "unmatched_codes": {"HFEB": 9}}, "linea": {"label": "Línea", "icon": "🚢", "loc_kind": "POL", "unit": "fcl", "rows": [{"proveedor": "COSCO SHIPPING LINES PERU S.A.", "ubicacion": "Chancay", "servicio": "Chile (CLSAI)", "tarifa_inicial": 0.0, "presupuesto_total": 11.0, "viajes_estimados": 11.0, "fcl_ejecutado": 7, "presupuesto_ejecutado": 7, "sin_presupuesto": false}, {"proveedor": "COSCO SHIPPING LINES PERU S.A.", "ubicacion": "Chancay", "servicio": "China / Hong Kong (CNSHA)", "tarifa_inicial": 0.0, "presupuesto_total": 173.7, "viajes_estimados": 173.7, "fcl_ejecutado": 46.0, "presupuesto_ejecutado": 46.0, "sin_presupuesto": false}, {"proveedor": "EVERGREEN SHIPPING AGENCY (PERU)", "ubicacion": "Callao", "servicio": "China / Hong Kong (CNSZX)", "tarifa_inicial": 0.0, "presupuesto_total": 135.1, "viajes_estimados": 135.1, "fcl_ejecutado": 32.0, "presupuesto_ejecutado": 32.0, "sin_presupuesto": false}, {"proveedor": "OCEAN NETWORK EXPRESS (PERU) S.A.C.", "ubicacion": "Callao", "servicio": "China / Hong Kong (CNSZX)", "tarifa_inicial": 0.0, "presupuesto_total": 38.6, "viajes_estimados": 38.6, "fcl_ejecutado": 4, "presupuesto_ejecutado": 4, "sin_presupuesto": false}, {"proveedor": "WAN HAI LINES PERU S.A.C.", "ubicacion": "Callao", "servicio": "China / Hong Kong (CNSZX)", "tarifa_inicial": 0.0, "presupuesto_total": 38.6, "viajes_estimados": 38.6, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}, {"proveedor": "SEABOARD", "ubicacion": "Paita", "servicio": "East Coast Usa (USPHL)", "tarifa_inicial": 0.0, "presupuesto_total": 519.12, "viajes_estimados": 519.12, "fcl_ejecutado": 90.0, "presupuesto_ejecutado": 90.0, "sin_presupuesto": false}, {"proveedor": "SEABOARD", "ubicacion": "Callao", "servicio": "East Coast Usa (USPHL)", "tarifa_inicial": 0.0, "presupuesto_total": 129.78, "viajes_estimados": 129.78, "fcl_ejecutado": 2, "presupuesto_ejecutado": 2, "sin_presupuesto": false}, {"proveedor": "OCEAN NETWORK EXPRESS (PERU) S.A.C.", "ubicacion": "Callao", "servicio": "East Coast Usa (USPHL)", "tarifa_inicial": 0.0, "presupuesto_total": 92.7, "viajes_estimados": 92.7, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}, {"proveedor": "TRANSMARES REPRE.MARITI.Y COMERC.S.A.C.", "ubicacion": "Paita", "servicio": "East Coast Usa (USPHL)", "tarifa_inicial": 0.0, "presupuesto_total": 92.7, "viajes_estimados": 92.7, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}, {"proveedor": "COSCO SHIPPING LINES PERU S.A.", "ubicacion": "Callao", "servicio": "East Coast Usa (USPHL)", "tarifa_inicial": 0.0, "presupuesto_total": 46.35, "viajes_estimados": 46.35, "fcl_ejecutado": 2, "presupuesto_ejecutado": 2, "sin_presupuesto": false}, {"proveedor": "MEDITERRANEAN SHIPPING COMPANY DEL PERU S.A.", "ubicacion": "Paita", "servicio": "East Coast Usa (USPHL)", "tarifa_inicial": 0.0, "presupuesto_total": 46.35, "viajes_estimados": 46.35, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}, {"proveedor": "MAERSK LINE PERU S.A.C.", "ubicacion": "Paita", "servicio": "España (ESALG)", "tarifa_inicial": 0.0, "presupuesto_total": 52.85, "viajes_estimados": 52.85, "fcl_ejecutado": 2.0, "presupuesto_ejecutado": 2.0, "sin_presupuesto": false}, {"proveedor": "MAERSK LINE PERU S.A.C.", "ubicacion": "Callao", "servicio": "España (ESALG)", "tarifa_inicial": 0.0, "presupuesto_total": 52.85, "viajes_estimados": 52.85, "fcl_ejecutado": 11, "presupuesto_ejecutado": 11, "sin_presupuesto": false}, {"proveedor": "CMA CGM PERU SAC", "ubicacion": "Callao", "servicio": "España (ESALG)", "tarifa_inicial": 0.0, "presupuesto_total": 45.3, "viajes_estimados": 45.3, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}, {"proveedor": "ANKASEA SAC", "ubicacion": "Paita", "servicio": "Paises Bajos (NLVLI)", "tarifa_inicial": 0.0, "presupuesto_total": 87.2, "viajes_estimados": 87.2, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}, {"proveedor": "CMA CGM PERU SAC", "ubicacion": "Callao", "servicio": "Paises Bajos (NLRTM)", "tarifa_inicial": 0.0, "presupuesto_total": 43.6, "viajes_estimados": 43.6, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}, {"proveedor": "PEREZ Y CIA PERU S.A.C.", "ubicacion": "Paita", "servicio": "Paises Bajos (NLVLI)", "tarifa_inicial": 0.0, "presupuesto_total": 21.8, "viajes_estimados": 21.8, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}, {"proveedor": "SEABOARD", "ubicacion": "Paita", "servicio": "South Coast Usa (USMIA)", "tarifa_inicial": 0.0, "presupuesto_total": 100.9, "viajes_estimados": 100.9, "fcl_ejecutado": 12.0, "presupuesto_ejecutado": 12.0, "sin_presupuesto": false}, {"proveedor": "TRANSMARES REPRE.MARITI.Y COMERC.S.A.C.", "ubicacion": "Paita", "servicio": "South Coast Usa (USMIA)", "tarifa_inicial": 0.0, "presupuesto_total": 7.3, "viajes_estimados": 7.3, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}, {"proveedor": "EVERGREEN SHIPPING AGENCY (PERU)", "ubicacion": "Callao", "servicio": "Taiwan (TWKHH)", "tarifa_inicial": 0.0, "presupuesto_total": 48.75, "viajes_estimados": 48.75, "fcl_ejecutado": 14.0, "presupuesto_ejecutado": 14.0, "sin_presupuesto": false}, {"proveedor": "WAN HAI LINES PERU S.A.C.", "ubicacion": "Callao", "servicio": "Taiwan (TWKHH)", "tarifa_inicial": 0.0, "presupuesto_total": 18.75, "viajes_estimados": 18.75, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}, {"proveedor": "COSCO SHIPPING LINES PERU S.A.", "ubicacion": "Chancay", "servicio": "Taiwan (TWKHH)", "tarifa_inicial": 0.0, "presupuesto_total": 7.5, "viajes_estimados": 7.5, "fcl_ejecutado": 5, "presupuesto_ejecutado": 5, "sin_presupuesto": false}, {"proveedor": "ANKASEA SAC", "ubicacion": "Paita", "servicio": "Uk (GBDVR)", "tarifa_inicial": 0.0, "presupuesto_total": 368.0, "viajes_estimados": 368.0, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}, {"proveedor": "DEL MONTE FRESH PRODUCE COMPANY", "ubicacion": "Paita", "servicio": "West Coast Usa (USNTD)", "tarifa_inicial": 0.0, "presupuesto_total": 268.5, "viajes_estimados": 268.5, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}, {"proveedor": "PEREZ Y CIA PERU S.A.C.", "ubicacion": "Paita", "servicio": "West Coast Usa (USNTD)", "tarifa_inicial": 0.0, "presupuesto_total": 53.7, "viajes_estimados": 53.7, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}, {"proveedor": "MAERSK LINE PERU S.A.C.", "ubicacion": "Paita", "servicio": "West Coast Usa (USNTD)", "tarifa_inicial": 0.0, "presupuesto_total": 35.8, "viajes_estimados": 35.8, "fcl_ejecutado": 0, "presupuesto_ejecutado": 0, "sin_presupuesto": false}], "unmatched_codes": {"Seatrade": 41.0, "PIL": 8, "Network Shipping": 31.0, "ZIM": 5}}
+};
 
 // =====================================================================
 // # 03 ESTADO
@@ -2000,6 +2003,8 @@ function fmtUSD(n, opts = {}) {
 }
 function fmtNum(n, decimals = 0) { return (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); }
 function initials(name) { return name.trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase(); }
+// Línea no tiene tarifa en US$ (es cupo/volumen adjudicado por naviera) — se muestra en FCL.
+function fmtVal(n, unit, opts = {}) { return unit === 'fcl' ? fmtNum(n, opts.decimals ?? 1) + ' FCL' : fmtUSD(n, opts); }
 
 // =====================================================================
 // # 04 TEMA CLARO/OSCURO
@@ -2039,39 +2044,43 @@ function renderTabs() {
 // =====================================================================
 function renderKPIs() {
   const el = document.getElementById('kpiStrip');
-  const rows = DATA[state.category].rows;
+  const cat = DATA[state.category];
+  const unit = cat.unit || '$';
+  const rows = cat.rows;
   const presupuestoTotal = rows.reduce((a, r) => a + r.presupuesto_total, 0);
   const presupuestoEjecutado = rows.reduce((a, r) => a + r.presupuesto_ejecutado, 0);
   const fclEjecutado = rows.reduce((a, r) => a + r.fcl_ejecutado, 0);
   const viajesEstimados = rows.reduce((a, r) => a + r.viajes_estimados, 0);
   const nProveedores = new Set(rows.map(r => r.proveedor)).size;
   const pct = presupuestoTotal > 0 ? (presupuestoEjecutado / presupuestoTotal * 100) : 0;
-  const unmatched = DATA[state.category].unmatched_codes;
+  const unmatched = cat.unmatched_codes;
   const unmatchedTotal = Object.values(unmatched).reduce((a,b) => a+b, 0);
+  const label1 = unit === 'fcl' ? 'Volumen adjudicado' : 'Presupuesto adjudicado';
+  const label4 = unit === 'fcl' ? 'Sin naviera mapeada' : 'Sin tarifa asignada';
 
   el.innerHTML = `
     <div class="kpi-card">
-      <div class="kpi-icon blue">💰</div>
-      <div class="kpi-label">Presupuesto adjudicado</div>
-      <div class="kpi-value">${fmtUSD(presupuestoTotal)}</div>
+      <div class="kpi-icon blue">${unit === 'fcl' ? '🚢' : '💰'}</div>
+      <div class="kpi-label">${label1}</div>
+      <div class="kpi-value">${fmtVal(presupuestoTotal, unit)}</div>
       <div class="kpi-sub">${nProveedores} proveedor(es)</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-icon green">✅</div>
       <div class="kpi-label">Ejecutado</div>
-      <div class="kpi-value">${fmtUSD(presupuestoEjecutado)}</div>
+      <div class="kpi-value">${fmtVal(presupuestoEjecutado, unit)}</div>
       <div class="kpi-sub">${fmtNum(fclEjecutado,1)} FCL de ${fmtNum(viajesEstimados,0)} estimados</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-icon orange">📈</div>
       <div class="kpi-label">Avance</div>
       <div class="kpi-value">${pct.toFixed(1)}%</div>
-      <div class="kpi-sub">del presupuesto adjudicado</div>
+      <div class="kpi-sub">del ${label1.toLowerCase()}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-icon purple">⚠️</div>
-      <div class="kpi-label">Sin tarifa asignada</div>
-      <div class="kpi-value">${unmatchedTotal}</div>
+      <div class="kpi-label">${label4}</div>
+      <div class="kpi-value">${fmtNum(unmatchedTotal,1)}</div>
       <div class="kpi-sub">${unmatchedTotal ? Object.entries(unmatched).map(([k,v]) => `${k}: ${v}`).join(' · ') : 'todo conciliado'}</div>
     </div>
   `;
@@ -2099,8 +2108,10 @@ function matchesFilter(r) {
 // =====================================================================
 function renderProviderList() {
   const container = document.getElementById('providerList');
-  const rows = DATA[state.category].rows.filter(matchesFilter);
-  const locKind = DATA[state.category].loc_kind;
+  const cat = DATA[state.category];
+  const unit = cat.unit || '$';
+  const rows = cat.rows.filter(matchesFilter);
+  const locKind = cat.loc_kind;
 
   const grouped = new Map();
   rows.forEach(r => { if (!grouped.has(r.proveedor)) grouped.set(r.proveedor, []); grouped.get(r.proveedor).push(r); });
@@ -2136,8 +2147,8 @@ function renderProviderList() {
           <div class="provider-meta">${list.length} ubicación(es) · ${fmtNum(fcl_ejecutado,1)} FCL ejecutados de ${fmtNum(viajes_estimados,0)} est.</div>
         </div>
         <div class="provider-stats">
-          <div class="pstat"><div class="pstat-label">Presupuesto</div><div class="pstat-value">${fmtUSD(presupuesto_total)}</div></div>
-          <div class="pstat"><div class="pstat-label">Ejecutado</div><div class="pstat-value">${fmtUSD(presupuesto_ejecutado)}</div></div>
+          <div class="pstat"><div class="pstat-label">${unit === 'fcl' ? 'Adjudicado' : 'Presupuesto'}</div><div class="pstat-value">${fmtVal(presupuesto_total, unit)}</div></div>
+          <div class="pstat"><div class="pstat-label">Ejecutado</div><div class="pstat-value">${fmtVal(presupuesto_ejecutado, unit)}</div></div>
           <div class="provider-progress-wrap">
             <div class="provider-progress-bar"><div class="provider-progress-fill" style="width:${pct}%"></div></div>
             <div class="provider-progress-pct">${pct.toFixed(0)}%</div>
@@ -2146,7 +2157,7 @@ function renderProviderList() {
       </div>
       <div class="route-panel">
         <div class="route-list">
-          ${list.sort((a,b) => b.presupuesto_total - a.presupuesto_total).map(r => renderLocationRow(r, locKind)).join('')}
+          ${list.sort((a,b) => b.presupuesto_total - a.presupuesto_total).map(r => renderLocationRow(r, locKind, unit)).join('')}
         </div>
       </div>
     </div>`;
@@ -2161,19 +2172,20 @@ function renderProviderList() {
   });
 }
 
-function renderLocationRow(r, locKind) {
+function renderLocationRow(r, locKind, unit) {
   const pct = r.presupuesto_total > 0 ? Math.min(100, (r.presupuesto_ejecutado / r.presupuesto_total) * 100) : (r.sin_presupuesto ? 100 : 0);
   const barClass = r.sin_presupuesto ? 'striped' : 'blue';
+  const tarifaPill = unit === 'fcl' ? '' : `<span class="tarifa-pill">Tarifa: ${fmtUSD(r.tarifa_inicial, {decimals: r.tarifa_inicial % 1 !== 0 ? 2 : 0})}</span>`;
   return `
     <div class="route-row ${r.sin_presupuesto ? 'sin-presupuesto' : ''}">
       <div class="route-top">
         <div>
-          <span class="route-name">${locKind}: ${r.ubicacion}</span>
+          <span class="route-name">${locKind}: ${r.ubicacion}${unit === 'fcl' ? ' — Destino ' + r.servicio : ''}</span>
           ${r.sin_presupuesto ? '<span class="flag">Sin presupuesto</span>' : ''}
         </div>
         <div class="route-right">
           <span class="route-viajes">${fmtNum(r.fcl_ejecutado,1)} / ${fmtNum(r.viajes_estimados,1)} viajes</span>
-          <span class="tarifa-pill">Tarifa: ${fmtUSD(r.tarifa_inicial, {decimals: r.tarifa_inicial % 1 !== 0 ? 2 : 0})}</span>
+          ${tarifaPill}
         </div>
       </div>
       <div class="bar-wrap">
@@ -2197,10 +2209,12 @@ function renderFooterNote() {
   const zeroProvNote = state.category === 'oplog'
     ? ' <b>DP WORLD LOGISTICS S.R.L.</b> y <b>MAERSK LOGISTICS &amp; SERVICES PERU S.A.</b> ya están mapeados (códigos DPW/DPWL y Maersk), pero muestran $0 ejecutado porque hoy no tienen ningún envío con Mode=Marítimo y Status=Confirmado en Horizon — no es un problema de mapeo, es que aún no han ejecutado.'
     : '';
+  const methodologyTxt = (cat.unit === 'fcl')
+    ? `Ejecutado = FCL confirmados en Horizon (Mode = Marítimo, Status = Confirmado) agrupados por Naviera (campo "Line") + Puerto de Embarque (POL), y cruzados contra el Volumen adjudicado por Naviera/POL/Destino de la hoja "Línea". El Destino de cada envío se infiere desde el Puerto de Descarga (POD) de Horizon, ubicándolo dentro del bloque de destino de la hoja de tarifas (ej. Shanghai/Shenzhen → China / Hong Kong).`
+    : `Ejecutado = FCL confirmados en Horizon (Mode = Marítimo, Status = Confirmado) sumados por ${cat.loc_kind === 'POL' ? 'Puerto de Embarque (POL)' : 'Packing / planta'}, identificando al proveedor vía el campo de Horizon correspondiente a esta categoría. Mapeo de códigos usado: LIP Aduanas→LIP ADUANAS S.A. · NWT→NEW TRANSPORT S.A · SRL→SPECIALIZED REEFER (LOGIST / LOGISTICS S.A.C. según hoja) · DPW/DPWL→DP WORLD LOGISTICS S.R.L. · Maersk→MAERSK LOGISTICS &amp; SERVICES PERU S.A. · Chavimochic→Despachos Aduaneros Chavimochic SAC.${zeroProvNote}`;
   el.innerHTML = `
     <b>Notas de esta categoría (${cat.label}):</b><br>
-    Ejecutado = FCL confirmados en Horizon (Mode = Marítimo, Status = Confirmado) sumados por ${cat.loc_kind === 'POL' ? 'Puerto de Embarque (POL)' : 'Packing / planta'}, identificando al proveedor vía el campo de Horizon correspondiente a esta categoría.
-    Mapeo de códigos usado: LIP Aduanas→LIP ADUANAS S.A. · NWT→NEW TRANSPORT S.A · SRL→SPECIALIZED REEFER (LOGIST / LOGISTICS S.A.C. según hoja) · DPW/DPWL→DP WORLD LOGISTICS S.R.L. · Maersk→MAERSK LOGISTICS &amp; SERVICES PERU S.A. · Chavimochic→Despachos Aduaneros Chavimochic SAC.${zeroProvNote}<br>
+    ${methodologyTxt}<br>
     ${unmatchedTxt}
   `;
 }

@@ -678,17 +678,20 @@ window.parent.postMessage({ type: 'ready', view: 'dashboard' }, '*');
 // =====================================================================
 const SUPABASE_URL = 'https://ymkxzqzldahdpcqzdozf.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlta3h6cXpsZGFoZHBjcXpkb3pmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5Mzg3MDAsImV4cCI6MjEwMzUxNDcwMH0.t_EpkVz4sHrVBDjFx9XvYOqDpDDZXlFYuMMM2OK4wq4';
-let supabase = null;
+// Nombre "sb" (no "supabase") a propósito: el UMD de supabase-js ya expone
+// un global llamado window.supabase — declarar "let supabase" chocaba con
+// eso (SyntaxError de redeclaración) y tumbaba todo el script.
+let sb = null;
 try {
   if (window.supabase && window.supabase.createClient) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
 } catch (err) { console.error('No se pudo inicializar Supabase:', err); }
 
 async function loadOverridesFromSupabaseAndRender() {
-  if (!supabase) return;
+  if (!sb) return;
   try {
-    const { data, error } = await supabase.from('tarifa_overrides').select('*');
+    const { data, error } = await sb.from('tarifa_overrides').select('*');
     if (error) throw error;
     (data || []).forEach(o => {
       state.overrides.set(o.route_key, { tarifa_actual: Number(o.tarifa_actual), pct_adj_nueva: Number(o.pct_adj_nueva) });
@@ -699,8 +702,8 @@ async function loadOverridesFromSupabaseAndRender() {
   }
 }
 loadOverridesFromSupabaseAndRender();
-if (supabase) {
-  supabase.channel('tarifa_overrides_changes')
+if (sb) {
+  sb.channel('tarifa_overrides_changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tarifa_overrides' }, () => {
       loadOverridesFromSupabaseAndRender();
     })
@@ -1562,10 +1565,13 @@ const state = { search: '', rutaFilter: '', provFilter: '', overrides: new Map()
 // =====================================================================
 const SUPABASE_URL = 'https://ymkxzqzldahdpcqzdozf.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlta3h6cXpsZGFoZHBjcXpkb3pmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5Mzg3MDAsImV4cCI6MjEwMzUxNDcwMH0.t_EpkVz4sHrVBDjFx9XvYOqDpDDZXlFYuMMM2OK4wq4';
-let supabase = null;
+// Nombre "sb" (no "supabase") a propósito: el UMD de supabase-js ya expone
+// un global llamado window.supabase — declarar "let supabase" chocaba con
+// eso (SyntaxError de redeclaración) y tumbaba todo el script.
+let sb = null;
 try {
   if (window.supabase && window.supabase.createClient) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
 } catch (err) { console.error('No se pudo inicializar Supabase:', err); }
 
@@ -1575,12 +1581,12 @@ function setSyncStatus(text) {
 }
 
 async function loadOverridesFromSupabase() {
-  if (!supabase) { setSyncStatus('⚠ Sin conexión a Supabase (edición solo local)'); return; }
+  if (!sb) { setSyncStatus('⚠ Sin conexión a Supabase (edición solo local)'); return; }
   setSyncStatus('Cargando tarifas guardadas…');
   try {
     const [{ data: overrides, error: e1 }, { data: historial, error: e2 }] = await Promise.all([
-      supabase.from('tarifa_overrides').select('*'),
-      supabase.from('tarifa_overrides_historial').select('*').order('creado_en', { ascending: true }),
+      sb.from('tarifa_overrides').select('*'),
+      sb.from('tarifa_overrides_historial').select('*').order('creado_en', { ascending: true }),
     ]);
     if (e1) throw e1; if (e2) throw e2;
     const histByKey = {};
@@ -1604,14 +1610,14 @@ async function loadOverridesFromSupabase() {
 }
 
 async function saveOverrideToSupabase(key, r, entry) {
-  if (!supabase) return;
+  if (!sb) return;
   try {
-    await supabase.from('tarifa_overrides_historial').insert({
+    await sb.from('tarifa_overrides_historial').insert({
       route_key: key, proveedor: r.proveedor, ruta: r.ruta,
       tarifa_nueva: entry.tarifa_nueva, pct_adj_nueva: entry.pct_adj_nueva,
       fecha_inicio: entry.fecha_inicio, fecha_vencimiento: entry.fecha_vencimiento,
     });
-    const { error } = await supabase.from('tarifa_overrides').upsert({
+    const { error } = await sb.from('tarifa_overrides').upsert({
       route_key: key, proveedor: r.proveedor, ruta: r.ruta,
       tarifa_actual: entry.tarifa_nueva, pct_adj_nueva: entry.pct_adj_nueva,
       fecha_inicio: entry.fecha_inicio, fecha_vencimiento: entry.fecha_vencimiento,

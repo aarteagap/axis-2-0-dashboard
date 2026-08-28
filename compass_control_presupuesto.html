@@ -82,6 +82,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Presupuesto Transporte — Hortifrut</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"><%SCRIPT_END%>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><%SCRIPT_END%>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"><%SCRIPT_END%>
 <style>
@@ -705,6 +706,42 @@ document.addEventListener('click', (e) => {
 });
 window.parent.postMessage({ type: 'ready', view: 'dashboard' }, '*');
 
+// =====================================================================
+// # 11 SUPABASE (Fase 2 — lee las tarifas guardadas por Maestro y se
+// mantiene al día vía Realtime, sin depender de que ambas vistas
+// estén abiertas a la vez en el mismo navegador).
+// =====================================================================
+const SUPABASE_URL = 'https://ymkxzqzldahdpcqzdozf.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlta3h6cXpsZGFoZHBjcXpkb3pmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5Mzg3MDAsImV4cCI6MjEwMzUxNDcwMH0.t_EpkVz4sHrVBDjFx9XvYOqDpDDZXlFYuMMM2OK4wq4';
+let supabase = null;
+try {
+  if (window.supabase && window.supabase.createClient) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+} catch (err) { console.error('No se pudo inicializar Supabase:', err); }
+
+async function loadOverridesFromSupabaseAndRender() {
+  if (!supabase) return;
+  try {
+    const { data, error } = await supabase.from('tarifa_overrides').select('*');
+    if (error) throw error;
+    (data || []).forEach(o => {
+      state.overrides.set(o.route_key, { tarifa_actual: Number(o.tarifa_actual), pct_adj_nueva: Number(o.pct_adj_nueva) });
+    });
+    try { renderAllReactive(); } catch (err) { console.error('renderAllReactive tras cargar Supabase falló:', err); }
+  } catch (err) {
+    console.error('Error leyendo tarifas desde Supabase:', err);
+  }
+}
+loadOverridesFromSupabaseAndRender();
+if (supabase) {
+  supabase.channel('tarifa_overrides_changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tarifa_overrides' }, () => {
+      loadOverridesFromSupabaseAndRender();
+    })
+    .subscribe();
+}
+
 function activeWeeks() { return DATA.pack_plan_weeks.filter(w => w >= state.weekMin && w <= state.weekMax); }
 
 // =====================================================================
@@ -1326,6 +1363,8 @@ try { renderAll(); } catch (err) { console.error('renderAll inicial falló (revi
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maestro de Tarifas — Hortifrut</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"><%SCRIPT_END%>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><%SCRIPT_END%>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
@@ -1523,6 +1562,8 @@ try { renderAll(); } catch (err) { console.error('renderAll inicial falló (revi
         <input type="text" id="searchInput" class="search-input" placeholder="Buscar proveedor o ruta…">
         <select id="rutaFilter" class="select-input"><option value="">Todas las rutas</option></select>
         <select id="provFilter" class="select-input"><option value="">Todos los proveedores</option></select>
+        <button class="edit-btn" id="exportBtn" type="button">⬇ Exportar a Excel</button>
+        <span class="toolbar-count" id="syncStatus"></span>
         <div class="toolbar-spacer"></div>
         <div class="toolbar-count" id="toolbarCount"></div>
       </div>
@@ -1545,6 +1586,98 @@ const DATA = {"routes": [{"proveedor": "LOGISTICA INTERMODAL DEL PERU SAC", "rut
 // # 03 ESTADO
 // =====================================================================
 const state = { search: '', rutaFilter: '', provFilter: '', overrides: new Map(), openKey: null };
+
+// =====================================================================
+// # 00 SUPABASE (Fase 2 — persistencia real de tarifas vigentes)
+// =====================================================================
+const SUPABASE_URL = 'https://ymkxzqzldahdpcqzdozf.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlta3h6cXpsZGFoZHBjcXpkb3pmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5Mzg3MDAsImV4cCI6MjEwMzUxNDcwMH0.t_EpkVz4sHrVBDjFx9XvYOqDpDDZXlFYuMMM2OK4wq4';
+let supabase = null;
+try {
+  if (window.supabase && window.supabase.createClient) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+} catch (err) { console.error('No se pudo inicializar Supabase:', err); }
+
+function setSyncStatus(text) {
+  const el = document.getElementById('syncStatus');
+  if (el) el.textContent = text;
+}
+
+async function loadOverridesFromSupabase() {
+  if (!supabase) { setSyncStatus('⚠ Sin conexión a Supabase (edición solo local)'); return; }
+  setSyncStatus('Cargando tarifas guardadas…');
+  try {
+    const [{ data: overrides, error: e1 }, { data: historial, error: e2 }] = await Promise.all([
+      supabase.from('tarifa_overrides').select('*'),
+      supabase.from('tarifa_overrides_historial').select('*').order('creado_en', { ascending: true }),
+    ]);
+    if (e1) throw e1; if (e2) throw e2;
+    const histByKey = {};
+    (historial || []).forEach(h => {
+      (histByKey[h.route_key] = histByKey[h.route_key] || []).push({
+        tarifa_nueva: Number(h.tarifa_nueva), pct_adj_nueva: Number(h.pct_adj_nueva),
+        fecha_inicio: h.fecha_inicio, fecha_vencimiento: h.fecha_vencimiento, creado: (h.creado_en || '').slice(0, 10),
+      });
+    });
+    (overrides || []).forEach(o => {
+      state.overrides.set(o.route_key, {
+        tarifa_actual: Number(o.tarifa_actual), pct_adj_nueva: Number(o.pct_adj_nueva),
+        historial: histByKey[o.route_key] || [],
+      });
+    });
+    setSyncStatus(`✓ ${(overrides || []).length} tarifa(s) sincronizada(s) con Supabase`);
+  } catch (err) {
+    console.error('Error cargando tarifas desde Supabase:', err);
+    setSyncStatus('⚠ Error leyendo Supabase (revisa la consola) — edición solo local');
+  }
+}
+
+async function saveOverrideToSupabase(key, r, entry) {
+  if (!supabase) return;
+  try {
+    await supabase.from('tarifa_overrides_historial').insert({
+      route_key: key, proveedor: r.proveedor, ruta: r.ruta,
+      tarifa_nueva: entry.tarifa_nueva, pct_adj_nueva: entry.pct_adj_nueva,
+      fecha_inicio: entry.fecha_inicio, fecha_vencimiento: entry.fecha_vencimiento,
+    });
+    const { error } = await supabase.from('tarifa_overrides').upsert({
+      route_key: key, proveedor: r.proveedor, ruta: r.ruta,
+      tarifa_actual: entry.tarifa_nueva, pct_adj_nueva: entry.pct_adj_nueva,
+      fecha_inicio: entry.fecha_inicio, fecha_vencimiento: entry.fecha_vencimiento,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) throw error;
+    setSyncStatus('✓ Guardado en Supabase');
+  } catch (err) {
+    console.error('Error guardando tarifa en Supabase:', err);
+    setSyncStatus('⚠ No se pudo guardar en Supabase (quedó solo local) — revisa la consola');
+  }
+}
+
+function exportToExcel() {
+  if (!window.XLSX) { alert('La librería de exportación no cargó (revisa tu conexión a internet).'); return; }
+  const rows = DATA.routes.map(r => {
+    const key = routeKey(r);
+    const ov = state.overrides.get(key);
+    const vigencia = ov && ov.historial.length ? ov.historial[ov.historial.length - 1] : null;
+    return {
+      'Proveedor': r.proveedor, 'Ruta': r.ruta, 'Modo': r.modo,
+      'Viajes estimados': r.viajes_estimados, 'Tarifa inicial (US$)': r.tarifa_inicial, '% Adj. inicial': r.pct_adj_inicial,
+      'Tarifa vigente (US$)': ov ? ov.tarifa_actual : r.tarifa_actual, '% Adj. vigente': ov ? ov.pct_adj_nueva : r.pct_adj_nueva,
+      'Vigencia desde': vigencia ? vigencia.fecha_inicio : '', 'Vigencia hasta': vigencia ? vigencia.fecha_vencimiento : '',
+      'Editado en Maestro': ov ? 'Sí' : 'No',
+    };
+  });
+  const historialRows = [];
+  state.overrides.forEach((ov, key) => {
+    ov.historial.forEach(h => historialRows.push({ 'Proveedor · Ruta': key.replace('|||', ' — '), 'Tarifa': h.tarifa_nueva, '% Adjudicación': h.pct_adj_nueva, 'Vigencia desde': h.fecha_inicio, 'Vigencia hasta': h.fecha_vencimiento, 'Guardado el': h.creado }));
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Tarifas vigentes');
+  if (historialRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(historialRows), 'Historial de versiones');
+  XLSX.writeFile(wb, `tarifas_transporte_${todayISO()}.xlsx`);
+}
 
 // =====================================================================
 // # 03b TEMA CLARO/OSCURO (estilo iOS)
@@ -1698,6 +1831,8 @@ function wireRowEvents() {
       renderMasterTable();
       showToast();
       window.parent.postMessage({ type: 'tariff-updated', key, value: { tarifa_actual: existing.tarifa_actual, pct_adj_nueva: existing.pct_adj_nueva } }, '*');
+      const routeObj = DATA.routes.find(x => routeKey(x) === key);
+      if (routeObj) saveOverrideToSupabase(key, routeObj, entry);
     });
   });
 }
@@ -1715,12 +1850,14 @@ document.getElementById('searchInput').addEventListener('input', (e) => { state.
 document.getElementById('rutaFilter').addEventListener('change', (e) => { state.rutaFilter = e.target.value; renderMasterTable(); });
 document.getElementById('provFilter').addEventListener('change', (e) => { state.provFilter = e.target.value; renderMasterTable(); });
 
-function init() {
+async function init() {
   populateFilters();
   // deep-link desde el Dashboard: ?key=proveedor|||ruta abre directamente esa fila
   const params = new URLSearchParams(window.location.search);
   const key = params.get('key');
   if (key) { state.openKey = key; }
+  renderMasterTable();
+  await loadOverridesFromSupabase();
   renderMasterTable();
   if (key) {
     const row = document.querySelector(`.master-row[data-key="${encodeURIComponent(key)}"]`);
@@ -1728,6 +1865,7 @@ function init() {
   }
 }
 init();
+document.getElementById('exportBtn').addEventListener('click', exportToExcel);
 
 // =====================================================================
 // # 07 INTEGRACIÓN CON LA PLATAFORMA (mensajería entre módulos/iframes)

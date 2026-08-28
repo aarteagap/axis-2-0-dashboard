@@ -453,6 +453,7 @@
         <div class="cost-row"><div class="cost-label">Retorno de contenedor vacío<br /><small>retiros cancelados sin ruta alterna</small></div><div class="cost-val" id="costRetorno">$0</div></div>
         <div class="cost-row"><div class="cost-label">Reprogramación de técnicos (SENASA)<br /><small>por FCL reprog./cancelado, solo destinos USA/China</small></div><div class="cost-val" id="costTecnicos">$0</div></div>
         <div class="cost-row"><div class="cost-label">Reprogramación de transporte<br /><small>por FCL reprogramado o cancelado, cualquier destino</small></div><div class="cost-val" id="costTransporteReprog">$0</div></div>
+        <div class="cost-row"><div class="cost-label">Roleo de contenedor<br /><small>por FCL crítico, posible roleo a la próxima semana</small></div><div class="cost-val" id="costRoleo">$0</div></div>
         <div class="cost-total"><div class="l">SOBRECOSTO TOTAL</div><div class="v" id="costTotalBig">$0</div></div>
       </div>
 
@@ -469,7 +470,7 @@
     <div class="assumption-note">
       <span>⚠</span>
       <div>
-        <b>Supuestos editables (pendientes de validar con Finanzas / Comercial):</b> valor fijo acordado por kg no exportado <b id="noteUsd">$1.00</b>/kg (el peso real de cada línea sale del campo "Net weight" de Horizon, no es un supuesto), costo hora de operación reefer <b id="noteReefer">$45</b>/h, costo de retorno de contenedor vacío <b id="noteRetorno">$180</b>/FCL, reprogramación de técnicos SENASA <b id="noteTecUSA">$150</b>/FCL (USA) y <b id="noteTecChina">$250</b>/FCL (China), reprogramación de transporte <b id="noteTransp">$350</b>/FCL. El kg/FCL asumido (14,000 kg) solo aplica a contenedores cosechados con observación de calidad declarados manualmente en "Antes", que no tienen PO real. Ajusta estos valores más abajo — la lógica de asignación real de sobrecostos por proveedor debe confirmarse con las áreas correspondientes antes de llevar esta matriz a producción.
+        <b>Supuestos editables (pendientes de validar con Finanzas / Comercial):</b> valor fijo acordado por kg no exportado <b id="noteUsd">$1.00</b>/kg (el peso real de cada línea sale del campo "Net weight" de Horizon, no es un supuesto), costo hora de operación reefer <b id="noteReefer">$45</b>/h, costo de retorno de contenedor vacío <b id="noteRetorno">$180</b>/FCL, reprogramación de técnicos SENASA <b id="noteTecUSA">$150</b>/FCL (USA) y <b id="noteTecChina">$250</b>/FCL (China), reprogramación de transporte <b id="noteTransp">$350</b>/FCL, roleo de contenedor <b id="noteRoleo">$650</b>/FCL. El kg/FCL asumido (14,000 kg) solo aplica a contenedores cosechados con observación de calidad declarados manualmente en "Antes", que no tienen PO real. Ajusta estos valores más abajo — la lógica de asignación real de sobrecostos por proveedor debe confirmarse con las áreas correspondientes antes de llevar esta matriz a producción.
       </div>
     </div>
 
@@ -488,6 +489,7 @@
           <div class="assump-row"><div class="assump-label">Reprog. técnicos SENASA · USA<br /><small>por FCL reprogramado/cancelado</small></div><div class="assump-input"><span>$</span><input type="number" id="inputTecUSA" value="150" step="10" min="0" /><span>/FCL</span></div></div>
           <div class="assump-row"><div class="assump-label">Reprog. técnicos SENASA · China<br /><small>por FCL reprogramado/cancelado</small></div><div class="assump-input"><span>$</span><input type="number" id="inputTecChina" value="250" step="10" min="0" /><span>/FCL</span></div></div>
           <div class="assump-row"><div class="assump-label">Reprog. de transporte<br /><small>por FCL reprogramado/cancelado, cualquier destino</small></div><div class="assump-input"><span>$</span><input type="number" id="inputTransp" value="350" step="10" min="0" /><span>/FCL</span></div></div>
+          <div class="assump-row"><div class="assump-label">Costo roleo de contenedor<br /><small>por FCL crítico (posible roleo a la próxima semana)</small></div><div class="assump-input"><span>$</span><input type="number" id="inputRoleo" value="650" step="10" min="0" /><span>/FCL</span></div></div>
         </div>
       </div>
       <div class="assump-row"><div class="assump-label">kg/FCL asumido<br /><small>para contenedores con observación de calidad y fruta no exportable (sin PO real)</small></div><div class="assump-input"><input type="number" id="inputKgFcl" value="14000" step="100" min="0" /><span>kg</span></div></div>
@@ -734,6 +736,7 @@ const state = {
   costoTecnicoUSA: 150,     // reprogramación de técnicos, por FCL reprogramado/cancelado con destino USA
   costoTecnicoChina: 250,   // reprogramación de técnicos, por FCL reprogramado/cancelado con destino China
   costoTransporteReprog: 350, // reprogramación de transporte, por FCL reprogramado/cancelado (cualquier destino)
+  costoRoleo: 650, // sobrecosto por FCL crítico con posible roleo a la próxima semana
   kgPerFcl: 14000, // solo se usa para contenedores en riesgo declarados manualmente (no son PO reales con Net weight)
   dateStart: new Date('2026-08-20'),
   dateEnd: new Date('2026-08-27'),
@@ -1020,7 +1023,11 @@ function computeAll(){
   }, 0);
   // Reprogramación de transporte: por cada FCL reprogramado o cancelado, cualquier destino.
   const costTransporteReprog = fclAfectados * state.costoTransporteReprog;
-  const costTotal = costDesvio + costCambioRuta + costTarifa + costRetorno + costTecnicos + costTransporteReprog;
+  // Roleo de contenedor: por cada FCL crítico (posible roleo a la próxima semana).
+  const roleados = results.filter(x => x.r.rolled);
+  const fclRoleados = sumFcl(roleados);
+  const costRoleo = fclRoleados * state.costoRoleo;
+  const costTotal = costDesvio + costCambioRuta + costTarifa + costRetorno + costTecnicos + costTransporteReprog + costRoleo;
 
   // costo de oportunidad — $1 fijo por kg no exportado (pérdida total), usando el campo real "Net weight".
   // Los contenedores en riesgo declarados manualmente no tienen PO real, así que sí usan el kg/FCL asumido.
@@ -1044,9 +1051,9 @@ function computeAll(){
 
   return {
     visibles, results, afectados, cancelados, conAlterna, retirosCancelados, rutaPuertoCancelados, senasaAlertas, trAlertas,
-    fclAfectados, fclCancelados, fclConAlterna, fclRetirosCancelados,
+    fclAfectados, fclCancelados, fclConAlterna, fclRetirosCancelados, fclRoleados,
     podsAfectados, polsAfectados, tiempoNormal, tiempoConDemora,
-    costDesvio, costCambioRuta, costTarifa, costRetorno, costTecnicos, costTransporteReprog, costTotal,
+    costDesvio, costCambioRuta, costTarifa, costRetorno, costTecnicos, costTransporteReprog, costRoleo, costTotal,
     kgCancelRuta, kgRiesgo, kgTotal, kgNoExport, diferencialPrecio, costoNoExportable, costoOportunidadBase, costoOportunidad,
     bridgesCaidos: BRIDGES.filter(b => state.bridges[b.id]).length,
     criticos, asiaCancelados, depotConectados, devoluciones, cambiosPuertoLinea,
@@ -1432,6 +1439,7 @@ function renderKpis(calc){
   document.getElementById('costRetorno').textContent = '$'+Math.round(calc.costRetorno).toLocaleString('en-US');
   document.getElementById('costTecnicos').textContent = '$'+Math.round(calc.costTecnicos).toLocaleString('en-US');
   document.getElementById('costTransporteReprog').textContent = '$'+Math.round(calc.costTransporteReprog).toLocaleString('en-US');
+  document.getElementById('costRoleo').textContent = '$'+Math.round(calc.costRoleo).toLocaleString('en-US');
   document.getElementById('costTotalBig').textContent = '$'+Math.round(calc.costTotal).toLocaleString('en-US');
 
   document.getElementById('opCancel').textContent = Math.round(calc.kgCancelRuta).toLocaleString('en-US')+' kg';
@@ -1447,6 +1455,7 @@ function renderKpis(calc){
   document.getElementById('noteTecUSA').textContent = '$'+state.costoTecnicoUSA;
   document.getElementById('noteTecChina').textContent = '$'+state.costoTecnicoChina;
   document.getElementById('noteTransp').textContent = '$'+state.costoTransporteReprog;
+  document.getElementById('noteRoleo').textContent = '$'+state.costoRoleo;
 }
 function fmtInt(n){ return Number(n).toLocaleString('en-US'); }
 
@@ -1648,7 +1657,8 @@ function renderRules(){
         <li><span class="b">·</span><b>Retorno de contenedor vacío</b> = Σ FCL de retiros cancelados × $${fmt(state.costoRetornoVacio)}/FCL</li>
         <li><span class="b">·</span><b>Reprogramación de técnicos (SENASA)</b> = Σ FCL de líneas reprogramadas/canceladas con POD en <b>USA</b> (Miami, Port Hueneme, Philadelphia) × $${fmt(state.costoTecnicoUSA)}/FCL, más las de POD en <b>China</b> (Shanghai, Shenzhen) × $${fmt(state.costoTecnicoChina)}/FCL. Otros destinos no tienen este cargo definido aún.</li>
         <li><span class="b">·</span><b>Reprogramación de transporte</b> = Σ FCL de todas las líneas reprogramadas o canceladas (cualquier destino) × $${fmt(state.costoTransporteReprog)}/FCL</li>
-        <li><span class="b">·</span><b>Sobrecosto total</b> = suma de los seis componentes anteriores</li>
+        <li><span class="b">·</span><b>Roleo de contenedor</b> = Σ FCL de líneas críticas (posible roleo a la próxima semana) × $${fmt(state.costoRoleo)}/FCL</li>
+        <li><span class="b">·</span><b>Sobrecosto total</b> = suma de los siete componentes anteriores</li>
       </ul>
     </div>
 
@@ -1756,6 +1766,7 @@ function buildSheetAntes(calc){
     ['Reprogramación técnicos SENASA · USA ($/FCL)', state.costoTecnicoUSA],
     ['Reprogramación técnicos SENASA · China ($/FCL)', state.costoTecnicoChina],
     ['Reprogramación de transporte ($/FCL)', state.costoTransporteReprog],
+    ['Costo roleo de contenedor ($/FCL)', state.costoRoleo],
     ['kg/FCL asumido (contenedores con observación / fruta no exportable)', state.kgPerFcl],
   ];
   return XLSX.utils.aoa_to_sheet(rows);
@@ -1801,6 +1812,7 @@ function buildSheetDespues(calc){
     ['Retorno de contenedor vacío', Math.round(calc.costRetorno)],
     ['Reprogramación de técnicos (SENASA)', Math.round(calc.costTecnicos)],
     ['Reprogramación de transporte', Math.round(calc.costTransporteReprog)],
+    ['Roleo de contenedor', Math.round(calc.costRoleo)],
     ['SOBRECOSTO TOTAL', Math.round(calc.costTotal)],
     [],
     ['DESGLOSE DE COSTO DE OPORTUNIDAD'],
@@ -1871,6 +1883,7 @@ document.getElementById('inputRetorno').addEventListener('input', e => { state.c
 document.getElementById('inputTecUSA').addEventListener('input', e => { state.costoTecnicoUSA = Number(e.target.value)||0; renderAll(); });
 document.getElementById('inputTecChina').addEventListener('input', e => { state.costoTecnicoChina = Number(e.target.value)||0; renderAll(); });
 document.getElementById('inputTransp').addEventListener('input', e => { state.costoTransporteReprog = Number(e.target.value)||0; renderAll(); });
+document.getElementById('inputRoleo').addEventListener('input', e => { state.costoRoleo = Number(e.target.value)||0; renderAll(); });
 document.getElementById('inputKgFcl').addEventListener('input', e => { state.kgPerFcl = Number(e.target.value)||0; renderAll(); });
 
 document.getElementById('inputDateStart').addEventListener('change', e => { state.dateStart = new Date(e.target.value); renderAll(); });

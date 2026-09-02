@@ -2140,7 +2140,8 @@ function renderInstructivoTab(id){
     <div class="instr-section-h">Documentos a gestionar</div>
     <ul class="instr-list">${g.documentos.map(d=>`<li>${d}</li>`).join('')}</ul>
     <div class="instr-section-h">Información a considerar</div>
-    <ul class="instr-list">${g.info.map(d=>`<li>${d}</li>`).join('')}</ul>`;
+    <ul class="instr-list">${g.info.map(d=>`<li>${d}</li>`).join('')}</ul>
+    <div style="margin-top:14px;padding:10px 12px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:11.5px;font-weight:600;line-height:1.5;">⚠ Nota: Si el vuelo corresponde a United Airline NO DEBE COLOCARSE GEL PACKS.</div>`;
 }
 function switchInstructivoTab(id){
   instrActiveTab = id;

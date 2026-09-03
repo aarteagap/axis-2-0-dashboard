@@ -765,6 +765,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // aún, mueve la llamada de subida a una función server-side / Edge Function.
 const UPLOAD_API = 'https://athena-api-pxm7.onrender.com/publish';
 const UPLOAD_API_TRANSPORTES = 'https://athena-api-pxm7.onrender.com/publish-transportes';
+const UPLOAD_API_INCIDENCIAS = 'https://athena-api-pxm7.onrender.com/publish-incidencias';
 const UPLOAD_API_KEY = 'hz-9f83jd83md-secret';
 
 const SUPPLIER_TABS = ['wep', 'pmi', 'air', 'upload'];
@@ -2805,7 +2806,7 @@ window.postRender_incidencias = refreshIncidencias;
 
 function renderUpload(){
   return `
-  <div class="g2">
+  <div class="g2" style="grid-template-columns:repeat(3,1fr);">
     <div class="card">
       <div class="ct">Actualizar Datos — AXIS (Export)</div>
       <input type="file" id="upl-file" accept=".xlsm,.xlsx" style="margin-bottom:10px;font-size:11.5px;" />
@@ -2820,12 +2821,21 @@ function renderUpload(){
       <div id="upl-status-transportes" style="margin-top:10px;font-size:11px;"></div>
       <div class="mono" style="font-size:9.5px;color:var(--ink-faint);margin-top:10px;">POST ${UPLOAD_API_TRANSPORTES} — requiere haber ejecutado schema_transportes.sql y desplegado el endpoint (ver README).</div>
     </div>
+    <div class="card">
+      <div class="ct">Actualizar Datos — Incidencias</div>
+      <div class="mono" style="font-size:10px;color:var(--ink-faint);margin-bottom:10px;">Mismo archivo de Horizon — solo actualiza la vista de Incidencias, sin recargar el resto.</div>
+      <input type="file" id="upl-file-incidencias" accept=".xlsm,.xlsx" style="margin-bottom:10px;font-size:11.5px;" />
+      <button class="theme-toggle" id="upl-btn-incidencias" onclick="doUpload('incidencias')" style="width:100%;justify-content:center;">⬆ Procesar y Publicar</button>
+      <div id="upl-status-incidencias" style="margin-top:10px;font-size:11px;"></div>
+      <div class="mono" style="font-size:9.5px;color:var(--ink-faint);margin-top:10px;">POST ${UPLOAD_API_INCIDENCIAS}</div>
+    </div>
   </div>`;
 }
 
 const UPLOAD_TARGETS = {
   axis:        { api: UPLOAD_API,             fileInput: 'upl-file',             status: 'upl-status',             btn: 'upl-btn' },
   transportes: { api: UPLOAD_API_TRANSPORTES, fileInput: 'upl-file-transportes', status: 'upl-status-transportes', btn: 'upl-btn-transportes' },
+  incidencias: { api: UPLOAD_API_INCIDENCIAS, fileInput: 'upl-file-incidencias', status: 'upl-status-incidencias', btn: 'upl-btn-incidencias' },
 };
 
 // El backend de Render está en el plan gratuito: se "duerme" tras ~15 min sin

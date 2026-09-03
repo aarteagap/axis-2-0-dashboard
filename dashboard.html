@@ -1783,6 +1783,7 @@ function renderPMI(){
   const dispatchDates = [...new Set(em.map(r=>r.dispatch_date).filter(Boolean))].sort(cmpDDMMYYYY);
   const modeOrder = ['Marítimo','Aéreo','Terrestre'];
   const modes = [...new Set(em.map(r=>r.mode).filter(Boolean))].sort((a,b)=>modeOrder.indexOf(a)-modeOrder.indexOf(b));
+  const logOps = [...new Set(em.map(r=>r.log_op).filter(Boolean))].sort();
 
   return `
   <div class="card" style="margin-bottom:14px;">
@@ -1796,6 +1797,7 @@ function renderPMI(){
       ${msdField('msd-pmi-dd', 'All Dispatch Dates', dispatchDates, 'refreshPMIAll')}
       <button type="button" class="fc-metric-btn" style="align-self:center;" onclick="pmiSelectToday()" title="Filtrar solo por la fecha de hoy">📅 Hoy</button>
       ${msdField('msd-pmi-mo', 'All Modes', modes, 'refreshPMIAll', m=>(m==='Aéreo'?'✈ ':m==='Marítimo'?'⚓ ':'🚚 ')+m)}
+      ${msdField('msd-pmi-lo', 'All Logistics Operators', logOps, 'refreshPMIAll')}
     </div>
     <div id="pmi-kpis"></div>
   </div>
@@ -1845,11 +1847,13 @@ function pmiGlobalFiltered(dataset){
   const selPP = selPPraw ? selPPraw.map(Number) : [];
   const selDD = msdFilterValues('msd-pmi-dd') || [];
   const selMO = msdFilterValues('msd-pmi-mo') || [];
+  const selLO = msdFilterValues('msd-pmi-lo') || [];
   let ft = dataset || [];
   if (selPK.length) ft = ft.filter(r=>selPK.includes(r.packing));
   if (selPP.length) ft = ft.filter(r=>selPP.includes(r.pack_plan));
   if (selDD.length) ft = ft.filter(r=>selDD.includes(r.dispatch_date||''));
   if (selMO.length) ft = ft.filter(r=>selMO.includes(r.mode));
+  if (selLO.length) ft = ft.filter(r=>selLO.includes(r.log_op));
   return ft;
 }
 
@@ -1859,7 +1863,8 @@ function refreshPMIAll(){
   const selPP = msdFilterValues('msd-pmi-pp');
   const selDD = msdFilterValues('msd-pmi-dd');
   const selMO = msdFilterValues('msd-pmi-mo');
-  document.getElementById('pmi-stat').textContent = `Packing: ${selPK?selPK.length+' sel.':'Todos'} · Pack Plan: ${selPP?selPP.length+' sel.':'Todos'} · Dispatch: ${selDD?selDD.length+' sel.':'Todos'} · Modo: ${selMO?selMO.length+' sel.':'Todos'}`;
+  const selLO = msdFilterValues('msd-pmi-lo');
+  document.getElementById('pmi-stat').textContent = `Packing: ${selPK?selPK.length+' sel.':'Todos'} · Pack Plan: ${selPP?selPP.length+' sel.':'Todos'} · Dispatch: ${selDD?selDD.length+' sel.':'Todos'} · Modo: ${selMO?selMO.length+' sel.':'Todos'} · Log. Operator: ${selLO?selLO.length+' sel.':'Todos'}`;
   renderPMIKPIs();
   renderSenasa();
   renderEmbarques();

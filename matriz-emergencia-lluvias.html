@@ -511,6 +511,19 @@ const BRIDGES = [
   { id:'chicama',      nombre:'Puente Chicama',      ubicacion:'Km 573 · corredor norte (La Libertad)', corredor:'norte', altAvailable:true,  desvioHoras:2 },
   { id:'jequetepeque',  nombre:'Puente Jequetepeque',  ubicacion:'Km 660 · corredor norte (La Libertad)',  corredor:'norte', altAvailable:true,  desvioHoras:4 },
   { id:'reque',         nombre:'Puente Reque',         ubicacion:'Km 765 · corredor norte (Lambayeque)',   corredor:'norte', altAvailable:false, desvioHoras:0 },
+  // Tramo Morrope (Km 821-829, Lambayeque): 7 puentes consecutivos sobre ramales del río Motupe, todos en
+  // el mismo tramo de la Panamericana Norte de un solo carril por sentido — sin vía alterna que rodee la
+  // zona (el único "desvío" visible en el plano de campo es un by-pass local para evitar el peaje de
+  // Morrope, que vuelve a cruzar los mismos ramales, no una ruta alterna real). En El Niño Costero 2017 este
+  // mismo tramo (Motupe/Morrope) quedó cortado por varios días sin forma de pasar, igual que Puente Reque —
+  // se modelan los 7 con altAvailable:false por ese precedente y por no haber ruta alterna en el plano.
+  { id:'iniche',        nombre:'Puente Iniche',        ubicacion:'Km 821 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
+  { id:'motupeI',       nombre:'Puente Motupe I',      ubicacion:'Km 822 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
+  { id:'naylamp',       nombre:'Puente Naylamp',       ubicacion:'Km 824 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
+  { id:'elvalle',       nombre:'Puente El Valle',      ubicacion:'Km 824 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
+  { id:'chinguirito',   nombre:'Puente Chinguirito',   ubicacion:'Km 826 · corredor norte (Lambayeque, Morrope — junto al Peaje Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
+  { id:'canabrava',     nombre:'Puente Caña Brava',    ubicacion:'Km 826 · corredor norte (Lambayeque, Morrope — junto al Peaje Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
+  { id:'huerequeque',   nombre:'Puente Huerequeque',   ubicacion:'Km 829 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
   { id:'motupe',        nombre:'Puente La Leche',      ubicacion:'Km 860 · corredor norte (Lambayeque)',   corredor:'norte', altAvailable:true,  desvioHoras:5 },
   { id:'viru',          nombre:'Puente Virú',          ubicacion:'Km 512 · corredor sur (La Libertad) — también entrada/salida de Chao', corredor:'sur', altAvailable:true,  desvioHoras:3 },
   { id:'huamanzana',    nombre:'Puente Huamanzaña',    ubicacion:'Corredor sur (La Libertad) — entre Virú y Chao, tramo crítico sin desvío posible', corredor:'sur', altAvailable:false, desvioHoras:0, fuenteAgro:true },
@@ -598,11 +611,11 @@ const PROVIDER_LABEL = { linea:'Línea (naviera/aérea)', transporte:'Transport 
 // el área de Chao camino a Callao) — pero ninguna de las dos plantas lo cruza yendo hacia Paita.
 const RUTA_BRIDGES = {
   'Chao': {
-    'Paita':  ['viru','huamanzana','chicama','jequetepeque','reque','motupe'],
+    'Paita':  ['viru','huamanzana','chicama','jequetepeque','reque','iniche','motupeI','naylamp','elvalle','chinguirito','canabrava','huerequeque','motupe'],
     'Callao': ['baden','santa','coishco','culebras'],
   },
   'Salaverry': {
-    'Paita':  ['chicama','jequetepeque','reque','motupe'],
+    'Paita':  ['chicama','jequetepeque','reque','iniche','motupeI','naylamp','elvalle','chinguirito','canabrava','huerequeque','motupe'],
     'Callao': ['viru','huamanzana','baden','santa','coishco','culebras'],
   },
 };
@@ -613,6 +626,13 @@ const BRIDGE_USED_BY = {
   chicama:   'Chao → Paita · Salaverry → Paita',
   jequetepeque: 'Chao → Paita · Salaverry → Paita',
   reque:     'Chao → Paita · Salaverry → Paita',
+  iniche:      'Chao → Paita · Salaverry → Paita',
+  motupeI:     'Chao → Paita · Salaverry → Paita',
+  naylamp:     'Chao → Paita · Salaverry → Paita',
+  elvalle:     'Chao → Paita · Salaverry → Paita',
+  chinguirito: 'Chao → Paita · Salaverry → Paita',
+  canabrava:   'Chao → Paita · Salaverry → Paita',
+  huerequeque: 'Chao → Paita · Salaverry → Paita',
   motupe:    'Chao → Paita · Salaverry → Paita',
   baden:     'Chao → Callao · Salaverry → Callao',
   santa:     'Chao → Callao · Salaverry → Callao',
@@ -1301,6 +1321,7 @@ function renderMap(){
   const v = id => bridgeVisual(id);
   const vMotupe = v('motupe'), vReque = v('reque'), vJeque = v('jequetepeque'), vChicama = v('chicama');
   const vViru = v('viru'), vHuaman = v('huamanzana'), vBaden = v('baden'), vSanta = v('santa'), vCoishco = v('coishco'), vCulebras = v('culebras');
+  const vHuereque = v('huerequeque'), vCanaBrava = v('canabrava'), vChinguirito = v('chinguirito'), vElValle = v('elvalle'), vNaylamp = v('naylamp'), vMotupeI = v('motupeI'), vIniche = v('iniche');
 
   const checkAir = bridgeCheck('Chao', 'Callao');
   const aereoColor = !checkAir.afectado ? '#3ddc9b' : (!checkAir.bloqueado ? '#f0b357' : '#f2636b');
@@ -1314,18 +1335,25 @@ function renderMap(){
   const N = [
     { x:200, y:56,  type:'port',   id:'paita',      label:'PAITA' },
     { x:130, y:128, type:'bridge', v:vMotupe,   label:'LA LECHE' },
-    { x:260, y:200, type:'bridge', v:vReque,    label:'REQUE' },
-    { x:140, y:272, type:'bridge', v:vJeque,    label:'JEQUETEPEQUE' },
-    { x:250, y:344, type:'bridge', v:vChicama,  label:'CHICAMA' },
-    { x:170, y:416, type:'plant',  id:'salaverry',  label:'SALAVERRY', sub:'planta · junto a Trujillo' },
-    { x:250, y:488, type:'bridge', v:vViru,     label:'VIRÚ', note:'Km ~515-520' },
-    { x:140, y:558, type:'bridge', v:vHuaman,   label:'HUAMANZAÑA', note:'crítico', agro:true },
-    { x:170, y:628, type:'plant',  id:'chao',       label:'CHAO', sub:'planta · Km 495' },
-    { x:255, y:698, type:'bridge', v:vBaden,    label:'BADÉN', note:'no es puente', agro:true },
-    { x:140, y:770, type:'bridge', v:vSanta,    label:'SANTA' },
-    { x:250, y:842, type:'bridge', v:vCoishco,  label:'COISHCO' },
-    { x:150, y:914, type:'bridge', v:vCulebras, label:'CULEBRAS' },
-    { x:200, y:986, type:'port',   id:'callao',     label:'CALLAO' },
+    { x:260, y:200, type:'bridge', v:vHuereque,     label:'HUEREQUEQUE', note:'Km 829' },
+    { x:140, y:272, type:'bridge', v:vCanaBrava,    label:'CAÑA BRAVA', note:'Km 826' },
+    { x:255, y:344, type:'bridge', v:vChinguirito,  label:'CHINGUIRITO', note:'Km 826' },
+    { x:145, y:416, type:'bridge', v:vElValle,      label:'EL VALLE', note:'Km 824' },
+    { x:250, y:488, type:'bridge', v:vNaylamp,      label:'NAYLAMP', note:'Km 824' },
+    { x:135, y:560, type:'bridge', v:vMotupeI,      label:'MOTUPE I', note:'Km 822' },
+    { x:260, y:632, type:'bridge', v:vIniche,       label:'INICHE', note:'Km 821' },
+    { x:260, y:704, type:'bridge', v:vReque,    label:'REQUE' },
+    { x:140, y:776, type:'bridge', v:vJeque,    label:'JEQUETEPEQUE' },
+    { x:250, y:848, type:'bridge', v:vChicama,  label:'CHICAMA' },
+    { x:170, y:920, type:'plant',  id:'salaverry',  label:'SALAVERRY', sub:'planta · junto a Trujillo' },
+    { x:250, y:992, type:'bridge', v:vViru,     label:'VIRÚ', note:'Km ~515-520' },
+    { x:140, y:1064, type:'bridge', v:vHuaman,   label:'HUAMANZAÑA', note:'crítico', agro:true },
+    { x:170, y:1136, type:'plant',  id:'chao',       label:'CHAO', sub:'planta · Km 495' },
+    { x:255, y:1208, type:'bridge', v:vBaden,    label:'BADÉN', note:'no es puente', agro:true },
+    { x:140, y:1280, type:'bridge', v:vSanta,    label:'SANTA' },
+    { x:250, y:1352, type:'bridge', v:vCoishco,  label:'COISHCO' },
+    { x:150, y:1424, type:'bridge', v:vCulebras, label:'CULEBRAS' },
+    { x:200, y:1496, type:'port',   id:'callao',     label:'CALLAO' },
   ];
 
   const segs = [];
@@ -1367,14 +1395,14 @@ function renderMap(){
   `;
 
   const svg = `
-  <svg viewBox="0 0 340 1232" xmlns="http://www.w3.org/2000/svg">
+  <svg viewBox="0 0 340 1742" xmlns="http://www.w3.org/2000/svg">
     <text x="170" y="18" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1.5" fill="#6f8399">CORREDOR PANAMERICANA NORTE · PAITA → CALLAO</text>
     ${segs.join('')}
     ${chancayBranch}
     ${nodeMarks}
 
     <!-- aéreo / terrestre -->
-    <g transform="translate(10,1026)">
+    <g transform="translate(10,1536)">
       <rect x="0" y="0" width="320" height="62" rx="12" fill="#0e1a28" stroke="rgba(255,255,255,.07)"/>
       <circle cx="20" cy="20" r="6" fill="${aereoColor}"/>
       <text x="36" y="18" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#cfdcea">AÉREO → Callao (Jorge Chávez)</text>
@@ -1385,7 +1413,7 @@ function renderMap(){
     </g>
 
     <!-- leyenda -->
-    <g transform="translate(10,1100)">
+    <g transform="translate(10,1610)">
       <rect x="0" y="0" width="320" height="122" rx="12" fill="#0e1a28" stroke="rgba(255,255,255,.07)"/>
       <text x="16" y="22" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1" fill="#6f8399">LEYENDA</text>
       <line x1="16" y1="38" x2="40" y2="38" stroke="#4a6c8f" stroke-width="4"/>

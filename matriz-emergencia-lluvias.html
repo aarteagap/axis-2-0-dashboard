@@ -241,7 +241,7 @@
         <span>Riesgo climático · Fenómeno El Niño</span>
       </div>
       <h1>Matriz de Planes de Emergencia ante Lluvias</h1>
-      <div class="hdr-meta">Corredor Panamericana Norte · Chao / Salaverry → Paita / Callao / Chancay · Semana del 31 ago–6 sep 2026 (datos reales)</div>
+      <div class="hdr-meta">Corredor Panamericana Norte · Chao / Salaverry → Paita / Callao / Chancay · Despachos del 07–17 sep 2026 (datos reales)</div>
     </div>
     <div class="hdr-right">
       <div class="chip" id="statusChip" style="background:rgba(61,220,155,.1); border:1px solid var(--green-line);">
@@ -301,15 +301,15 @@
           <div class="card-sub" style="margin-bottom:14px;">Define entre qué fechas se consideran inoperativos los puentes marcados abajo. Los pedidos con fecha fuera de este rango no se recalculan.</div>
           <div class="assump-row">
             <div class="assump-label">Fecha inicio<br /><small>desde cuándo aplica el corte</small></div>
-            <div class="assump-input"><input type="date" id="inputDateStart" value="2026-08-20" /></div>
+            <div class="assump-input"><input type="date" id="inputDateStart" value="2026-09-06" /></div>
           </div>
           <div class="assump-row">
             <div class="assump-label">Fecha fin<br /><small>hasta cuándo aplica el corte</small></div>
-            <div class="assump-input"><input type="date" id="inputDateEnd" value="2026-08-27" /></div>
+            <div class="assump-input"><input type="date" id="inputDateEnd" value="2026-09-17" /></div>
           </div>
           <div class="assump-row">
             <div class="assump-label">Fecha actual de la simulación<br /><small>define si un pedido ya retiró y si venció el plazo Seaboard / ventana Seatrade</small></div>
-            <div class="assump-input"><input type="date" id="inputSimDate" value="2026-08-28" /></div>
+            <div class="assump-input"><input type="date" id="inputSimDate" value="2026-09-07" /></div>
           </div>
         </div>
 
@@ -498,7 +498,7 @@
   </div>
 
   <div class="footer-note">
-    <b>Notas del mock:</b> campos, valores y estados de proveedor basados en la estructura real de Horizon → hoja <b>HORIZON_FORECAST</b> (PO, Instruction, FCL, Line, Transport Operator, Custom Broker, Journey Status BASC, Packing Stage Load Status, Gate-Out Stage Appointment, Container) — es la única hoja usada como input; las demás hojas del libro no alimentan esta vista. Los 51 registros de esta simulación son <b>despachos reales de Chao</b> tomados del archivo HORIZON_FORECAST_2627_V1.xlsm más reciente, actualizado el 04 sep 2026 (ETD 31 ago–6 sep 2026) — Salaverry no tenía despachos programados en este snapshot, pero toda su lógica de ruta/puentes queda activa en el modelo. Se excluyó 1 despacho de Chao por Chancay y los despachos de la planta "Olmos" (ambos sin corredor modelado aún), y Terrestre no tuvo despachos programados esta semana. Fletes y costos siguen siendo de muestra. Puentes, existencia de ruta alterna y horas de desvío son supuestos de prototipo, no un estudio de rutas validado. Para producción: automatizar la carga de SHIPMENTS desde la hoja HORIZON_FORECAST filtrada por fecha/Load Week, y bridgeState/BORDERS desde un maestro de tramos críticos con georreferencia validado por Tráfico/Operaciones. La lógica de sobrecostos por proveedor y el valor spot de arándano quedan pendientes de validación con Finanzas.
+    <b>Notas del mock:</b> campos, valores y estados de proveedor basados en la estructura real de Horizon → hoja <b>HORIZON_FORECAST</b> (PO, Instruction, FCL, Line, Transport Operator, Custom Broker, Journey Status BASC, Packing Stage Load Status, Gate-Out Stage Appointment, Container) — es la única hoja usada como input; las demás hojas del libro no alimentan esta vista. Los 17 registros de esta simulación son una <b>muestra representativa de despachos reales de Chao</b> tomada del archivo HORIZON_FORECAST_2627_V1.xlsm más reciente, actualizado el 07 sep 2026 (ETD 07–17 sep 2026: 9 Marítimo, 4 Aéreo, 4 Terrestre con fecha ajustada — ver comentario junto a <code>SHIPMENTS</code>) — no es el volumen completo de Chao (~946 filas), sino una muestra con variedad de POD/naviera siguiendo el instructivo de actualización. Salaverry no tenía despachos programados en este snapshot, pero toda su lógica de ruta/puentes queda activa en el modelo. Fletes y costos siguen siendo de muestra. Puentes, existencia de ruta alterna y horas de desvío son supuestos de prototipo, no un estudio de rutas validado. Para producción: automatizar la carga de SHIPMENTS desde la hoja HORIZON_FORECAST filtrada por fecha/Load Week, y bridgeState/BORDERS desde un maestro de tramos críticos con georreferencia validado por Tráfico/Operaciones. La lógica de sobrecostos por proveedor y el valor spot de arándano quedan pendientes de validación con Finanzas.
   </div>
 
 </div>
@@ -541,6 +541,8 @@ const PROVIDERS = {
     { id:'Air Europe',      nombre:'Air Europe' },
     { id:'Aer Caribe',      nombre:'Aer Caribe' },
     { id:'KLM',             nombre:'KLM' },
+    { id:'Wan Hai',         nombre:'Wan Hai' },
+    { id:'United',          nombre:'United' },
   ],
   transporte: [
     { id:'LIP',             nombre:'LIP' },
@@ -627,16 +629,12 @@ const CORREDOR_HORAS = {
 const ASIA_PODS = ['Shanghai','Kaohsiung','Shenzhen','Singapur'];
 // Puertos de embarque habilitados para intercambio Seaboard (marítimo).
 const PUERTOS_SWAP = ['Callao','Paita'];
-// Fechas de referencia — semana simulada con datos reales de Horizon (despachos con ETD 31 ago–6 sep 2026,
-// actualizado 04 sep 2026 con el archivo HORIZON_FORECAST_2627_V1.xlsm más reciente — reemplaza la semana
-// anterior, 19–27 ago 2026). LUN2 es el lunes de la semana siguiente, usado solo para el plazo de retiro
-// Seaboard por Paita (vence 3 días después del plazo de Callao).
-const WEEK = {
-  LUN: new Date('2026-08-31'), MAR: new Date('2026-09-01'), MIE: new Date('2026-09-02'), JUE: new Date('2026-09-03'),
-  VIE: new Date('2026-09-04'), SAB: new Date('2026-09-05'), DOM: new Date('2026-09-06'),
-  LUN2: new Date('2026-09-07'), // lunes de la semana siguiente, plazo de retiro Seaboard por Paita
-};
-const SEABOARD_DEADLINE = { 'Callao': WEEK.VIE, 'Paita': WEEK.LUN2 }; // último día para retirar
+// Helper de fechas usado en SHIPMENTS y en los plazos/ventana de simulación de abajo.
+const D = s => new Date(s);
+// Plazo de retiro Seaboard — último viernes/lunes dentro de la ventana simulada (07–17 sep 2026),
+// actualizado 07 sep 2026 con el archivo HORIZON_FORECAST_2627_V1.xlsm más reciente. Paita vence el lunes
+// siguiente al viernes de Callao (regla de negocio ya confirmada, no depende de la semana simulada).
+const SEABOARD_DEADLINE = { 'Callao': D('2026-09-11'), 'Paita': D('2026-09-14') }; // último día para retirar
 
 // Ruta terrestre internacional hacia Brasil — solo aplica a mode:'Terrestre'. La carga baja por el
 // MISMO corredor costero hasta Callao (usa RUTA_BRIDGES.Callao, igual que un despacho marítimo) y desde
@@ -670,78 +668,55 @@ const ENFEN_SCHEDULE = [
   { ym:'2027-04', label:'Abril 2027',     risk:'MEDIO',       color:'#eab308', desc:'Disminución gradual de la intensidad del fenómeno.' },
 ];
 
-// tipo interno agrupa el vocabulario real de Journey Status BASC:
-// 'retiro' => RETIRO PENDIENTE / RETIRO EN PROCESO | 'ruta_puerto' => RUTA PACKING / PACKING / RUTA A PUERTO | 'finalizado' => FINALIZADO
-// mode: 'Marítimo' | 'Terrestre' | 'Aéreo'  ·  linea = campo "Line" (solo aplica a Marítimo/Aéreo)
-// carrier = campo "Transport Operator"  ·  broker = campo "Custom Broker"  ·  logistico = campo "Logistics Operator"
-// fcl = campo "FCL" (puede ser fraccional)  ·  netWeight = campo "Net weight" (kg, fijo — no es un supuesto editable)
-// cargado = campo "Packing Stage Load Status" ('CARGADO'/'NO CARGADO') — relevante para Aéreo, que no retira contenedor (usa Thermoking).
-// Para Aéreo, "pol" representa el punto de embarque único: Callao (aeropuerto Jorge Chávez, Lima).
+// DATOS REALES (HORIZON_FORECAST, actualizado 07 sep 2026 siguiendo el instructivo del usuario
+// "instruccionesclaudecodeactualizarmatriz.md"): muestra representativa de 17 despachos reales de Chao
+// (shipper Hortifrut Perú) con ETD entre 07 y 17 sep 2026 (Marítimo/Aéreo) — ventana "hoy hasta +10 días"
+// verificada contra el rango real de ETD del archivo antes de fijarla. Terrestre no tiene ETD reciente en
+// este Excel (la fila más nueva es del 20 ago 2026), así que se tomaron las 4 filas más recientes
+// disponibles y se les asignó una fecha propia dentro de la ventana simulada (marcado en cada línea).
+// No es el volumen completo de Chao (~946 filas) — es una muestra de 9 Marítimo + 4 Aéreo + 4 Terrestre con
+// variedad de POD: Asia (Kaohsiung, Shenzhen), Port Hueneme, Miami, Philadelphia y Europa (Algeciras,
+// Vlissingen) en Marítimo; Tel Aviv, Londres y Amsterdam en Aéreo; Barueri en Terrestre. Salaverry sigue sin
+// despachos reales en este snapshot pero su lógica de ruta queda activa igual que antes.
 //
-// DATOS REALES (HORIZON_FORECAST, actualizado 04 sep 2026 con el archivo más reciente): snapshot de
-// despachos con ETD 31 ago–6 sep 2026 (semana ISO 36, la más cercana a la fecha de esta actualización).
-// Se reemplazó por completo la semana anterior (19–27 ago 2026) por instrucción del usuario: "jalar los
-// nuevos despachos registrados". Salaverry sigue sin despachos reales en este snapshot pero su lógica de
-// ruta queda activa igual que antes. Apareció una planta nueva, "Olmos", con despachos en el archivo, pero
-// no tiene puentes/corredores definidos en el modelo todavía — queda fuera de esta vista, igual que 1
-// despacho de Chao con POL "Chancay" (tampoco tiene corredor modelado). Terrestre no tiene despachos
-// programados esta semana (0 filas en el archivo). Los 51 envíos de esta simulación son despachos reales de
-// Chao (shipper Hortifrut Perú) tomados de HORIZON_FORECAST_2627_V1.xlsm, agrupados por Instruction (y
-// también por POD cuando un mismo Instruction aéreo reparte pallets a más de un destino), igual que en la
-// versión anterior. Campos sin dato real en Horizon para esta semana: Net weight de Aéreo (se asume 12,150
-// kg × FCL, igual que antes) y Transport Operator de RH-0636 ("Por asignar", sin operador terrestre aún).
+// Regla de tipo (derivada, no es un campo directo del Excel):
+//   Journey Status BASC == 'FINALIZADO'        -> tipo = 'finalizado'
+//   si no, Packing Stage Load Status=='CARGADO' -> tipo = 'ruta_puerto'
+//   si no                                       -> tipo = 'retiro'
+// Aéreo nunca usa 'retiro' (el Thermoking no retira contenedor) — siempre 'ruta_puerto', y "cargado"
+// (booleano, derivado de Packing Stage Load Status) distingue si ya cargó o no.
+//
+// Agrupación aérea (1 Instruction = 1 camión Thermoking, varios PO parciales que suman ~1 FCL): FCL-10
+// combina 2 Instructions distintas (RH-0687 y RH-0470) porque cada una por separado solo sumaba 0.5 FCL —
+// mismo POD (Tel Aviv) y mismo ETD, se combinan siguiendo la regla de "si un grupo real solo suma 0.5,
+// combínalo con otro Instruction del mismo día/POD". FCL-12 (RH-0648) reparte sus 4 PO a 3 PODs distintos
+// (Londres/Bombay/Delhi) bajo el mismo Instruction — se usan los campos de la primera fila del grupo
+// (simplificación aceptada por el instructivo).
+//
+// Net weight no poblado en Horizon para: todo Aéreo (se asume 12,150 kg × FCL, igual que versiones
+// anteriores) y FCL-7/FCL-8 (Marítimo "retiro" sin PO real todavía, Net weight en 0 hasta que se asigne PO).
+// Terrestre tampoco tiene Net weight real salvo FCL-16 (15,288 kg, dato real de Horizon); las otras 3 líneas
+// terrestres usan el mismo estimado de 12,150 kg.
 const SHIPMENTS = [
-  { id:'FCL-1', po:'PO00000052081', instruction:'RH-0559', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Network Shipping', shipper:'Hortifrut Perú', carrier:'VESL', broker:'LIP Aduanas', logistico:'NWT', pod:'Port Hueneme', flete:2830, fcl:1, netWeight:12240, fecha:WEEK.LUN, senasa:'SENASA', trTime:'15:30', trAssigned:'LUIS ALFREDO CARRASCAL CAJUSOL' },
-  { id:'FCL-2', po:'PO00000052082', instruction:'RH-0560', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Network Shipping', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Port Hueneme', flete:2580, fcl:1, netWeight:16128, fecha:WEEK.LUN, senasa:'SENASA', trTime:'13:30', trAssigned:'JUAN DIEGO LOPEZ ALBITREZ' },
-  { id:'FCL-3', po:'PO00000052144', instruction:'RH-0578', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Network Shipping', shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'NWT', pod:'Port Hueneme', flete:2450, fcl:1, netWeight:14688, fecha:WEEK.LUN, senasa:'SENASA', trTime:'11:30', trAssigned:'JUAN DIEGO LOPEZ ALBITREZ' },
-  { id:'FCL-4', po:'PO00000051956', instruction:'RH-0554', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'VESL', broker:'LIP Aduanas', logistico:'NWT', pod:'Miami', flete:2750, fcl:1, netWeight:16128, fecha:WEEK.JUE, senasa:'SENASA', trTime:'14:30', trAssigned:'Luis Figueroa Reyes' },
-  { id:'FCL-5', po:'PO00000052083', instruction:'RH-0555', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Miami', flete:2740, fcl:1, netWeight:16128, fecha:WEEK.JUE, senasa:'SENASA', trTime:'17:30', trAssigned:'Luis Figueroa Reyes' },
-  { id:'FCL-6', po:'PO00000052293', instruction:'RH-0595', planta:'Chao', pol:'Callao', tipo:'finalizado', mode:'Marítimo', linea:'Evergreen', shipper:'Hortifrut Perú', carrier:'Cititrans', broker:'LIP Aduanas', logistico:'NWT', pod:'Kaohsiung', flete:2570, fcl:1, netWeight:12150, fecha:WEEK.JUE, senasa:'PA', trTime:'13:30', trAssigned:'LUIS FIGUEROA' },
-  { id:'FCL-7', po:'PO00000052274', instruction:'RH-0604', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'NWT', pod:'Philadelphia', flete:2510, fcl:1, netWeight:14502, fecha:WEEK.JUE, senasa:'SENASA', trTime:'14:30', trAssigned:'Luis Figueroa Reyes' },
-  { id:'FCL-8', po:'PO00000052308', instruction:'RH-0610', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Philadelphia', flete:2560, fcl:1, netWeight:13987.9, fecha:WEEK.JUE, senasa:'SENASA', trTime:'16:30', trAssigned:'Luis Figueroa Reyes' },
-  { id:'FCL-9', po:'PO00000052232', instruction:'RH-0611', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'NWT', pod:'Philadelphia', flete:2610, fcl:1, netWeight:14832.4, fecha:WEEK.JUE, senasa:'SENASA', trTime:'16:30', trAssigned:'Jhonatan Smith zapata ruiz' },
-  { id:'FCL-10', po:'PO00000052233', instruction:'RH-0613', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Philadelphia', flete:2720, fcl:1, netWeight:14526.4, fecha:WEEK.JUE, senasa:'SENASA', trTime:'11:30', trAssigned:'Luis Figueroa Reyes' },
-  { id:'FCL-11', po:'PO00000052286', instruction:'RH-0623', planta:'Chao', pol:'Callao', tipo:'finalizado', mode:'Marítimo', linea:'Evergreen', shipper:'Hortifrut Perú', carrier:'Maersk', broker:'LIP Aduanas', logistico:'NWT', pod:'Shenzhen', flete:2810, fcl:1, netWeight:12150, fecha:WEEK.JUE, senasa:'PA', trTime:'15:30', trAssigned:'LUIS FIGUEROA' },
-  { id:'FCL-12', po:'PO00000052295', instruction:'RH-0624', planta:'Chao', pol:'Callao', tipo:'finalizado', mode:'Marítimo', linea:'Evergreen', shipper:'Hortifrut Perú', carrier:'Maersk', broker:'LIP Aduanas', logistico:'NWT', pod:'Kaohsiung', flete:2600, fcl:1, netWeight:14688, fecha:WEEK.JUE, senasa:'PA', trTime:'13:30' },
-  { id:'FCL-13', po:'PO00000052294', instruction:'RH-0625', planta:'Chao', pol:'Callao', tipo:'finalizado', mode:'Marítimo', linea:'Evergreen', shipper:'Hortifrut Perú', carrier:'VESL', broker:'LIP Aduanas', logistico:'NWT', pod:'Kaohsiung', flete:2960, fcl:1, netWeight:12150, fecha:WEEK.JUE, senasa:'PA', trTime:'13:30', trAssigned:'RICHARD HUASASQUICHE' },
-  { id:'FCL-14', po:'PO00000052288', instruction:'RH-0627', planta:'Chao', pol:'Callao', tipo:'finalizado', mode:'Marítimo', linea:'Evergreen', shipper:'Hortifrut Perú', carrier:'Cititrans', broker:'LIP Aduanas', logistico:'NWT', pod:'Shenzhen', flete:2970, fcl:1, netWeight:12150, fecha:WEEK.JUE, senasa:'PA', trTime:'14:30' },
-  { id:'FCL-15', po:'PO00000052287', instruction:'RH-0628', planta:'Chao', pol:'Callao', tipo:'finalizado', mode:'Marítimo', linea:'Evergreen', shipper:'Hortifrut Perú', carrier:'Maersk', broker:'LIP Aduanas', logistico:'NWT', pod:'Shenzhen', flete:2910, fcl:1, netWeight:12150, fecha:WEEK.JUE, senasa:'PA', trTime:'17:30', trAssigned:'LUIS FIGUEROA' },
-  { id:'FCL-16', po:'S/PO (por asignar)', instruction:'RH-0629', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Marítimo', linea:'Evergreen', shipper:'Hortifrut Perú', carrier:'VESL', broker:'LIP Aduanas', logistico:'NWT', pod:'Shenzhen', flete:2720, fcl:1, netWeight:0, fecha:WEEK.JUE, trTime:'15:30' },
-  { id:'FCL-17', po:'S/PO (por asignar)', instruction:'RH-0630', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Marítimo', linea:'Evergreen', shipper:'Hortifrut Perú', carrier:'VESL', broker:'LIP Aduanas', logistico:'NWT', pod:'Shenzhen', flete:2970, fcl:1, netWeight:0, fecha:WEEK.JUE, trTime:'14:30' },
-  { id:'FCL-18', po:'PO00000052234', instruction:'RH-0631', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'NWT', pod:'Philadelphia', flete:2950, fcl:1, netWeight:14457.9, fecha:WEEK.JUE, senasa:'SENASA', trTime:'10:30', trAssigned:'Luis Figueroa Reyes' },
-  { id:'FCL-19', po:'PO00000052311', instruction:'RH-0634', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'NWT', pod:'Philadelphia', flete:2680, fcl:1, netWeight:14688, fecha:WEEK.JUE, senasa:'SENASA', trTime:'10:30', trAssigned:'Luis Figueroa Reyes' },
-  { id:'FCL-20', po:'PO00000052312', instruction:'RH-0635', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'NWT', pod:'Philadelphia', flete:2910, fcl:1, netWeight:14688, fecha:WEEK.JUE, senasa:'SENASA', trTime:'11:30', trAssigned:'Luis Figueroa Reyes' },
-  { id:'FCL-21', po:'PO00000052291', instruction:'RH-0637', planta:'Chao', pol:'Callao', tipo:'finalizado', mode:'Marítimo', linea:'Evergreen', shipper:'Hortifrut Perú', carrier:'Cititrans', broker:'LIP Aduanas', logistico:'NWT', pod:'Shenzhen', flete:2920, fcl:1, netWeight:12150, fecha:WEEK.JUE, senasa:'PA', trTime:'15:30' },
-  { id:'FCL-22', po:'PO00000052292', instruction:'RH-0638', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Marítimo', linea:'Evergreen', shipper:'Hortifrut Perú', carrier:'Cititrans', broker:'LIP Aduanas', logistico:'NWT', pod:'Shenzhen', flete:2860, fcl:1, netWeight:12150, fecha:WEEK.JUE, trTime:'16:30' },
-  { id:'FCL-23', po:'PO00000052309', instruction:'RH-0639', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Philadelphia', flete:2880, fcl:1, netWeight:14688, fecha:WEEK.JUE, senasa:'SENASA', trTime:'17:30', trAssigned:'Luis Figueroa Reyes' },
-  { id:'FCL-24', po:'S/PO (por asignar)', instruction:'RH-0640', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Philadelphia', flete:2730, fcl:1, netWeight:0, fecha:WEEK.JUE, trTime:'18:30' },
-  { id:'FCL-25', po:'PO00000052394, PO00000052395', instruction:'RH-0662', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Marítimo', linea:'Maersk Line', shipper:'Hortifrut Perú', carrier:'Cititrans', broker:'LIP Aduanas', logistico:'NWT', pod:'Algeciras', flete:2590, fcl:1, netWeight:21312, fecha:WEEK.SAB, senasa:'PA' },
-  { id:'FCL-26', po:'S/PO (por asignar)', instruction:'RH-0663', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seatrade', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'SRL', pod:'Vlissingen', flete:2570, fcl:1, netWeight:0, fecha:WEEK.DOM },
-  { id:'FCL-27', po:'S/PO (por asignar)', instruction:'RH-0664', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seatrade', shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'SRL', pod:'Vlissingen', flete:2500, fcl:1, netWeight:0, fecha:WEEK.DOM, senasa:'PA' },
-  { id:'FCL-28', po:'PO00000052434', instruction:'RH-0665', planta:'Chao', pol:'Paita', tipo:'ruta_puerto', mode:'Marítimo', linea:'Seatrade', shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'SRL', pod:'Vlissingen', flete:2950, fcl:0.5, netWeight:6336, fecha:WEEK.DOM, senasa:'PA' },
-  { id:'FCL-29', po:'PO00000052399', instruction:'RH-0668', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seatrade', shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'SRL', pod:'Dover', flete:2490, fcl:1, netWeight:21312, fecha:WEEK.DOM, senasa:'PA' },
-  { id:'FCL-30', po:'PO00000052400', instruction:'RH-0669', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seatrade', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'SRL', pod:'Dover', flete:2970, fcl:1, netWeight:21312, fecha:WEEK.DOM, senasa:'PA' },
-  { id:'FCL-31', po:'PO00000052398', instruction:'RH-0670', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seatrade', shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'SRL', pod:'Dover', flete:2580, fcl:1, netWeight:20952, fecha:WEEK.DOM, senasa:'PA' },
-  { id:'FCL-32', po:'PO00000052396', instruction:'RH-0671', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seatrade', shipper:'Hortifrut Perú', carrier:'VESL', broker:'LIP Aduanas', logistico:'SRL', pod:'Dover', flete:2820, fcl:1, netWeight:12000, fecha:WEEK.DOM, senasa:'PA' },
-  { id:'FCL-33', po:'PO00000052431, PO00000052433', instruction:'RH-0672', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seatrade', shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'SRL', pod:'Dover', flete:2770, fcl:0.5, netWeight:14918.4, fecha:WEEK.DOM, senasa:'PA' },
-  { id:'FCL-34', po:'PO00000052397', instruction:'RH-0673', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seatrade', shipper:'Hortifrut Perú', carrier:'VESL', broker:'LIP Aduanas', logistico:'SRL', pod:'Dover', flete:2410, fcl:1, netWeight:12000, fecha:WEEK.DOM, senasa:'PA' },
-  { id:'FCL-35', po:'S/PO (por asignar)', instruction:'RH-0690', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seatrade', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'SRL', pod:'Dover', flete:2550, fcl:1, netWeight:0, fecha:WEEK.DOM, senasa:'PA' },
-  { id:'FCL-36', po:'PO00000052173', instruction:'RH-0414', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Aéreo', linea:'Air France', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'DSV', logistico:'Hellmann', pod:'Tel Aviv', flete:2570, fcl:0.5, netWeight:6075, fecha:WEEK.LUN, cargado:false, senasa:'PA' },
-  { id:'FCL-37', po:'PO00000052172', instruction:'RH-0586', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Aéreo', linea:'Air France', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'DSV', logistico:'Hellmann', pod:'Tel Aviv', flete:2450, fcl:0.5, netWeight:6075, fecha:WEEK.LUN, cargado:false, senasa:'PA' },
-  { id:'FCL-38', po:'PO00000052241', instruction:'RH-0587', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Uniworld', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'Andes', logistico:'Andes', pod:'Bogota', flete:2320, fcl:0.5, netWeight:6075, fecha:WEEK.MAR, cargado:true, senasa:'PA' },
-  { id:'FCL-39', po:'PO00000052236', instruction:'RH-0587', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Latam', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'Hellmann', logistico:'Hellmann', pod:'Nueva York', flete:2320, fcl:0.5, netWeight:6075, fecha:WEEK.MAR, cargado:true, senasa:'PA' },
-  { id:'FCL-40', po:'PO00000052244', instruction:'RH-0590', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Aéreo', linea:'Aer caribe', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'DPW', logistico:'DPW', pod:'Bogota', flete:2370, fcl:1, netWeight:12150, fecha:WEEK.MAR, cargado:false, senasa:'PA' },
-  { id:'FCL-41', po:'PO00000052245, PO00000052247', instruction:'RH-0592', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Aéreo', linea:'Aer caribe', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'DPW', logistico:'DPW', pod:'Bogota', flete:2370, fcl:1, netWeight:12150, fecha:WEEK.MAR, cargado:false, senasa:'PA' },
-  { id:'FCL-42', po:'PO00000052185, PO00000052248', instruction:'RH-0593', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Aer caribe', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'Andes', logistico:'Andes', pod:'Bogota', flete:2520, fcl:1, netWeight:12150, fecha:WEEK.MAR, cargado:true, senasa:'PA' },
-  { id:'FCL-43', po:'PO00000052253, PO00000052246', instruction:'RH-0635', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Latam', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'Hellmann', logistico:'Hellmann', pod:'Bogota', flete:2510, fcl:1, netWeight:12150, fecha:WEEK.MAR, cargado:true, senasa:'PA' },
-  { id:'FCL-44', po:'PO00000052250, PO00000052249', instruction:'RH-0642', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Latam', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'Hellmann', logistico:'Hellmann', pod:'Bogota', flete:2380, fcl:1, netWeight:12150, fecha:WEEK.MAR, cargado:true, senasa:'PA' },
-  { id:'FCL-45', po:'PO00000052251, PO00000052266', instruction:'RH-0643', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Latam', shipper:'Hortifrut Perú', carrier:'RVC', broker:'Hellmann', logistico:'Hellmann', pod:'Bogota', flete:2130, fcl:1, netWeight:12150, fecha:WEEK.MAR, cargado:true, senasa:'PA' },
-  { id:'FCL-46', po:'PO00000052242', instruction:'RH-0588', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Aéreo', linea:'Aer caribe', shipper:'Hortifrut Perú', carrier:'RVC', broker:'DPW', logistico:'DPW', pod:'Bogota', flete:2520, fcl:1, netWeight:12150, fecha:WEEK.JUE, cargado:false, senasa:'PA' },
-  { id:'FCL-47', po:'PO00000052243', instruction:'RH-0589', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Aéreo', linea:'Aer caribe', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'DPW', logistico:'DPW', pod:'Bogota', flete:2460, fcl:1, netWeight:12150, fecha:WEEK.JUE, cargado:false, senasa:'PA' },
-  { id:'FCL-48', po:'PO00000052252', instruction:'RH-0591', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Aer caribe', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'DPW', logistico:'DPW', pod:'Bogota', flete:2400, fcl:1, netWeight:12150, fecha:WEEK.JUE, cargado:false, senasa:'PA' },
-  { id:'FCL-49', po:'PO00000051976', instruction:'RH-0470', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Air Europe', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'DHL', logistico:'DHL', pod:'Tel Aviv', flete:2330, fcl:0.5, netWeight:6075, fecha:WEEK.SAB, cargado:true, senasa:'PA' },
-  { id:'FCL-50', po:'PO00000051975', instruction:'RH-0687', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Air Europe', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'DSV', logistico:'DSV', pod:'Tel Aviv', flete:2100, fcl:0.5, netWeight:6075, fecha:WEEK.SAB, cargado:true, senasa:'PA' },
-  { id:'FCL-51', po:'PO00000052380, PO00000052381, PO00000052385', instruction:'RH-0636', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Aéreo', linea:'KLM', shipper:'Hortifrut Perú', carrier:'Por asignar', broker:'Smart Global', logistico:'Smart Global', pod:'Amsterdam', flete:2170, fcl:1, netWeight:12150, fecha:WEEK.DOM, cargado:false, senasa:'PA' },
+  { id:'FCL-1', po:'PO00000052451', instruction:'RH-0666', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Marítimo', linea:'Wan Hai', shipper:'Hortifrut Perú', carrier:'Cititrans', broker:'LIP Aduanas', logistico:'NWT', pod:'Kaohsiung', flete:2230, fcl:1, netWeight:14688, fecha:D('2026-09-10'), senasa:'PA', trTime:'13:30', trAssigned:'RICHARD HUASASQUICHE' },
+  { id:'FCL-2', po:'PO00000052449', instruction:'RH-0659', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Marítimo', linea:'Evergreen', shipper:'Hortifrut Perú', carrier:'Maersk', broker:'LIP Aduanas', logistico:'NWT', pod:'Shenzhen', flete:2640, fcl:1, netWeight:12150, fecha:D('2026-09-10'), senasa:'PA', trTime:'13:30', trAssigned:'RENZO MENDEZ' },
+  { id:'FCL-3', po:'PO00000052231', instruction:'RH-0608', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Network Shipping', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Port Hueneme', flete:2290, fcl:1, netWeight:12240, fecha:D('2026-09-07'), senasa:'SENASA', trTime:'15:30', trAssigned:'FERNANDO JOSE CORREA LOPEZ' },
+  { id:'FCL-4', po:'PO00000052417', instruction:'RH-0676', planta:'Chao', pol:'Paita', tipo:'ruta_puerto', mode:'Marítimo', linea:'Network Shipping', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Port Hueneme', flete:2100, fcl:1, netWeight:12240, fecha:D('2026-09-14'), senasa:'SENASA', trTime:'17:30', trAssigned:'LUIS ALFREDO CARRASCAL CAJUSOL' },
+  { id:'FCL-5', po:'PO00000052227', instruction:'RH-0606', planta:'Chao', pol:'Paita', tipo:'finalizado', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'VESL', broker:'LIP Aduanas', logistico:'NWT', pod:'Miami', flete:2390, fcl:1, netWeight:16128, fecha:D('2026-09-10'), senasa:'SENASA', trTime:'15:30', trAssigned:'Luis Figueroa Reyes' },
+  { id:'FCL-6', po:'PO00000052421', instruction:'RH-0674', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Miami', flete:2130, fcl:1, netWeight:16128, fecha:D('2026-09-17'), senasa:'SENASA', trTime:'13:30', trAssigned:'Josman Hernan Galvez Garcia' },
+  { id:'FCL-7', po:'S/PO (por asignar)', instruction:'RH-0764', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Marítimo', linea:'Maersk Line', shipper:'Hortifrut Perú', carrier:'Maersk', broker:'LIP Aduanas', logistico:'NWT', pod:'Algeciras', flete:2490, fcl:1, netWeight:0, fecha:D('2026-09-12'), senasa:'PA', trTime:'11:30' },
+  { id:'FCL-8', po:'S/PO (por asignar)', instruction:'RH-0765', planta:'Chao', pol:'Paita', tipo:'retiro', mode:'Marítimo', linea:'Seatrade', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'SRL', pod:'Vlissingen', flete:2120, fcl:1, netWeight:0, fecha:D('2026-09-13'), senasa:'PA' },
+  { id:'FCL-9', po:'PO00000052419', instruction:'RH-0685', planta:'Chao', pol:'Paita', tipo:'ruta_puerto', mode:'Marítimo', linea:'Seaboard', shipper:'Hortifrut Perú', carrier:'Expert Transport', broker:'LIP Aduanas', logistico:'NWT', pod:'Philadelphia', flete:1900, fcl:1, netWeight:14673.312, fecha:D('2026-09-10'), senasa:'SENASA', trTime:'15:30', trAssigned:'Josman Hernan Galvez Garcia' },
+
+  { id:'FCL-10', po:'PO00000052353, PO00000052352', instruction:'RH-0687, RH-0470', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'Air France', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'Hellmann', logistico:'Hellmann', pod:'Tel Aviv', flete:2690, fcl:1, netWeight:12150, fecha:D('2026-09-07'), cargado:true, senasa:'PA' },
+  { id:'FCL-11', po:'PO00000052237, PO00000052238', instruction:'RH-0645', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'United', shipper:'Hortifrut Perú', carrier:'RVC', broker:'DHL', logistico:'DHL', pod:'Londres', flete:2630, fcl:1, netWeight:12150, fecha:D('2026-09-07'), cargado:false, senasa:'PA' },
+  { id:'FCL-12', po:'PO00000052239, PO00000052378, PO00000052445, PO00000052446', instruction:'RH-0648', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'United', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'Smart Global', logistico:'Smart Global', pod:'Londres', flete:2200, fcl:1, netWeight:12150, fecha:D('2026-09-07'), cargado:false, senasa:'PA' },
+  { id:'FCL-13', po:'PO00000052384, PO00000052467, PO00000052376', instruction:'RH-0644', planta:'Chao', pol:'Callao', tipo:'ruta_puerto', mode:'Aéreo', linea:'KLM', shipper:'Hortifrut Perú', carrier:'Mantilla', broker:'Hellmann', logistico:'Hellmann', pod:'Amsterdam', flete:2580, fcl:1, netWeight:12150, fecha:D('2026-09-08'), cargado:false, senasa:'PA' },
+
+  { id:'FCL-14', po:'PO00000051972', instruction:'RH-0514', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'LIP', pod:'Barueri', flete:2120, fcl:1, netWeight:12150, fecha:D('2026-09-08'), senasa:'PA' },
+  { id:'FCL-15', po:'PO00000051788', instruction:'RH-0465', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'LIP', pod:'Barueri', flete:1900, fcl:1, netWeight:12150, fecha:D('2026-09-09'), senasa:'SENASA' },
+  { id:'FCL-16', po:'PO00000051712', instruction:'RH-0358', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'LIP', pod:'Barueri', flete:2390, fcl:1, netWeight:15288, fecha:D('2026-09-15'), senasa:'SENASA' },
+  { id:'FCL-17', po:'PO00000051694', instruction:'RH-0357', planta:'Chao', pol:'Callao', tipo:'retiro', mode:'Terrestre', linea:null, shipper:'Hortifrut Perú', carrier:'LIP', broker:'LIP Aduanas', logistico:'LIP', pod:'Barueri', flete:2440, fcl:1, netWeight:12150, fecha:D('2026-09-16'), senasa:'SENASA' },
 ];
 // Para el flujo 'retiro', la cita de retiro se asume el mismo día declarado en 'fecha'.
 // Líneas sin PO asignado en Horizon (campo vacío) se marcan "S/PO (por asignar)" en vez de inventar un código.
@@ -776,9 +751,9 @@ const state = {
   costoTransporteReprog: 350, // reprogramación de transporte, por FCL reprogramado/cancelado (cualquier destino)
   costoRoleo: 650, // sobrecosto por FCL crítico con posible roleo a la próxima semana
   kgPerFcl: 14000, // solo se usa para contenedores en riesgo declarados manualmente (no son PO reales con Net weight)
-  dateStart: new Date('2026-08-31'),
-  dateEnd: new Date('2026-09-06'),
-  simDate: new Date('2026-09-04'),
+  dateStart: new Date('2026-09-06'),
+  dateEnd: new Date('2026-09-17'),
+  simDate: new Date('2026-09-07'),
   modeFilter: 'Todos', // 'Todos' | 'Marítimo' | 'Terrestre' | 'Aéreo'
 };
 
@@ -1897,15 +1872,15 @@ function resetSim(){
   ['transporte'].forEach(cat => PROVIDERS[cat].forEach(p => state.providerIncrease[cat][p.id] = 0));
   state.containersAtRisk = 0;
   state.fclNoExport = 0;
-  state.dateStart = new Date('2026-08-20');
-  state.dateEnd = new Date('2026-08-27');
-  state.simDate = new Date('2026-08-28');
+  state.dateStart = new Date('2026-09-06');
+  state.dateEnd = new Date('2026-09-17');
+  state.simDate = new Date('2026-09-07');
   state.modeFilter = 'Todos';
   document.getElementById('inputContainersRisk').value = 0;
   document.getElementById('inputFclNoExport').value = 0;
-  document.getElementById('inputDateStart').value = '2026-08-20';
-  document.getElementById('inputDateEnd').value = '2026-08-27';
-  document.getElementById('inputSimDate').value = '2026-08-28';
+  document.getElementById('inputDateStart').value = '2026-09-06';
+  document.getElementById('inputDateEnd').value = '2026-09-17';
+  document.getElementById('inputSimDate').value = '2026-09-07';
   document.querySelectorAll('.mf-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'Todos'));
   renderAll();
 }

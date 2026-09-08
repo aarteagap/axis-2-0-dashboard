@@ -525,6 +525,13 @@ const BRIDGES = [
   { id:'canabrava',     nombre:'Puente Caña Brava',    ubicacion:'Km 826 · corredor norte (Lambayeque, Morrope — junto al Peaje Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
   { id:'huerequeque',   nombre:'Puente Huerequeque',   ubicacion:'Km 829 · corredor norte (Lambayeque, Morrope)', corredor:'norte', altAvailable:false, desvioHoras:0 },
   { id:'motupe',        nombre:'Puente La Leche',      ubicacion:'Km 860 · corredor norte (Lambayeque)',   corredor:'norte', altAvailable:true,  desvioHoras:5 },
+  // Planta Olmos (HFE Berries Perú SAC, Hortifrut Olmos) — tercera planta, al norte de La Leche/Morrope,
+  // camino a Piura. Su único acceso a la Panamericana Norte es esta vía (Km 14+210 sobre la propia vía de
+  // acceso — no es un puente, es un ingreso vial que conecta con la Av./Carretera Mi Rosita). SÍ tiene ruta
+  // alterna real (a diferencia del tramo Morrope): subir por Olmos (el pueblo) — Corral de Arena — Hualtaco
+  // — hasta reconectar con la Panamericana Norte camino a Piura. Horas de desvío = supuesto de prototipo
+  // (rodeo por vías locales sin pavimentar en gran parte del tramo), pendiente de validar con Tráfico.
+  { id:'ingresoOlmos',  nombre:'Ingreso Proyecto Olmos', ubicacion:'Km 14+210 · vía de acceso a planta Olmos (conecta con Av. Mi Rosita) — no es un puente, es un ingreso vial', corredor:'norte', altAvailable:true, desvioHoras:4 },
   { id:'viru',          nombre:'Puente Virú',          ubicacion:'Km 512 · corredor sur (La Libertad) — también entrada/salida de Chao', corredor:'sur', altAvailable:true,  desvioHoras:3 },
   { id:'huamanzana',    nombre:'Puente Huamanzaña',    ubicacion:'Corredor sur (La Libertad) — entre Virú y Chao, tramo crítico sin desvío posible', corredor:'sur', altAvailable:false, desvioHoras:0, fuenteAgro:true },
   { id:'baden',         nombre:'Badén',                ubicacion:'Corredor sur (La Libertad) — justo al sur de Chao. Es un badén (cruce a nivel de quebrada), no un puente propiamente dicho', corredor:'sur', altAvailable:true, desvioHoras:2, esBaden:true, fuenteAgro:true },
@@ -618,6 +625,13 @@ const RUTA_BRIDGES = {
     'Paita':  ['chicama','jequetepeque','reque','iniche','motupeI','naylamp','elvalle','chinguirito','canabrava','huerequeque','motupe'],
     'Callao': ['viru','huamanzana','baden','santa','coishco','culebras'],
   },
+  // Olmos está al norte de Morrope/La Leche, camino a Piura — su ruta a Paita NO pasa por los puentes de
+  // Chao/Salaverry (Reque, Morrope, etc.), solo por su propio ingreso vial. No se modela ruta a Callao: por
+  // la distancia (Lima) no es una ruta real para esta planta; si en el futuro hay despachos marítimos de
+  // Olmos con destino que obligue a Callao, hay que definirla antes de usarla.
+  'Olmos': {
+    'Paita': ['ingresoOlmos'],
+  },
 };
 // Texto de referencia para el panel de reglas: qué combinaciones planta→puerto usan cada puente.
 const BRIDGE_USED_BY = {
@@ -638,11 +652,15 @@ const BRIDGE_USED_BY = {
   santa:     'Chao → Callao · Salaverry → Callao',
   coishco:   'Chao → Callao · Salaverry → Callao',
   culebras:  'Chao → Callao · Salaverry → Callao',
+  ingresoOlmos: 'Olmos → Paita',
 };
 // Tiempo de viaje transporte pesado (horas), por planta de origen y puerto de destino.
+// Olmos → Paita: supuesto de prototipo (tramo corto, Olmos está mucho más cerca de Paita que Chao/Salaverry),
+// pendiente de validar con Tráfico/Operaciones igual que el resto de horas de corredor.
 const CORREDOR_HORAS = {
   'Chao':      { 'Paita': 13, 'Callao': 14 },
   'Salaverry': { 'Paita': 12, 'Callao': 15 },
+  'Olmos':     { 'Paita': 4 },
 };
 
 // PODs que solo pueden embarcarse por Chancay/Callao (no se permite cambio de puerto).
@@ -794,7 +812,11 @@ function altEffective(bridgeId){
 }
 
 function bridgeCheck(planta, pol){
-  const ids = RUTA_BRIDGES[planta][pol];
+  const ids = RUTA_BRIDGES[planta] && RUTA_BRIDGES[planta][pol];
+  // Sin ruta modelada para esta combinación planta→puerto (ej. plantas nuevas sin ruta a Callao definida
+  // todavía): se trata igual que un puente caído sin alterna, para que el fallback de "sin ruta" del
+  // llamador se active en vez de romper — nunca asumir que una ruta no modelada está libre.
+  if(!ids) return { afectado: true, bloqueado: true, desvio: 0 };
   const afectados = ids.filter(id => state.bridges[id]);
   const bloqueado = afectados.some(id => !altEffective(id));
   const conAlterna = afectados.filter(id => altEffective(id));
@@ -1322,6 +1344,7 @@ function renderMap(){
   const vMotupe = v('motupe'), vReque = v('reque'), vJeque = v('jequetepeque'), vChicama = v('chicama');
   const vViru = v('viru'), vHuaman = v('huamanzana'), vBaden = v('baden'), vSanta = v('santa'), vCoishco = v('coishco'), vCulebras = v('culebras');
   const vHuereque = v('huerequeque'), vCanaBrava = v('canabrava'), vChinguirito = v('chinguirito'), vElValle = v('elvalle'), vNaylamp = v('naylamp'), vMotupeI = v('motupeI'), vIniche = v('iniche');
+  const vIngresoOlmos = v('ingresoOlmos');
 
   const checkAir = bridgeCheck('Chao', 'Callao');
   const aereoColor = !checkAir.afectado ? '#3ddc9b' : (!checkAir.bloqueado ? '#f0b357' : '#f2636b');
@@ -1394,11 +1417,28 @@ function renderMap(){
     <text x="${callaoNode.x+82}" y="${callaoNode.y-64}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" font-weight="700" fill="#cfdcea">CHANCAY</text>
   `;
 
+  // Rama Olmos: planta al norte de La Leche, camino a Piura — no comparte los puentes de Chao/Salaverry,
+  // solo su propio ingreso vial. Se dibuja como ramal corto junto al nodo PAITA (misma lógica que la rama
+  // Chancay junto a Callao).
+  const paitaNode = N[0];
+  const olmosBranch = `
+    <path d="M${paitaNode.x},${paitaNode.y} C${paitaNode.x+40},${paitaNode.y+2} ${paitaNode.x+55},${paitaNode.y+26} ${paitaNode.x+62},${paitaNode.y+38}" fill="none" stroke="${vIngresoOlmos.stroke}" stroke-width="3" stroke-dasharray="${vIngresoOlmos.dash}" stroke-linecap="round"/>
+    <circle cx="${paitaNode.x+65}" cy="${paitaNode.y+41}" r="6" fill="#0e1a28" stroke="${vIngresoOlmos.stroke}" stroke-width="2"/>
+    ${vIngresoOlmos.xmark ? `<line x1="${paitaNode.x+61}" y1="${paitaNode.y+37}" x2="${paitaNode.x+69}" y2="${paitaNode.y+45}" stroke="${vIngresoOlmos.stroke}" stroke-width="1.6"/><line x1="${paitaNode.x+61}" y1="${paitaNode.y+45}" x2="${paitaNode.x+69}" y2="${paitaNode.y+37}" stroke="${vIngresoOlmos.stroke}" stroke-width="1.6"/>` : ''}
+    <text x="${paitaNode.x+74}" y="${paitaNode.y+38}" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="8" font-weight="700" fill="#cfdcea">ING. OLMOS</text>
+    <text x="${paitaNode.x+74}" y="${paitaNode.y+49}" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="7.5" fill="${vIngresoOlmos.labelColor}">${vIngresoOlmos.label}</text>
+    <line x1="${paitaNode.x+65}" y1="${paitaNode.y+47}" x2="${paitaNode.x+65}" y2="${paitaNode.y+58}" stroke="#3d5471" stroke-width="3"/>
+    <circle cx="${paitaNode.x+65}" cy="${paitaNode.y+69}" r="10" fill="#0e1a28" stroke="#f0b357" stroke-width="2.5"/>
+    <text x="${paitaNode.x+65}" y="${paitaNode.y+73}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#f0b357" font-weight="700">P</text>
+    <text x="${paitaNode.x+79}" y="${paitaNode.y+72}" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="#fff">OLMOS</text>
+  `;
+
   const svg = `
   <svg viewBox="0 0 340 1742" xmlns="http://www.w3.org/2000/svg">
     <text x="170" y="18" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1.5" fill="#6f8399">CORREDOR PANAMERICANA NORTE · PAITA → CALLAO</text>
     ${segs.join('')}
     ${chancayBranch}
+    ${olmosBranch}
     ${nodeMarks}
 
     <!-- aéreo / terrestre -->
